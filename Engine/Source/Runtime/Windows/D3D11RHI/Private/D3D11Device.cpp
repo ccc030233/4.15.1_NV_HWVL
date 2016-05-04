@@ -55,6 +55,10 @@ FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1,D3D_FEATURE_LEV
 	PendingIndexDataStride(0),
 	GPUProfilingData(this),
 	ChosenAdapter(InChosenAdapter)
+#if WITH_GAMEWORKS_NVGODRAYS
+	, NVGodraysModuleHandle(nullptr)
+	, NVGodraysContext(nullptr)
+#endif
 {
 	// This should be called once at the start 
 	check(ChosenAdapter >= 0);
@@ -453,6 +457,20 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 
 		// Flush all pending deletes before destroying the device.
 		FRHIResource::FlushPendingDeletes();
+
+#if WITH_GAMEWORKS_NVGODRAYS
+		if (NVGodraysContext)
+		{
+			GFSDK_GodraysLib_Close(NVGodraysContext);
+			NVGodraysContext = nullptr;
+		}
+
+		if (NVGodraysModuleHandle)
+		{
+			FreeLibrary(NVGodraysModuleHandle);
+			NVGodraysModuleHandle = nullptr;
+		}
+#endif
 
 		ReleasePooledUniformBuffers();
 		ReleasePooledTextures();

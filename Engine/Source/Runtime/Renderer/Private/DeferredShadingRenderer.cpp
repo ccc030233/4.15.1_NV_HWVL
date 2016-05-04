@@ -1126,6 +1126,10 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		ServiceLocalQueue();
 	}
 
+#if WITH_GAMEWORKS_NVGODRAYS
+	NVGodraysBeginAccumulation(RHICmdList);
+#endif
+
 	// Render lighting.
 	if (ViewFamily.EngineShowFlags.Lighting
 		&& FeatureLevel >= ERHIFeatureLevel::SM4
@@ -1183,6 +1187,11 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		}
 		ServiceLocalQueue();
 	}
+
+#if WITH_GAMEWORKS_NVGODRAYS
+	NVGodraysEndAccumulation(RHICmdList);
+	NVGodraysApplyLighting(RHICmdList);
+#endif
 
 	if (ViewFamily.EngineShowFlags.StationaryLightOverlap &&
 		FeatureLevel >= ERHIFeatureLevel::SM4)

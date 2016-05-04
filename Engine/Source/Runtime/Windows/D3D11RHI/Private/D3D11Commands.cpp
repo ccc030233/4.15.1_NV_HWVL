@@ -2029,3 +2029,47 @@ IRHICommandContextContainer* FD3D11DynamicRHI::RHIGetCommandContextContainer()
 	return nullptr;
 }
 
+#if WITH_GAMEWORKS_NVGODRAYS
+void FD3D11DynamicRHI::RHIBeginAccumulation(GFSDK_GodraysLib_ViewerDesc& ViewerDesc, GFSDK_GodraysLib_MediumDesc& MediumDesc, 
+	float DistanceScale, GFSDK_GodraysLib_BufferSize BufferSize, uint32 MSAASamples, uint32 DebugMode,
+	FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI)
+{
+	FD3D11TextureBase* SceneRenderTarget = GetD3D11TextureFromRHITexture(SceneColorTextureRHI);
+	ID3D11RenderTargetView* SceneRTV = SceneRenderTarget->GetRenderTargetView(0, -1);
+
+	FD3D11TextureBase* DepthTexture = GetD3D11TextureFromRHITexture(SceneDepthTextureRHI);
+	ID3D11ShaderResourceView* DepthSRV = DepthTexture->GetShaderResourceView();
+
+	GFSDK_GodraysLib_BeginAccumulation(NVGodraysContext, Direct3DDeviceIMContext, &ViewerDesc, SceneRTV, DepthSRV, &MediumDesc, DistanceScale, GFSDK_GodraysLib_Technique_Polygonal, BufferSize, true, MSAASamples);
+	GFSDK_GodraysLib_SetDebugMode(NVGodraysContext, DebugMode);
+}
+
+void FD3D11DynamicRHI::RHIRenderVolume(GFSDK_GodraysLib_ShadowMapDesc& ShadowMapDesc, GFSDK_GodraysLib_LightDesc& LightDesc, uint32 GridResolution, float TessellationTarget, FTextureRHIParamRef ShadowMapDepthTextureRHI)
+{
+	const float BlendFactor = 1.0f;
+	const float DEPTH_BIAS = 0.0015f;
+
+	FD3D11TextureBase* DepthTexture = GetD3D11TextureFromRHITexture(ShadowMapDepthTextureRHI);
+	ID3D11ShaderResourceView* DepthSRV = DepthTexture->GetShaderResourceView();
+
+	GFSDK_GodraysLib_RenderVolume(NVGodraysContext, Direct3DDeviceIMContext, &ShadowMapDesc, DepthSRV, &LightDesc, BlendFactor, TessellationTarget, GridResolution, DEPTH_BIAS);
+}
+
+void FD3D11DynamicRHI::RHIEndAccumulation()
+{
+	GFSDK_GodraysLib_EndAccumulation(NVGodraysContext, Direct3DDeviceIMContext);
+}
+
+void FD3D11DynamicRHI::RHIApplyLighting(GFSDK_GodraysLib_PostProcessDesc& PostProcessDesc, GFSDK_GodraysLib_UpsampleQuality UpsampleQuality,
+	FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI)
+{
+	FD3D11TextureBase* SceneRenderTarget = GetD3D11TextureFromRHITexture(SceneColorTextureRHI);
+	ID3D11RenderTargetView* SceneRTV = SceneRenderTarget->GetRenderTargetView(0, -1);
+
+	FD3D11TextureBase* DepthTexture = GetD3D11TextureFromRHITexture(SceneDepthTextureRHI);
+	ID3D11ShaderResourceView* DepthSRV = DepthTexture->GetShaderResourceView();
+
+	GFSDK_GodraysLib_ApplyLighting(NVGodraysContext, Direct3DDeviceIMContext, SceneRTV, DepthSRV, &PostProcessDesc, UpsampleQuality, 1.0f, nullptr);
+}
+
+#endif

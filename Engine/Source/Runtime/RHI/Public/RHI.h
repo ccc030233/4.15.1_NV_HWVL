@@ -11,6 +11,10 @@
 #include "RHIDefinitions.h"
 #include "StaticArray.h"
 
+#if WITH_GAMEWORKS_NVGODRAYS
+#include "GFSDK_GodraysLib.h"
+#endif
+
 #define INVALID_FENCE_ID (0xffffffffffffffffull)
 
 inline const bool IsValidFenceID( const uint64 FenceID )

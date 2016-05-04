@@ -3498,6 +3498,16 @@ bool FDeferredShadingSceneRenderer::RenderProjectedShadows(FRHICommandListImmedi
 			SceneContext.FinishRenderingShadowDepth(RHICmdList);
 		}
 
+#if WITH_GAMEWORKS_NVGODRAYS
+		{
+			FProjectedShadowInfo* ProjectedShadowInfo = Shadows[0];
+			if (ProjectedShadowInfo->bAllocated)
+			{
+				NVGodraysRenderVolume(RHICmdList, LightSceneInfo, ProjectedShadowInfo);
+			}
+		}
+#endif
+
 		// Render the shadow projections.
 		{
 			{

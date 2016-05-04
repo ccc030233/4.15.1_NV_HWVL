@@ -496,6 +496,13 @@ public:
 	virtual void RHIEndAsyncComputeJob_DrawThread(uint32 FenceIndex);
 	virtual void RHIGraphicsWaitOnAsyncComputeJob(uint32 FenceIndex);
 
+#if WITH_GAMEWORKS_NVGODRAYS
+	virtual void RHIBeginAccumulation(GFSDK_GodraysLib_ViewerDesc& ViewerDesc, GFSDK_GodraysLib_MediumDesc& MediumDesc, float DistanceScale, GFSDK_GodraysLib_BufferSize BufferSize, uint32 MSAASamples, uint32 DebugMode, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI) final override;
+	virtual void RHIRenderVolume(GFSDK_GodraysLib_ShadowMapDesc& ShadowMapDesc, GFSDK_GodraysLib_LightDesc& LightDesc, uint32 GridResolution, float TessellationTarget, FTextureRHIParamRef ShadowMapDepthTextureRHI) final override;
+	virtual void RHIEndAccumulation() final override;
+	virtual void RHIApplyLighting(GFSDK_GodraysLib_PostProcessDesc& PostProcessDesc, GFSDK_GodraysLib_UpsampleQuality UpsampleQuality, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI) final override;
+#endif
+
 	// Accessors.
 	ID3D11Device* GetDevice() const
 	{
@@ -566,6 +573,12 @@ protected:
 
 	/** The global D3D device's immediate context */
 	TRefCountPtr<FD3D11Device> Direct3DDevice;
+
+#if WITH_GAMEWORKS_NVGODRAYS
+	HMODULE NVGodraysModuleHandle;
+
+	GFSDK_GodraysLib_Handle NVGodraysContext;
+#endif
 
 	FD3D11StateCache StateCache;
 

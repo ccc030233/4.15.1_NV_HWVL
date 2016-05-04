@@ -854,6 +854,24 @@ public:
 	{
 	}
 
+#if WITH_GAMEWORKS_NVGODRAYS
+	virtual void RHIBeginAccumulation(GFSDK_GodraysLib_ViewerDesc& ViewerDesc, GFSDK_GodraysLib_MediumDesc& MediumDesc, float DistanceScale, GFSDK_GodraysLib_BufferSize BufferSize, uint32 MSAASamples, uint32 DebugMode, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI) override
+	{
+	}
+
+	virtual void RHIRenderVolume(GFSDK_GodraysLib_ShadowMapDesc& ShadowMapDesc, GFSDK_GodraysLib_LightDesc& LightDesc, uint32 GridResolution, float TessellationTarget, FTextureRHIParamRef ShadowMapDepthTextureRHI) override
+	{
+	}
+
+	virtual void RHIEndAccumulation() override
+	{
+	}
+
+	virtual void RHIApplyLighting(GFSDK_GodraysLib_PostProcessDesc& PostProcessDesc, GFSDK_GodraysLib_UpsampleQuality UpsampleQuality, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI) override
+	{
+	}
+#endif
+
 private:
 
 	/** Allocates a static buffer for RHI functions to return as a write destination. */

@@ -9,6 +9,11 @@ public class RHI : ModuleRules
 	{
 		PrivateDependencyModuleNames.Add("Core");
 
+        if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.Win32))
+        {
+            PublicDependencyModuleNames.Add("NVGodrays");
+        }
+ 
 		if (UEBuildConfiguration.bCompileAgainstEngine)
 		{
             DynamicallyLoadedModuleNames.Add("NullDrv");
