@@ -656,6 +656,13 @@ public:
 	virtual void* LockIndexBuffer_RenderThread(class FRHICommandListImmediate& RHICmdList, FIndexBufferRHIParamRef IndexBuffer, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode);
 	virtual void UnlockIndexBuffer_RenderThread(class FRHICommandListImmediate& RHICmdList, FIndexBufferRHIParamRef IndexBuffer);
 	virtual FVertexDeclarationRHIRef CreateVertexDeclaration_RenderThread(class FRHICommandListImmediate& RHICmdList, const FVertexDeclarationElementList& Elements);
+
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void GetVolumeLightingPlatformDesc(NvVl::PlatformDesc& PlatformDesc) = 0;
+	virtual void GetVolumeLightingPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) = 0;
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) = 0;
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) = 0;
+#endif
 };
 
 /** A global pointer to the dynamically bound RHI implementation. */
@@ -964,13 +971,6 @@ public:
 
 	/** Wait for AsyncCompute command stream to finish (no effect if not supported) */
 	virtual void RHIGraphicsWaitOnAsyncComputeJob(uint32 FenceIndex) = 0;
-
-#if WITH_GAMEWORKS_NVGODRAYS
-	virtual void RHIBeginAccumulation(GFSDK_GodraysLib_ViewerDesc& ViewerDesc, GFSDK_GodraysLib_MediumDesc& MediumDesc, float DistanceScale, GFSDK_GodraysLib_BufferSize BufferSize, uint32 MSAASamples, uint32 DebugMode, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI) = 0;
-	virtual void RHIRenderVolume(GFSDK_GodraysLib_ShadowMapDesc& ShadowMapDesc, GFSDK_GodraysLib_LightDesc& LightDesc, uint32 GridResolution, float TessellationTarget, FTextureRHIParamRef ShadowMapDepthTextureRHI) = 0;
-	virtual void RHIEndAccumulation() = 0;
-	virtual void RHIApplyLighting(GFSDK_GodraysLib_PostProcessDesc& PostProcessDesc, GFSDK_GodraysLib_UpsampleQuality UpsampleQuality, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI) = 0;
-#endif
 };
 
 

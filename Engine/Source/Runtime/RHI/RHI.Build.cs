@@ -11,7 +11,7 @@ public class RHI : ModuleRules
 
         if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.Win32))
         {
-            PublicDependencyModuleNames.Add("NVGodrays");
+            PublicDependencyModuleNames.Add("NvVolumetricLighting");
         }
  
 		if (UEBuildConfiguration.bCompileAgainstEngine)

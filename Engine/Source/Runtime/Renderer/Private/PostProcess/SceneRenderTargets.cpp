@@ -12,6 +12,9 @@
 #include "SceneUtils.h"
 #include "HdrCustomResolveShaders.h"
 #include "Public/LightPropagationVolumeBlendable.h"
+#if WITH_NVVOLUMETRICLIGHTING
+#include "NVVolumetricLightingRHI.h"
+#endif
 
 IMPLEMENT_UNIFORM_BUFFER_STRUCT(FGBufferResourceStruct,TEXT("GBuffers"));
 
@@ -353,6 +356,17 @@ FIntPoint FSceneRenderTargets::ComputeDesiredSize(const FSceneViewFamily& ViewFa
 	return DesiredBufferSize;
 }
 
+inline uint16 GetNumSceneColorMSAASamples(ERHIFeatureLevel::Type InFeatureLevel)
+{
+	//@todo-rco: Fix when OpenGL supports MSAA
+	uint16 NumSamples = GShaderPlatformForFeatureLevel[InFeatureLevel] == SP_OPENGL_ES2_IOS ? 1 : CVarMobileMSAA.GetValueOnRenderThread();
+	if (NumSamples != 1 && NumSamples != 2 && NumSamples != 4)
+	{
+		NumSamples = 1;
+	}
+	return NumSamples;
+}
+
 void FSceneRenderTargets::Allocate(const FSceneViewFamily& ViewFamily)
 {
 	check(IsInRenderingThread());
@@ -448,6 +462,10 @@ void FSceneRenderTargets::Allocate(const FSceneViewFamily& ViewFamily)
 		UE_LOG(LogRenderer, Log, TEXT("Reallocating scene render targets to support %ux%u (Frame:%u)."), BufferSize.X, BufferSize.Y, ViewFamily.FrameNumber);
 
 		UpdateRHI();
+
+#if WITH_NVVOLUMETRICLIGHTING
+		GNVVolumetricLightingRHI->UpdateFrameBuffer(DesiredBufferSize.X, DesiredBufferSize.Y, GetNumSceneColorMSAASamples(CurrentFeatureLevel));
+#endif
 	}
 
 	// Do allocation of render targets if they aren't available for the current shading path
@@ -606,17 +624,6 @@ int32 FSceneRenderTargets::GetNumGBufferTargets() const
 		}
 	}
 	return NumGBufferTargets;
-}
-
-inline uint16 GetNumSceneColorMSAASamples(ERHIFeatureLevel::Type InFeatureLevel)
-{
-	//@todo-rco: Fix when OpenGL supports MSAA
-	uint16 NumSamples = GShaderPlatformForFeatureLevel[InFeatureLevel] == SP_OPENGL_ES2_IOS ? 1 : CVarMobileMSAA.GetValueOnRenderThread();
-	if (NumSamples != 1 && NumSamples != 2 && NumSamples != 4)
-	{
-		NumSamples = 1;
-	}
-	return NumSamples;
 }
 
 void FSceneRenderTargets::AllocSceneColor()

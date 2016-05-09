@@ -857,75 +857,6 @@ struct FRHICommandClearMRT : public FRHICommand<FRHICommandClearMRT>
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
-#if WITH_GAMEWORKS_NVGODRAYS
-struct FRHICommandBeginAccumulation : public FRHICommand<FRHICommandBeginAccumulation>
-{
-	GFSDK_GodraysLib_ViewerDesc ViewerDesc;
-	GFSDK_GodraysLib_MediumDesc MediumDesc;
-	float DistanceScale;
-	GFSDK_GodraysLib_BufferSize BufferSize;
-	uint32 MSAASamples;
-	uint32 DebugMode;
-	FTextureRHIParamRef SceneColorTextureRHI;
-	FTextureRHIParamRef SceneDepthTextureRHI;
-	FORCEINLINE_DEBUGGABLE FRHICommandBeginAccumulation(GFSDK_GodraysLib_ViewerDesc& InViewerDesc, GFSDK_GodraysLib_MediumDesc& InMediumDesc, float InDistanceScale, GFSDK_GodraysLib_BufferSize InBufferSize, uint32 InMSAASamples, uint32 InDebugMode, FTextureRHIParamRef InSceneColorTextureRHI, FTextureRHIParamRef InSceneDepthTextureRHI)
-		: ViewerDesc(InViewerDesc)
-		, MediumDesc(InMediumDesc)
-		, DistanceScale(InDistanceScale)
-		, BufferSize(InBufferSize)
-		, MSAASamples(InMSAASamples)
-		, DebugMode(InDebugMode)
-		, SceneColorTextureRHI(InSceneColorTextureRHI)
-		, SceneDepthTextureRHI(InSceneDepthTextureRHI)
-	{
-	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-
-struct FRHICommandRenderVolume : public FRHICommand<FRHICommandRenderVolume>
-{
-	GFSDK_GodraysLib_ShadowMapDesc ShadowMapDesc;
-	GFSDK_GodraysLib_LightDesc LightDesc;
-	uint32 GridResolution;
-	float TessellationTarget;
-	FTextureRHIParamRef ShadowMapDepthTextureRHI;
-
-	FORCEINLINE_DEBUGGABLE FRHICommandRenderVolume(GFSDK_GodraysLib_ShadowMapDesc& InShadowMapDesc, GFSDK_GodraysLib_LightDesc& InLightDesc, uint32 InGridResolution, float InTessellationTarget, FTextureRHIParamRef InShadowMapDepthTextureRHI)
-		: ShadowMapDesc(InShadowMapDesc)
-		, LightDesc(InLightDesc)
-		, GridResolution(InGridResolution)
-		, TessellationTarget(InTessellationTarget)
-		, ShadowMapDepthTextureRHI(InShadowMapDepthTextureRHI)
-	{
-	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-
-struct FRHICommandEndAccumulation : public FRHICommand<FRHICommandEndAccumulation>
-{
-	FORCEINLINE_DEBUGGABLE FRHICommandEndAccumulation()
-	{
-	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-
-struct FRHICommandApplyLighting : public FRHICommand<FRHICommandApplyLighting>
-{
-	GFSDK_GodraysLib_PostProcessDesc PostProcessDesc;
-	GFSDK_GodraysLib_UpsampleQuality UpsampleQuality;
-	FTextureRHIParamRef SceneColorTextureRHI;
-	FTextureRHIParamRef SceneDepthTextureRHI;
-	FORCEINLINE_DEBUGGABLE FRHICommandApplyLighting(GFSDK_GodraysLib_PostProcessDesc& InPostProcessDesc, GFSDK_GodraysLib_UpsampleQuality InUpsampleQuality, FTextureRHIParamRef InSceneColorTextureRHI, FTextureRHIParamRef InSceneDepthTextureRHI)
-		: PostProcessDesc(InPostProcessDesc)
-		, UpsampleQuality(InUpsampleQuality)
-		, SceneColorTextureRHI(InSceneColorTextureRHI)
-		, SceneDepthTextureRHI(InSceneDepthTextureRHI)
-	{
-	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-#endif
-
 struct FBoundShaderStateInput
 {
 	FVertexDeclarationRHIParamRef VertexDeclarationRHI;
@@ -1944,48 +1875,6 @@ public:
 		}
 		new (AllocCommand<FRHIGraphicsWaitOnAsyncComputeJob>()) FRHIGraphicsWaitOnAsyncComputeJob(FenceIndex);
 	}
-
-#if WITH_GAMEWORKS_NVGODRAYS
-	FORCEINLINE_DEBUGGABLE void BeginAccumulation(GFSDK_GodraysLib_ViewerDesc& ViewerDesc, GFSDK_GodraysLib_MediumDesc& MediumDesc, float DistanceScale, GFSDK_GodraysLib_BufferSize BufferSize, uint32 MSAASamples, uint32 DebugMode, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI)
-	{
-		if (Bypass())
-		{
-			CMD_CONTEXT(BeginAccumulation)(ViewerDesc, MediumDesc, DistanceScale, BufferSize, MSAASamples, DebugMode, SceneColorTextureRHI, SceneDepthTextureRHI);
-			return;
-		}
-		new (AllocCommand<FRHICommandBeginAccumulation>()) FRHICommandBeginAccumulation(ViewerDesc, MediumDesc, DistanceScale, BufferSize, MSAASamples, DebugMode, SceneColorTextureRHI, SceneDepthTextureRHI);
-	}
-
-	FORCEINLINE_DEBUGGABLE void RenderVolume(GFSDK_GodraysLib_ShadowMapDesc& ShadowMapDesc, GFSDK_GodraysLib_LightDesc& LightDesc, uint32 GridResolution, float TessellationTarget, FTextureRHIParamRef ShadowMapDepthTextureRHI)
-	{
-		if (Bypass())
-		{
-			CMD_CONTEXT(RenderVolume)(ShadowMapDesc, LightDesc, GridResolution, TessellationTarget, ShadowMapDepthTextureRHI);
-			return;
-		}
-		new (AllocCommand<FRHICommandRenderVolume>()) FRHICommandRenderVolume(ShadowMapDesc, LightDesc, GridResolution, TessellationTarget, ShadowMapDepthTextureRHI);
-	}
-
-	FORCEINLINE_DEBUGGABLE void EndAccumulation()
-	{
-		if (Bypass())
-		{
-			CMD_CONTEXT(EndAccumulation)();
-			return;
-		}
-		new (AllocCommand<FRHICommandEndAccumulation>()) FRHICommandEndAccumulation();
-	}
-
-	FORCEINLINE_DEBUGGABLE void ApplyLighting(GFSDK_GodraysLib_PostProcessDesc& PostProcessDesc, GFSDK_GodraysLib_UpsampleQuality UpsampleQuality, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI)
-	{
-		if (Bypass())
-		{
-			CMD_CONTEXT(ApplyLighting)(PostProcessDesc, UpsampleQuality, SceneColorTextureRHI, SceneDepthTextureRHI);
-			return;
-		}
-		new (AllocCommand<FRHICommandApplyLighting>()) FRHICommandApplyLighting(PostProcessDesc, UpsampleQuality, SceneColorTextureRHI, SceneDepthTextureRHI);
-	}
-#endif
 };
 
 namespace EImmediateFlushType

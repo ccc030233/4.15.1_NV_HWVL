@@ -659,27 +659,6 @@ void FD3D11DynamicRHI::InitD3DDevice()
 			}
 		}
 #endif
-
-#if WITH_GAMEWORKS_NVGODRAYS
-		if (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5)
-		{
-			FString NVGodraysBinariesPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/GameWorks/NVGodrays/Win64/");
-#if PLATFORM_64BITS
-			NVGodraysModuleHandle = LoadLibraryW(*(NVGodraysBinariesPath + "GFSDK_GodraysLib.x64.dll"));
-#else
-			NVGodraysModuleHandle = LoadLibraryW(*(NVGodraysBinariesPath + "GFSDK_GodraysLib.Win32.dll"));
-#endif
-			check(NVGodraysModuleHandle);
-
-			GFSDK_GodraysLib_Status GodraysLib_Status = GFSDK_GodraysLib_Status_Ok;
-			gfsdk_U32 Flags = GFSDK_GodraysLib_OpenFlag_None;
-			GodraysLib_Status = GFSDK_GodraysLib_OpenDX(GFSDK_GodraysLib_Version, &NVGodraysContext, Direct3DDevice, Flags, nullptr);
-
-			check(GodraysLib_Status == GFSDK_GodraysLib_Status_Ok);
-			UE_LOG(LogD3D11RHI, Log, TEXT("NVGodrays initialized"));
-		}
-#endif
-
 		FHardwareInfo::RegisterHardwareInfo( NAME_RHI, TEXT( "D3D11" ) );
 
 		GRHISupportsTextureStreaming = true;

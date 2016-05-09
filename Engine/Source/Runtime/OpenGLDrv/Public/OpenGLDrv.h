@@ -484,11 +484,11 @@ public:
 	virtual void RHIEndAsyncComputeJob_DrawThread(uint32 FenceIndex) override;
 	virtual void RHIGraphicsWaitOnAsyncComputeJob(uint32 FenceIndex) override;
 	
-#if WITH_GAMEWORKS_NVGODRAYS
-	virtual void RHIBeginAccumulation(GFSDK_GodraysLib_ViewerDesc& ViewerDesc, GFSDK_GodraysLib_MediumDesc& MediumDesc, float DistanceScale, GFSDK_GodraysLib_BufferSize BufferSize, uint32 MSAASamples, uint32 DebugMode, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI) final override;
-	virtual void RHIRenderVolume(GFSDK_GodraysLib_ShadowMapDesc& ShadowMapDesc, GFSDK_GodraysLib_LightDesc& LightDesc, uint32 GridResolution, float TessellationTarget, FTextureRHIParamRef ShadowMapDepthTextureRHI) final override;
-	virtual void RHIEndAccumulation() final override;
-	virtual void RHIApplyLighting(GFSDK_GodraysLib_PostProcessDesc& PostProcessDesc, GFSDK_GodraysLib_UpsampleQuality UpsampleQuality, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI) final override;
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void GetVolumeLightingPlatformDesc(NvVl::PlatformDesc& PlatformDesc) override {};
+	virtual void GetVolumeLightingPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) override {};
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) override {};
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) override {};
 #endif
 
 	void Cleanup();

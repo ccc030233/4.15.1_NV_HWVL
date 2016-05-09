@@ -736,13 +736,6 @@ public:
 	virtual void RHIGraphicsWaitOnAsyncComputeJob(uint32 FenceIndex) override;
 
 	virtual void RHIClearMRTImpl(bool bClearColor, int32 NumClearColors, const FLinearColor* ColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil, FIntRect ExcludeRect, bool bForceShaderClear);
-
-#if WITH_GAMEWORKS_NVGODRAYS
-	virtual void RHIBeginAccumulation(GFSDK_GodraysLib_ViewerDesc& ViewerDesc, GFSDK_GodraysLib_MediumDesc& MediumDesc, float DistanceScale, GFSDK_GodraysLib_BufferSize BufferSize, uint32 MSAASamples, uint32 DebugMode, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI) final override;
-	virtual void RHIRenderVolume(GFSDK_GodraysLib_ShadowMapDesc& ShadowMapDesc, GFSDK_GodraysLib_LightDesc& LightDesc, uint32 GridResolution, float TessellationTarget, FTextureRHIParamRef ShadowMapDepthTextureRHI) final override;
-	virtual void RHIEndAccumulation() final override;
-	virtual void RHIApplyLighting(GFSDK_GodraysLib_PostProcessDesc& PostProcessDesc, GFSDK_GodraysLib_UpsampleQuality UpsampleQuality, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI) final override;
-#endif
 };
 
 struct FD3D12Adapter
@@ -1067,6 +1060,13 @@ public:
 	virtual void* RHIGetNativeDevice() final override;
 	virtual class IRHICommandContext* RHIGetDefaultContext() final override;
 	virtual class IRHICommandContextContainer* RHIGetCommandContextContainer() final override;
+
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void GetVolumeLightingPlatformDesc(NvVl::PlatformDesc& PlatformDesc) override {};
+	virtual void GetVolumeLightingPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) override {};
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) override {};
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) override {};
+#endif
 
 #if UE_BUILD_DEBUG	
 	uint32 SubmissionLockStalls;

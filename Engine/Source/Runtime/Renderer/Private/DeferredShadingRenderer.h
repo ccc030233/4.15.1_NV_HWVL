@@ -354,11 +354,11 @@ private:
 
 	void DrawAllTranslucencyPasses(FRHICommandListImmediate& RHICmdList, const FViewInfo& View, ETranslucencyPassType TranslucenyPassType);
 
-#if WITH_GAMEWORKS_NVGODRAYS
-	void NVGodraysBeginAccumulation(FRHICommandListImmediate& RHICmdList);
-	void NVGodraysRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo);
-	void NVGodraysEndAccumulation(FRHICommandListImmediate& RHICmdList);
-	void NVGodraysApplyLighting(FRHICommandListImmediate& RHICmdList);
+#if WITH_NVVOLUMETRICLIGHTING
+	void NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList);
+	void NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo);
+	void NVVolumetricLightingEndAccumulation(FRHICommandListImmediate& RHICmdList);
+	void NVVolumetricLightingApplyLighting(FRHICommandListImmediate& RHICmdList);
 #endif
 
 	friend class FTranslucentPrimSet;

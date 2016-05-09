@@ -3584,26 +3584,3 @@ IRHICommandContextContainer* FOpenGLDynamicRHI::RHIGetCommandContextContainer()
 {
 	return nullptr;
 }
-
-#if WITH_GAMEWORKS_NVGODRAYS
-void FOpenGLDynamicRHI::RHIBeginAccumulation(GFSDK_GodraysLib_ViewerDesc& ViewerDesc, GFSDK_GodraysLib_MediumDesc& MediumDesc, float DistanceScale, GFSDK_GodraysLib_BufferSize BufferSize, uint32 MSAASamples, uint32 DebugMode, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI)
-{
-	checkNoEntry();
-}
-
-void FOpenGLDynamicRHI::RHIRenderVolume(GFSDK_GodraysLib_ShadowMapDesc& ShadowMapDesc, GFSDK_GodraysLib_LightDesc& LightDesc, uint32 GridResolution, float TessellationTarget, FTextureRHIParamRef ShadowMapDepthTextureRHI)
-{
-	checkNoEntry();
-}
-
-void FOpenGLDynamicRHI::RHIEndAccumulation()
-{
-	checkNoEntry();
-}
-
-void FOpenGLDynamicRHI::RHIApplyLighting(GFSDK_GodraysLib_PostProcessDesc& PostProcessDesc, GFSDK_GodraysLib_UpsampleQuality UpsampleQuality, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI)
-{
-	checkNoEntry();
-}
-
-#endif

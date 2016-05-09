@@ -432,29 +432,3 @@ void FRHICommandPopEvent::Execute(FRHICommandListBase& CmdList)
 	RHISTAT(PopEvent);
 	INTERNAL_DECORATOR(PopEvent)();
 }
-
-#if WITH_GAMEWORKS_NVGODRAYS
-void FRHICommandBeginAccumulation::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(BeginAccumulation);
-	INTERNAL_DECORATOR(BeginAccumulation)(ViewerDesc, MediumDesc, DistanceScale, BufferSize, MSAASamples, DebugMode, SceneColorTextureRHI, SceneDepthTextureRHI);
-}
-
-void FRHICommandRenderVolume::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(RenderVolume);
-	INTERNAL_DECORATOR(RenderVolume)(ShadowMapDesc, LightDesc, GridResolution, TessellationTarget, ShadowMapDepthTextureRHI);
-}
-
-void FRHICommandEndAccumulation::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(EndAccumulation);
-	INTERNAL_DECORATOR(EndAccumulation)();
-}
-
-void FRHICommandApplyLighting::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(ApplyLighting);
-	INTERNAL_DECORATOR(ApplyLighting)(PostProcessDesc, UpsampleQuality, SceneColorTextureRHI, SceneDepthTextureRHI);
-}
-#endif

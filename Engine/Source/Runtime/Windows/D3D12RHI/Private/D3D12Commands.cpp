@@ -2256,25 +2256,3 @@ void FD3D12CommandContext::RHISubmitCommandsHint()
 {
 
 }
-
-#if WITH_GAMEWORKS_NVGODRAYS
-void FD3D12CommandContext::RHIBeginAccumulation(GFSDK_GodraysLib_ViewerDesc& ViewerDesc, GFSDK_GodraysLib_MediumDesc& MediumDesc, float DistanceScale, GFSDK_GodraysLib_BufferSize BufferSize, uint32 MSAASamples, uint32 DebugMode, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI)
-{
-	checkNoEntry();
-}
-
-void FD3D12CommandContext::RHIRenderVolume(GFSDK_GodraysLib_ShadowMapDesc& ShadowMapDesc, GFSDK_GodraysLib_LightDesc& LightDesc, uint32 GridResolution, float TessellationTarget, FTextureRHIParamRef ShadowMapDepthTextureRHI)
-{
-	checkNoEntry();
-}
-
-void FD3D12CommandContext::RHIEndAccumulation()
-{
-	checkNoEntry();
-}
-
-void FD3D12CommandContext::RHIApplyLighting(GFSDK_GodraysLib_PostProcessDesc& PostProcessDesc, GFSDK_GodraysLib_UpsampleQuality UpsampleQuality, FTextureRHIParamRef SceneColorTextureRHI, FTextureRHIParamRef SceneDepthTextureRHI)
-{
-	checkNoEntry();
-}
-#endif
