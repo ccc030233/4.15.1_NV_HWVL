@@ -98,6 +98,7 @@ void FNVVolumetricLightingRHI::BeginAccumulation(FTextureRHIParamRef SceneDepthT
 	UpdateContext();
 	GDynamicRHI->GetPlatformShaderResource(SceneDepthTextureRHI, SceneDepthSRV);
 	NvVl::Status Status = NvVl::BeginAccumulation(Context, RenderCtx, SceneDepthSRV, &ViewerDesc, &MediumDesc, DebugFlags);
+	check(Status == NvVl::Status::OK);
 }
 
 void FNVVolumetricLightingRHI::RenderVolume(FTextureRHIParamRef ShadowMapTextureRHI, const NvVl::ShadowMapDesc& ShadowMapDesc, const NvVl::LightDesc& LightDesc, const NvVl::VolumeDesc& VolumeDesc)
@@ -105,17 +106,20 @@ void FNVVolumetricLightingRHI::RenderVolume(FTextureRHIParamRef ShadowMapTexture
 	NvVl::PlatformShaderResource ShadowMapSRV(NULL);
 	GDynamicRHI->GetPlatformShaderResource(ShadowMapTextureRHI, ShadowMapSRV);
 	NvVl::Status Status = NvVl::RenderVolume(Context, RenderCtx, ShadowMapSRV, &ShadowMapDesc, &LightDesc, &VolumeDesc);
+	check(Status == NvVl::Status::OK);
 }
 
 void FNVVolumetricLightingRHI::EndAccumulation()
 {
 	NvVl::Status Status = NvVl::EndAccumulation(Context, RenderCtx);
+	check(Status == NvVl::Status::OK);
 }
 
-void FNVVolumetricLightingRHI::ApplyLighting(FTextureRHIParamRef SceneColorTextureRHI, const NvVl::PostprocessDesc PostprocessDesc)
+void FNVVolumetricLightingRHI::ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc PostprocessDesc)
 {
 	NvVl::PlatformRenderTarget SceneRTV(NULL);
-	GDynamicRHI->GetPlatformRenderTarget(SceneColorTextureRHI, SceneRTV);
+	GDynamicRHI->GetPlatformRenderTarget(SceneColorSurfaceRHI, SceneRTV);
 	NvVl::Status Status = NvVl::ApplyLighting(Context, RenderCtx, SceneRTV, SceneDepthSRV, &PostprocessDesc);
+	check(Status == NvVl::Status::OK);
 }
 #endif

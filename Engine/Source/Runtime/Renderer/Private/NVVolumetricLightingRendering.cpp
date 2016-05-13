@@ -9,137 +9,268 @@
 
 #include "NVVolumetricLightingRHI.h"
 
+FVector GetLightIntensity(uint8 LightType, uint8 LightPower)
+{
+   const FVector LIGHT_POWER[] = {
+        1.00f*FVector(1.00f, 0.95f, 0.90f),
+        0.50f*FVector(1.00f, 0.95f, 0.90f),
+        1.50f*FVector(1.00f, 0.95f, 0.90f),
+        1.00f*FVector(1.00f, 0.75f, 0.50f),
+        1.00f*FVector(0.75f, 1.00f, 0.75f),
+        1.00f*FVector(0.50f, 0.75f, 1.00f)
+    };
+	switch(LightType)
+	{
+		case LightType_Point:
+			return 25000.0f * LIGHT_POWER[LightPower];
+			break;
+		case LightType_Spot:
+			return 50000.0f * LIGHT_POWER[LightPower];
+			break;
+		default: //LightType_Directional
+			return 250.0f * LIGHT_POWER[LightPower];
+			break;
+	}
+}
+
+bool NVVolumetricLightingEnabled = true;
+
 void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList)
 {
+	if (!NVVolumetricLightingEnabled)
+	{
+		return;
+	}
+
 	check(Views.Num());
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 	const FViewInfo& View = Views[0];
 
-	//GFSDK_GodraysLib_ViewerDesc ViewerDesc;
-	//{
-	//	ViewerDesc.uWidth = View.ViewRect.Width();
-	//	ViewerDesc.uHeight = View.ViewRect.Height();
-	//	FMatrix ProjMatrix = View.ViewMatrices.ProjMatrix;
-	//	ViewerDesc.mProj = *reinterpret_cast<gfsdk_float4x4*>(&ProjMatrix.M[0][0]);
-	//	FMatrix ViewProjMatrix = View.ViewMatrices.GetViewProjMatrix();
-	//	ViewerDesc.mViewProj = *reinterpret_cast<gfsdk_float4x4*>(&ViewProjMatrix.M[0][0]);
-	//	ViewerDesc.vViewPos = *reinterpret_cast<const gfsdk_float3*>(&View.ViewLocation);
-	//}
+	int32 MediumType = 0; //TODO;
+	NvVl::DebugFlags DebugMode = NvVl::DebugFlags::NONE;
 
-	//GFSDK_GodraysLib_MediumDesc MediumDesc;
-	//{
-	//	const float GODRAY_PARAM_SCALE_FACTOR = 0.0001f;
+	NvVl::ViewerDesc ViewerDesc;
+	FMatrix ProjMatrix = View.ViewMatrices.ProjMatrix;
+    ViewerDesc.mProj = *reinterpret_cast<const NvcMat44*>(&ProjMatrix.M[0][0]);
+	FMatrix ViewProjMatrix = View.ViewMatrices.GetViewProjMatrix();
+    ViewerDesc.mViewProj = *reinterpret_cast<const NvcMat44*>(&ViewProjMatrix.M[0][0]);
+    ViewerDesc.vEyePosition = *reinterpret_cast<const NvcVec3 *>(&View.ViewLocation);
+    ViewerDesc.uViewportWidth = View.ViewRect.Width();
+    ViewerDesc.uViewportHeight = View.ViewRect.Height();
+	
+	NvVl::MediumDesc MediumDesc;
+    const float SCATTER_PARAM_SCALE = 0.0001f;
+    MediumDesc.uNumPhaseTerms = 2;
 
-	//	FVector AirScatter = FVector(0.60f, 1.52f, 3.31f) * GODRAY_PARAM_SCALE_FACTOR;
-	//	FVector FwdScatter = FVector(2.00f, 2.00f, 2.00f) * GODRAY_PARAM_SCALE_FACTOR;
-	//	FVector BackScatter = FVector(1.00f, 1.00f, 1.00f) * GODRAY_PARAM_SCALE_FACTOR;
-	//	FVector Absorption = FVector::ZeroVector * GODRAY_PARAM_SCALE_FACTOR;
-	//	float FwdScatterPhase = 0.75f;
-	//	float BackScatterPhase = 0.0f;
+	{
+		MediumDesc.PhaseTerms[0].ePhaseFunc = NvVl::PhaseFunctionType::RAYLEIGH;
+		FVector Density = 10.00f * SCATTER_PARAM_SCALE * FVector(0.596f, 1.324f, 3.310f);
+		MediumDesc.PhaseTerms[0].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+	}
+	
+    switch (MediumType)
+    {
+    default:
+    case 0:
+		{
+			FVector Density = 10.00f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
+			FVector Absorption = 5.0f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
 
-	//	MediumDesc.vAirScatter = *reinterpret_cast<const gfsdk_float3*>(&AirScatter);				// Rayleigh scattering terms
-	//	MediumDesc.vFwdScatter = *reinterpret_cast<const gfsdk_float3*>(&FwdScatter);				// Mie scattering terms
-	//	MediumDesc.vBackScatter = *reinterpret_cast<const gfsdk_float3*>(&BackScatter);				// Mie scattering terms
-	//	MediumDesc.fFwdScatterPhase = FwdScatterPhase;				// Mie scattering phase
-	//	MediumDesc.fBackScatterPhase = BackScatterPhase;			// Mie scattering phase
-	//	MediumDesc.vAbsorption = *reinterpret_cast<const gfsdk_float3*>(&Absorption);				// Absorption term
-	//}
-	// BREAK
-	//RHICmdList.BeginAccumulation(ViewerDesc, MediumDesc, SceneContext.GetSceneColorTexture(), SceneContext.GetSceneDepthTexture()); //SceneContext.GetActualDepthTexture()?
+			MediumDesc.PhaseTerms[1].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
+			MediumDesc.PhaseTerms[1].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+			MediumDesc.PhaseTerms[1].fEccentricity = 0.85f;
+			MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
+		}
+		break;
+
+    case 1:
+		{
+			FVector Density = 15.00f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
+			FVector Absorption = 25.0f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
+
+			MediumDesc.PhaseTerms[1].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
+			MediumDesc.PhaseTerms[1].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+			MediumDesc.PhaseTerms[1].fEccentricity = 0.60f;
+			MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
+		}
+		break;
+
+    case 2:
+		{
+			FVector Density = 20.00f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
+			FVector Absorption = 25.0f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
+
+			MediumDesc.PhaseTerms[1].ePhaseFunc = NvVl::PhaseFunctionType::MIE_HAZY;
+			MediumDesc.PhaseTerms[1].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+			MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
+		}
+		break;
+
+    case 3:
+		{
+			FVector Density = 30.00f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
+			FVector Absorption = 50.0f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
+
+			MediumDesc.PhaseTerms[1].ePhaseFunc = NvVl::PhaseFunctionType::MIE_MURKY;
+			MediumDesc.PhaseTerms[1].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+			MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
+		}
+		break;
+    }
+
+	GNVVolumetricLightingRHI->BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDesc, MediumDesc, DebugMode); //SceneContext.GetActualDepthTexture()?
 }
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo)
 {
-	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
+	if (!NVVolumetricLightingEnabled)
+	{
+		return;
+	}
 
+	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 	const FTexture2DRHIRef& ShadowDepth = SceneContext.GetShadowDepthZTexture(false);
 
-	//GFSDK_GodraysLib_ShadowMapDesc ShadowMapDesc;
-	//{
-	//	uint32 Width, Height;
-	//	if (ShadowDepth)
-	//	{
-	//		Width = ShadowDepth->GetSizeX();
-	//		Height = ShadowDepth->GetSizeY();
-	//	}
-	//	else
-	//	{
-	//		FIntPoint Resolution = SceneContext.GetShadowDepthTextureResolution(); // Pre Cache?? GetPreShadowCacheTextureResolution()
-	//		Width = Resolution.X;
-	//		Height = Resolution.Y;
-	//	}
+	uint32 ShadowmapWidth, ShadowmapHeight;
+	if (ShadowDepth)
+	{
+		ShadowmapWidth = ShadowDepth->GetSizeX();
+		ShadowmapHeight = ShadowDepth->GetSizeY();
+	}
+	else
+	{
+		FIntPoint Resolution = SceneContext.GetShadowDepthTextureResolution(); // Pre Cache?? GetPreShadowCacheTextureResolution()
+		ShadowmapWidth = Resolution.X;
+		ShadowmapHeight = Resolution.Y;
+	}
 
-	//	ShadowMapDesc.eType = GFSDK_GodraysLib_ShadowMapType_Simple;	// Shadow map structure type
-	//	ShadowMapDesc.uWidth = Width;						// Shadow map texture width
-	//	ShadowMapDesc.uHeight = Height;						// Shadow map texture height
-	//	ShadowMapDesc.Cascades[0].uWidth = Width;
-	//	ShadowMapDesc.Cascades[0].uHeight = Height;
-	//	ShadowMapDesc.Cascades[0].uOffsetX = 0;
-	//	ShadowMapDesc.Cascades[0].uOffsetY = 0;
-	//	ShadowMapDesc.Cascades[0].mArrayIndex = 0;
-	//	//ShadowMapDesc.Cascades[0].mViewProj = *reinterpret_cast<gfsdk_float4x4*>(&);
-	//}
-	//
-	//GFSDK_GodraysLib_LightDesc LightDesc;
-	//{
-	//	float Intensity = 1.0f;
-	//	FLinearColor LightColor = LightSceneInfo->Proxy->GetColor() * Intensity;
+	FMatrix LightViewProj = FTranslationMatrix(ShadowInfo->PreShadowTranslation) * ShadowInfo->SubjectAndReceiverMatrix;
 
-	//	FMatrix LightToWorld = LightSceneInfo->Proxy->GetLightToWorld();
-	//	FVector Direction = LightToWorld.GetUnitAxis(EAxis::X);
+    NvVl::ShadowMapDesc ShadowmapDesc;
+    {
+        ShadowmapDesc.eType = (LightSceneInfo->Proxy->GetLightType() == LightType_Point) ? NvVl::ShadowMapLayout::PARABOLOID : NvVl::ShadowMapLayout::SIMPLE;
+        ShadowmapDesc.uWidth = ShadowmapWidth;
+        ShadowmapDesc.uHeight = ShadowmapHeight;
+        ShadowmapDesc.uElementCount = 1;
+        ShadowmapDesc.Elements[0].uOffsetX = 0;
+        ShadowmapDesc.Elements[0].uOffsetY = 0;
+        ShadowmapDesc.Elements[0].uWidth = ShadowmapDesc.uWidth;
+        ShadowmapDesc.Elements[0].uHeight = ShadowmapDesc.uHeight;
+        ShadowmapDesc.Elements[0].mViewProj = *reinterpret_cast<const NvcMat44*>(&LightViewProj.M[0][0]);
+        ShadowmapDesc.Elements[0].mArrayIndex = 0;
+        if (LightSceneInfo->Proxy->GetLightType() == LightType_Point)
+        {
+            ShadowmapDesc.uElementCount = 2;
+            ShadowmapDesc.Elements[1].uOffsetX = 0;
+            ShadowmapDesc.Elements[1].uOffsetY = 0;
+            ShadowmapDesc.Elements[1].uWidth = ShadowmapDesc.uWidth;
+            ShadowmapDesc.Elements[1].uHeight = ShadowmapDesc.uHeight;
+            ShadowmapDesc.Elements[1].mViewProj = *reinterpret_cast<const NvcMat44*>(&LightViewProj.M[0][0]);
+            ShadowmapDesc.Elements[1].mArrayIndex = 1;
+        }
+    }
 
-	//	LightDesc.eType = GFSDK_GodraysLib_LightType_Directional;
-	//	//LightDesc.mLightToWorld = *reinterpret_cast<gfsdk_float4x4*>(&);
-	//	LightDesc.vIntensity = *reinterpret_cast<const gfsdk_float3*>(&LightColor);
+    NvVl::LightDesc LightDesc;
+    const float LIGHT_RANGE = 50.0f;
+	const float SPOTLIGHT_FALLOFF_ANGLE = PI / 4.0f;
+	const float SPOTLIGHT_FALLOFF_POWER = 1.0f;
 
-	//	// Directional
-	//	LightDesc.Directional.vDirection = *reinterpret_cast<const gfsdk_float3*>(&Direction);
-	//	LightDesc.Directional.fLightToEyeDepth = 5000.0f;
-	//}
+    FVector LightPosition = LightSceneInfo->Proxy->GetOrigin();
+    FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
+    LightDirection.Normalize();
 
-	//uint32 GridResolution = 64;
 
-	// BREAK
-	//RHICmdList.RenderVolume(ShadowMapDesc, LightDesc, GridResolution, ShadowDepth);
+	FMatrix LightViewProjInv = LightViewProj.InverseFast();
+	uint32 LightPower = 0;
+
+	FVector Intensity = GetLightIntensity(LightSceneInfo->Proxy->GetLightType(), LightPower);
+    LightDesc.vIntensity = *reinterpret_cast<const NvcVec3 *>(&Intensity);
+    LightDesc.mLightToWorld = *reinterpret_cast<const NvcMat44*>(&LightViewProjInv.M[0][0]);
+
+    switch (LightSceneInfo->Proxy->GetLightType())
+    {
+        case LightType_Point:
+        {
+            LightDesc.eType = NvVl::LightType::OMNI;
+            LightDesc.Omni.fZNear = 0.5f;
+            LightDesc.Omni.fZFar = LIGHT_RANGE;
+            LightDesc.Omni.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
+            LightDesc.Omni.eAttenuationMode = NvVl::AttenuationMode::INV_POLYNOMIAL;
+            const float LIGHT_SOURCE_RADIUS = 0.5f; // virtual radius of a spheroid light source
+            LightDesc.Omni.fAttenuationFactors[0] = 1.0f;
+            LightDesc.Omni.fAttenuationFactors[1] = 2.0f / LIGHT_SOURCE_RADIUS;
+            LightDesc.Omni.fAttenuationFactors[2] = 1.0f / (LIGHT_SOURCE_RADIUS*LIGHT_SOURCE_RADIUS);
+            LightDesc.Omni.fAttenuationFactors[3] = 0.0f;
+        }
+        break;
+        case LightType_Spot:
+        {
+            LightDesc.eType = NvVl::LightType::SPOTLIGHT;
+            LightDesc.Spotlight.fZNear = 0.5f;
+            LightDesc.Spotlight.fZFar = LIGHT_RANGE;
+            LightDesc.Spotlight.eFalloffMode = NvVl::SpotlightFalloffMode::FIXED;
+            LightDesc.Spotlight.fFalloff_Power = SPOTLIGHT_FALLOFF_POWER;
+            LightDesc.Spotlight.fFalloff_CosTheta = FMath::Cos(SPOTLIGHT_FALLOFF_ANGLE);
+            LightDesc.Spotlight.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
+            LightDesc.Spotlight.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
+            LightDesc.Spotlight.eAttenuationMode = NvVl::AttenuationMode::INV_POLYNOMIAL;
+            const float LIGHT_SOURCE_RADIUS = 1.0f;  // virtual radius of a spheroid light source
+            LightDesc.Spotlight.fAttenuationFactors[0] = 1.0f;
+            LightDesc.Spotlight.fAttenuationFactors[1] = 2.0f / LIGHT_SOURCE_RADIUS;
+            LightDesc.Spotlight.fAttenuationFactors[2] = 1.0f / (LIGHT_SOURCE_RADIUS*LIGHT_SOURCE_RADIUS);
+            LightDesc.Spotlight.fAttenuationFactors[3] = 0.0f;
+        }
+        break;
+        default:
+        case LightType_Directional:
+        {
+            LightDesc.eType = NvVl::LightType::DIRECTIONAL;
+            LightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
+        }
+    }
+
+    NvVl::VolumeDesc VolumeDesc;
+    {
+        VolumeDesc.fTargetRayResolution = 12.0f;
+        VolumeDesc.uMaxMeshResolution = ShadowmapDesc.uWidth;
+        VolumeDesc.fDepthBias = 0.0f;
+        VolumeDesc.eTessQuality = NvVl::TessellationQuality::HIGH;
+    }
+
+	GNVVolumetricLightingRHI->RenderVolume(ShadowDepth, ShadowmapDesc, LightDesc, VolumeDesc);
 }
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHICommandListImmediate& RHICmdList)
 {
-	//TODO
-	// GNVVolumetricLightingRHI->EndAccumulation();
+	if (!NVVolumetricLightingEnabled)
+	{
+		return;
+	}
+
+	GNVVolumetricLightingRHI->EndAccumulation();
 }
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHICommandListImmediate& RHICmdList)
 {
-	check(Views.Num());
+	if (!NVVolumetricLightingEnabled)
+	{
+		return;
+	}
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
-	const FViewInfo& View = Views[0];
 
-	//GFSDK_GodraysLib_PostProcessDesc PostProcessDesc;
-	//{
-	//	bool bDoFog = false;
-	//	FVector FogLight = FVector::ZeroVector;
-	//	float HazeIntensity = 1.0f;
-	//	float MultiScatter = 0.01f;
+	NvVl::PostprocessDesc PostprocessDesc;
+	PostprocessDesc.bDoFog = false; // Fog was not correct yet.
+    PostprocessDesc.bIgnoreSkyFog = false;
+    PostprocessDesc.eUpsampleQuality = NvVl::UpsampleQuality::BILINEAR;
+    PostprocessDesc.fBlendfactor = 1.0f;
+    PostprocessDesc.fTemporalFactor = 0.95f;
+    PostprocessDesc.fFilterThreshold = 0.20f;
 
-	//	const float TEMPORAL_FACTOR = 0.98f;
-	//	const float TEMPORAL_FILTER_THRESHOLD = 0.01f;
+	FVector FogLight = FVector(50000.0f, 50000.0f, 50000.0f);
+    PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
+    PostprocessDesc.fMultiscatter = 0.000002f;
 
-	//	PostProcessDesc.bDoFog = bDoFog;						// Apply fogging based on scattering
-	//	PostProcessDesc.vFogLight = *reinterpret_cast<const gfsdk_float3*>(&FogLight);					// Light intensity to use for multi-scattering
-
-	//	PostProcessDesc.vHazeIntensity = HazeIntensity;				// Multiplier for overall godray effect
-	//	PostProcessDesc.bIgnoreSkyFog = true;				// Ignore depth values of (1.0f) for fogging
-	//	PostProcessDesc.fMultiScatter = MultiScatter;				// Multi-scattering fraction (for fogging)	
-	//	PostProcessDesc.fTemporalFactor = TEMPORAL_FACTOR;				// Weight of pixel history smoothing (0.0 for off)
-	//	PostProcessDesc.fFilterThreshold = TEMPORAL_FILTER_THRESHOLD;				// Threshold of frame movement to use temporal history
-
-	//	FMatrix ViewProjMatrix = View.ViewMatrices.GetViewProjMatrix();
-	//	PostProcessDesc.mUnjitteredViewProj = *reinterpret_cast<gfsdk_float4x4*>(&ViewProjMatrix.M[0][0]);		// Camera view projection without jitter
-	//}
-
-	// BREAK
-	//RHICmdList.ApplyLighting(PostProcessDesc, SceneContext.GetSceneColorTexture(), SceneContext.GetSceneDepthTexture());
+	GNVVolumetricLightingRHI->ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
 }
 
 #endif
