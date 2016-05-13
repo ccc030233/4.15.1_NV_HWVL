@@ -1431,23 +1431,26 @@ void UPaperSprite::SetTrim(bool bTrimmed, const FVector2D& OriginInSourceImage, 
 	this->bTrimmedInSourceImage = bTrimmed;
 	this->OriginInSourceImageBeforeTrimming = OriginInSourceImage;
 	this->SourceImageDimensionBeforeTrimming = SourceImageDimension;
-	RebuildRenderData();
+
 	RebuildCollisionData();
+	RebuildRenderData();
 }
 
 void UPaperSprite::SetRotated(bool bRotated)
 {
 	this->bRotatedInSourceImage = bRotated;
-	RebuildRenderData();
+
 	RebuildCollisionData();
+	RebuildRenderData();
 }
 
 void UPaperSprite::SetPivotMode(ESpritePivotMode::Type InPivotMode, FVector2D InCustomTextureSpacePivot)
 {
 	PivotMode = InPivotMode;
 	CustomPivotPoint = InCustomTextureSpacePivot;
-	RebuildRenderData();
+
 	RebuildCollisionData();
+	RebuildRenderData();
 }
 
 FVector2D UPaperSprite::ConvertTextureSpaceToPivotSpace(FVector2D Input) const

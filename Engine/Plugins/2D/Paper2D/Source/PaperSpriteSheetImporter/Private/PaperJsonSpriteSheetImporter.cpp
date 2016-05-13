@@ -423,7 +423,7 @@ bool FPaperJsonSpriteSheetImporter::CanImportJSON(const FString& FileContents)
 		FString Unused;
 		return ParseMetaBlock(FString(), SpriteDescriptorObject, /*out*/ Unused, /*bSilent=*/ true);
 	}
-	
+
 	return false;
 }
 
@@ -570,12 +570,12 @@ bool FPaperJsonSpriteSheetImporter::PerformImport(const FString& LongPackagePath
 
 		// Create a frame in the package
 		UPaperSprite* TargetSprite = nullptr;
-		
+
 		if (bIsReimporting)
 		{
 			TargetSprite = FindExistingSprite(Frame.FrameName.ToString());
 		}
-		
+
 		if (TargetSprite == nullptr)
 		{
 			const FString SanitizedFrameName = ObjectTools::SanitizeObjectName(Frame.FrameName.ToString());
@@ -614,15 +614,8 @@ bool FPaperJsonSpriteSheetImporter::PerformImport(const FString& LongPackagePath
 
 		TargetSprite->InitializeSprite(SpriteInitParams);
 
-		if (Frame.bRotated)
-		{
-			TargetSprite->SetRotated(true);
-		}
-
-		if (Frame.bTrimmed)
-		{
-			TargetSprite->SetTrim(Frame.bTrimmed, Frame.SpriteSourcePos, Frame.ImageSourceSize);
-		}
+		TargetSprite->SetRotated(Frame.bRotated);
+		TargetSprite->SetTrim(Frame.bTrimmed, Frame.SpriteSourcePos, Frame.ImageSourceSize);
 
 		// Set up pivot on object based on Texture Packer json
 		ESpritePivotMode::Type PivotType = GetBestPivotType(Frame.Pivot);
@@ -637,7 +630,7 @@ bool FPaperJsonSpriteSheetImporter::PerformImport(const FString& LongPackagePath
 		// Create the entry in the animation
 		SpriteSheet->SpriteNames.Add(Frame.FrameName.ToString());
 		SpriteSheet->Sprites.Add(TargetSprite);
-		
+
 		TargetSprite->PostEditChange();
 	}
 
