@@ -485,12 +485,12 @@ template <EShaderFrequency ShaderFrequency>
 		{
 			switch (ShaderFrequency)
 			{
-			case SF_Vertex:		Direct3DDeviceIMContext1->VSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
-			case SF_Hull:		Direct3DDeviceIMContext1->HSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
-			case SF_Domain:		Direct3DDeviceIMContext1->DSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
-			case SF_Geometry:	Direct3DDeviceIMContext1->GSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
-			case SF_Pixel:		Direct3DDeviceIMContext1->PSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
-			case SF_Compute:	Direct3DDeviceIMContext1->CSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
+			case SF_Vertex:		Direct3DDeviceIMContext->VSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
+			case SF_Hull:		Direct3DDeviceIMContext->HSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
+			case SF_Domain:		Direct3DDeviceIMContext->DSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
+			case SF_Geometry:	Direct3DDeviceIMContext->GSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
+			case SF_Pixel:		Direct3DDeviceIMContext->PSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
+			case SF_Compute:	Direct3DDeviceIMContext->CSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
 			}
 
 		}
@@ -858,7 +858,9 @@ public:
 	FD3D11StateCacheBase()
 		: Direct3DDeviceIMContext(nullptr)
 	{
+#if D3D11_ALLOW_STATE_CACHE
 		FMemory::Memzero(CurrentShaderResourceViews, sizeof(CurrentShaderResourceViews));
+#endif
 	}
 
 	void Init(ID3D11DeviceContext* InDeviceContext, bool bInAlwaysSetIndexBuffers = false )
