@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "NewLevelDialogPrivatePCH.h"
 #include "ModuleManager.h"
@@ -31,11 +31,8 @@ public:
 
 	virtual int32 OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyClippingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled ) const override
 	{
-		bool bEnableGammaCorrection = true;
-		bool bAllowBlending = false;
-
 		FSlateDrawElement::MakeViewport(
-			OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), SharedThis( this ), MyClippingRect, bEnableGammaCorrection, bAllowBlending, ESlateDrawEffect::None, InWidgetStyle.GetColorAndOpacityTint());
+			OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), SharedThis( this ), MyClippingRect, ESlateDrawEffect::NoBlending, InWidgetStyle.GetColorAndOpacityTint());
 		return LayerId;
 	}
 

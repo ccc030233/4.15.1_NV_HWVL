@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -48,12 +48,6 @@ public:
 	 * @return The pointer if the HMD has been initialized, otherwise nullptr 
 	 */
 	virtual vr::IVRSystem* GetVRSystem() const=0;
-
-	/**
-	 * Set the cached IVRSystem pointer so that the controller can retrieve it.
-	 * The HMD passes this to the controller.
-	 */
-	virtual void SetVRSystem(vr::IVRSystem* VRSystem)=0;
 
 	/**
 	 * Update the Controller to Device mapping.

@@ -1,12 +1,12 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 
 public class LibOVR : ModuleRules
 {
 	// Version of LibOVR
-	public const int LibOVR_Major = 0;
-	public       int LibOVR_Minor = 8;
+	public const int LibOVR_Major = 1;
+	public       int LibOVR_Minor = 0;
 	public const int LibOVR_Patch = 0;
 
     public LibOVR(TargetInfo Target)

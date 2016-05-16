@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	UObjectAnnotation.h: Unreal object annotation template
@@ -90,7 +90,7 @@ public:
 				if (bAutoRemove)
 #endif
 				{
-					GetUObjectArray().AddUObjectDeleteListener(this);
+					GUObjectArray.AddUObjectDeleteListener(this);
 				}
 			}
 			AnnotationMap.Add(AnnotationCacheKey,AnnotationCacheValue);
@@ -118,7 +118,7 @@ public:
 			if (bAutoRemove)
 #endif
 			{
-				GetUObjectArray().RemoveUObjectDeleteListener(this);
+				GUObjectArray.RemoveUObjectDeleteListener(this);
 			}
 		}
 		return Result;
@@ -143,7 +143,7 @@ public:
 			if (bAutoRemove)
 #endif
 			{
-				GetUObjectArray().RemoveUObjectDeleteListener(this);
+				GUObjectArray.RemoveUObjectDeleteListener(this);
 			}
 		}
 	}
@@ -165,7 +165,7 @@ public:
 			if (bAutoRemove)
 #endif
 			{
-				GetUObjectArray().RemoveUObjectDeleteListener(this);
+				GUObjectArray.RemoveUObjectDeleteListener(this);
 			}
 		}
 	}
@@ -276,6 +276,7 @@ public:
 	 */
 	UObject *Find(TAnnotation Annotation)
 	{
+		FScopeLock InverseAnntationMapLock(&InverseAnnotationMapCritical);
 		checkSlow(!Annotation.IsDefault()); // it is not legal to search for the default annotation
 		return (UObject *)InverseAnnotationMap.FindRef(Annotation);
 	}
@@ -288,15 +289,24 @@ public:
 	 */
 	void AddAnnotation(const UObjectBase *Object,TAnnotation Annotation)
 	{
+		FScopeLock InverseAnntationMapLock(&InverseAnnotationMapCritical);
 		if (Annotation.IsDefault())
 		{
 			RemoveAnnotation(Object); // adding the default annotation is the same as removing an annotation
 		}
 		else
 		{
+			TAnnotation ExistingAnnotation = this->GetAnnotation(Object);
+			if (!Annotation.IsDefault())
+			{
+				int32 NumExistingRemoved = InverseAnnotationMap.Remove(ExistingAnnotation);
+				checkSlow(NumExistingRemoved == 0);
+			}
+
 			Super::AddAnnotation(Object, Annotation);
 			// should not exist in the mapping; we require uniqueness
-			checkSlow(!InverseAnnotationMap.Find(Annotation));
+			int32 NumRemoved = InverseAnnotationMap.Remove(Annotation);
+			checkSlow(NumRemoved == 0);
 			InverseAnnotationMap.Add(Annotation, Object);
 		}
 	}
@@ -307,6 +317,7 @@ public:
 	 */
 	void RemoveAnnotation(const UObjectBase *Object)
 	{
+		FScopeLock InverseAnntationMapLock(&InverseAnnotationMapCritical);
 		TAnnotation Annotation = this->GetAndRemoveAnnotation(Object);
 		if (Annotation.IsDefault())
 		{
@@ -325,6 +336,7 @@ public:
 	 */
 	void RemoveAllAnnotations()
 	{
+		FScopeLock InverseAnntationMapLock(&InverseAnnotationMapCritical);
 		Super::RemoveAllAnnotations();
 		InverseAnnotationMap.Empty();
 	}
@@ -336,6 +348,7 @@ private:
 	 * Inverse Map annotation to live object
 	 */
 	TMap<TAnnotation, const UObjectBase *> InverseAnnotationMap;
+	FCriticalSection InverseAnnotationMapCritical;
 };
 
 
@@ -489,7 +502,7 @@ public:
 	void AddAnnotation(const UObjectBase *Object,TAnnotation Annotation)
 	{
 		check(Object);
-		AddAnnotation(GetUObjectArray().ObjectToIndex(Object),Annotation);
+		AddAnnotation(GUObjectArray.ObjectToIndex(Object),Annotation);
 	}
 	/**
 	 * Add an annotation to the annotation list. If the Annotation is the default, then the annotation is removed.
@@ -514,7 +527,7 @@ public:
 				if (bAutoRemove)
 #endif
 				{
-					GetUObjectArray().AddUObjectDeleteListener(this);
+					GUObjectArray.AddUObjectDeleteListener(this);
 				}
 			}
 			if (Index >= AnnotationArray.Num())
@@ -537,7 +550,7 @@ public:
 	void RemoveAnnotation(const UObjectBase *Object)
 	{
 		check(Object);
-		RemoveAnnotation(GetUObjectArray().ObjectToIndex(Object));
+		RemoveAnnotation(GUObjectArray.ObjectToIndex(Object));
 	}
 	/**
 	 * Removes an annotation from the annotation list. 
@@ -569,7 +582,7 @@ public:
 			if (bAutoRemove)
 #endif
 			{
-				GetUObjectArray().RemoveUObjectDeleteListener(this);
+				GUObjectArray.RemoveUObjectDeleteListener(this);
 			}
 		}
 	}
@@ -582,7 +595,7 @@ public:
 	FORCEINLINE TAnnotation GetAnnotation(const UObjectBase *Object)
 	{
 		check(Object);
-		return GetAnnotation(GetUObjectArray().ObjectToIndex(Object));
+		return GetAnnotation(GUObjectArray.ObjectToIndex(Object));
 	}
 
 	/**
@@ -610,7 +623,7 @@ public:
 	FORCEINLINE TAnnotation& GetAnnotationRef(const UObjectBase *Object)
 	{
 		check(Object);
-		return GetAnnotationRef(GetUObjectArray().ObjectToIndex(Object));
+		return GetAnnotationRef(GUObjectArray.ObjectToIndex(Object));
 	}
 
 	/**
@@ -676,11 +689,11 @@ public:
 	FORCEINLINE void Set(const UObjectBase *Object)
 	{
 		checkSlow(Object);
-		int32 Index = GetUObjectArray().ObjectToIndex(Object);
+		int32 Index = GUObjectArray.ObjectToIndex(Object);
 		checkSlow(Index >= 0);
 		if (AnnotationArray.Num() == 0)
 		{
-			GetUObjectArray().AddUObjectDeleteListener(this);
+			GUObjectArray.AddUObjectDeleteListener(this);
 		}
 		if (Index >= AnnotationArray.Num() * BitsPerElement)
 		{
@@ -700,7 +713,7 @@ public:
 	FORCEINLINE void Clear(const UObjectBase *Object)
 	{
 		checkSlow(Object);
-		int32 Index = GetUObjectArray().ObjectToIndex(Object);
+		int32 Index = GUObjectArray.ObjectToIndex(Object);
 		RemoveAnnotation(Index);
 	}
 
@@ -721,7 +734,7 @@ public:
 	FORCEINLINE bool Get(const UObjectBase *Object)
 	{
 		checkSlow(Object);
-		int32 Index = GetUObjectArray().ObjectToIndex(Object);
+		int32 Index = GUObjectArray.ObjectToIndex(Object);
 		checkSlow(Index >= 0);
 		if (Index < AnnotationArray.Num() * BitsPerElement)
 		{
@@ -754,7 +767,7 @@ private:
 		AnnotationArray.Empty();
 		if (bHadElements)
 		{
-			GetUObjectArray().RemoveUObjectDeleteListener(this);
+			GUObjectArray.RemoveUObjectDeleteListener(this);
 		}
 	}
 

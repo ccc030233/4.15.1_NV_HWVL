@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "TP_Vehicle.h"
 #include "TP_VehiclePawn.h"
@@ -13,10 +13,10 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine.h"
 
-#ifdef HMD_INTGERATION
 // Needed for VR Headset
+#if HMD_MODULE_INCLUDED
 #include "IHeadMountedDisplay.h"
-#endif // HMD_INTGERATION
+#endif // HMD_MODULE_INCLUDED
 
 const FName ATP_VehiclePawn::LookUpBinding("LookUp");
 const FName ATP_VehiclePawn::LookRightBinding("LookRight");
@@ -71,16 +71,31 @@ ATP_VehiclePawn::ATP_VehiclePawn()
 	Camera->FieldOfView = 90.f;
 
 	// Create In-Car camera component 
-	InternalCameraOrigin = FVector(8.0f, -40.0f, 130.0f);
+	InternalCameraOrigin = FVector(0.0f, -40.0f, 120.0f);
+
+	InternalCameraBase = CreateDefaultSubobject<USceneComponent>(TEXT("InternalCameraBase"));
+	InternalCameraBase->SetRelativeLocation(InternalCameraOrigin);
+	InternalCameraBase->AttachTo(GetMesh());
+
 	InternalCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("InternalCamera"));
 	InternalCamera->AttachTo(SpringArm, USpringArmComponent::SocketName);
 	InternalCamera->bUsePawnControlRotation = false;
 	InternalCamera->FieldOfView = 90.f;
-	InternalCamera->SetRelativeLocation(InternalCameraOrigin);
-	InternalCamera->AttachTo(GetMesh());
+	InternalCamera->AttachTo(InternalCameraBase);
+
+	//Setup TextRenderMaterial
+	UPROPERTY(EditAnywhere)
+		UMaterialInterface* Material;
+	static ConstructorHelpers::FObjectFinder<UMaterial> TextMaterial(TEXT("Material'/Engine/EngineMaterials/AntiAliasedTextMaterialTranslucent.AntiAliasedTextMaterialTranslucent'"));
+	
+	Material = TextMaterial.Object;
+	
+	
+
 
 	// Create text render component for in car speed display
 	InCarSpeed = CreateDefaultSubobject<UTextRenderComponent>(TEXT("IncarSpeed"));
+	InCarSpeed->SetTextMaterial(Material);
 	InCarSpeed->SetRelativeLocation(FVector(70.0f, -75.0f, 99.0f));
 	InCarSpeed->SetRelativeRotation(FRotator(18.0f, 180.0f, 0.0f));
 	InCarSpeed->AttachTo(GetMesh());
@@ -88,6 +103,7 @@ ATP_VehiclePawn::ATP_VehiclePawn()
 
 	// Create text render component for in car gear display
 	InCarGear = CreateDefaultSubobject<UTextRenderComponent>(TEXT("IncarGear"));
+	InCarGear->SetTextMaterial(Material);
 	InCarGear->SetRelativeLocation(FVector(66.0f, -9.0f, 95.0f));	
 	InCarGear->SetRelativeRotation(FRotator(25.0f, 180.0f,0.0f));
 	InCarGear->SetRelativeScale3D(FVector(1.0f, 0.4f, 0.4f));
@@ -106,6 +122,8 @@ ATP_VehiclePawn::ATP_VehiclePawn()
 
 void ATP_VehiclePawn::SetupPlayerInputComponent(class UInputComponent* InputComponent)
 {
+	Super::SetupPlayerInputComponent(InputComponent);
+
 	// set up gameplay key bindings
 	check(InputComponent);
 
@@ -178,6 +196,8 @@ void ATP_VehiclePawn::EnableIncarView(const bool bState, const bool bForce)
 
 void ATP_VehiclePawn::Tick(float Delta)
 {
+	Super::Tick(Delta);
+
 	// Setup the flag to say we are in reverse gear
 	bInReverseGear = GetVehicleMovement()->GetCurrentGear() < 0;
 	
@@ -188,12 +208,12 @@ void ATP_VehiclePawn::Tick(float Delta)
 	SetupInCarHUD();
 
 	bool bHMDActive = false;
-#ifdef HMD_INTGERATION
+#if HMD_MODULE_INCLUDED
 	if ((GEngine->HMDDevice.IsValid() == true) && ((GEngine->HMDDevice->IsHeadTrackingAllowed() == true) || (GEngine->IsStereoscopic3D() == true)))
 	{
 		bHMDActive = true;
 	}
-#endif // HMD_INTGERATION
+#endif // HMD_MODULE_INCLUDED
 	if (bHMDActive == false)
 	{
 		if ( (InputComponent) && (bInCarCameraActive == true ))
@@ -208,23 +228,25 @@ void ATP_VehiclePawn::Tick(float Delta)
 
 void ATP_VehiclePawn::BeginPlay()
 {
+	Super::BeginPlay();
+
 	bool bEnableInCar = false;
-#ifdef HMD_INTGERATION
-	bEnableInCar = GEngine->HMDDevice.IsValid();	
-#endif // HMD_INTGERATION
+#if HMD_MODULE_INCLUDED
+	bEnableInCar = UHeadMountedDisplayFunctionLibrary::IsHeadMountedDisplayEnabled();
+#endif // HMD_MODULE_INCLUDED
 	EnableIncarView(bEnableInCar,true);
 }
 
 void ATP_VehiclePawn::OnResetVR()
 {
-#ifdef HMD_INTGERATION
+#if HMD_MODULE_INCLUDED
 	if (GEngine->HMDDevice.IsValid())
 	{
 		GEngine->HMDDevice->ResetOrientationAndPosition();
 		InternalCamera->SetRelativeLocation(InternalCameraOrigin);
 		GetController()->SetControlRotation(FRotator());
 	}
-#endif // HMD_INTGERATION
+#endif // HMD_MODULE_INCLUDED
 }
 
 void ATP_VehiclePawn::UpdateHUDStrings()

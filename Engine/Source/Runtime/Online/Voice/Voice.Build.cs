@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 
@@ -10,13 +10,14 @@ public class Voice : ModuleRules
 
 		PrivateIncludePaths.AddRange(
 			new string[] {
-				"Runtime/Online/Voice/Private",
+				"Runtime/Online/Voice/Private"
 			}
 			);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] { 
-				"Core"
+				"Core",
+                "Engine",
 			}
 			);
 

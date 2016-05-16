@@ -1,9 +1,10 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "Containers/Array.h"
 #include "Containers/BitArray.h"
+#include "MemoryOps.h"
 
 
 // Forward declarations.
@@ -339,8 +340,61 @@ public:
 	}
 
 	/** Compacts the allocated elements into a contiguous index range. */
-	void Compact()
+	/** Returns true if any elements were relocated, false otherwise. */
+	bool Compact()
 	{
+		int32 NumFree = NumFreeIndices;
+		if (NumFree == 0)
+		{
+			return false;
+		}
+
+		bool bResult = false;
+
+		FElementOrFreeListLink* ElementData = Data.GetData();
+
+		int32 EndIndex    = Data.Num();
+		int32 TargetIndex = EndIndex - NumFree;
+		int32 FreeIndex   = FirstFreeIndex;
+		while (FreeIndex != -1)
+		{
+			int32 NextFreeIndex = GetData(FreeIndex).NextFreeIndex;
+			if (FreeIndex < TargetIndex)
+			{
+				// We need an element here
+				do
+				{
+					--EndIndex;
+				}
+				while (!AllocationFlags[EndIndex]);
+
+				RelocateConstructItems<FElementOrFreeListLink>(ElementData + FreeIndex, ElementData + EndIndex, 1);
+				AllocationFlags[FreeIndex] = true;
+
+				bResult = true;
+			}
+
+			FreeIndex = NextFreeIndex;
+		}
+
+		Data           .RemoveAt(TargetIndex, NumFree);
+		AllocationFlags.RemoveAt(TargetIndex, NumFree);
+
+		NumFreeIndices = 0;
+		FirstFreeIndex = -1;
+
+		return bResult;
+	}
+
+	/** Compacts the allocated elements into a contiguous index range. Does not change the iteration order of the elements. */
+	/** Returns true if any elements were relocated, false otherwise. */
+	bool CompactStable()
+	{
+		if (NumFreeIndices == 0)
+		{
+			return false;
+		}
+
 		// Copy the existing elements to a new array.
 		TSparseArray<ElementType,Allocator> CompactedArray;
 		CompactedArray.Empty(Num());
@@ -351,6 +405,8 @@ public:
 
 		// Replace this array with the compacted array.
 		Exchange(*this,CompactedArray);
+
+		return true;
 	}
 
 	/** Sorts the elements using the provided comparison class. */

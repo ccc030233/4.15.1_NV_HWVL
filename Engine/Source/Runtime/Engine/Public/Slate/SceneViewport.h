@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 
 #ifndef __SLATE_VIEWPORT_H__
@@ -8,6 +8,8 @@
 
 /** Called in FSceneViewport::ResizeFrame after ResizeViewport*/
 DECLARE_DELEGATE_OneParam( FOnSceneViewportResize, FVector2D );
+
+class SViewport;
 
 /**
  * A viewport for use with Slate SViewport widgets.
@@ -203,7 +205,7 @@ public:
 	virtual FReply OnTouchEnded( const FGeometry& MyGeometry, const FPointerEvent& InTouchEvent ) override;
 	virtual FReply OnTouchGesture( const FGeometry& MyGeometry, const FPointerEvent& InGestureEvent ) override;
 	virtual FReply OnMotionDetected( const FGeometry& MyGeometry, const FMotionEvent& InMotionEvent ) override;
-	virtual TOptional<EPopupMethod> OnQueryPopupMethod() const override;
+	virtual FPopupMethodReply OnQueryPopupMethod() const override;
 	virtual TOptional<bool> OnQueryShowFocus(const EFocusCause InFocusCause) const override;
 	virtual void OnFinishedPointerInput() override;
 	virtual FReply OnKeyDown( const FGeometry& InGeometry, const FKeyEvent& InKeyEvent ) override;
@@ -213,6 +215,8 @@ public:
 	virtual FReply OnFocusReceived( const FFocusEvent& InFocusEvent ) override;
 	virtual void OnFocusLost( const FFocusEvent& InFocusEvent ) override;
 	virtual void OnViewportClosed() override;
+	virtual FReply OnViewportActivated(const FWindowActivateEvent& InActivateEvent) override;
+	virtual void OnViewportDeactivated(const FWindowActivateEvent& InActivateEvent) override;
 	virtual FIntPoint GetSize() const override { return GetSizeXY(); }
 	
 	void SetViewportSize(uint32 NewSizeX,uint32 NewSizeY);
@@ -289,6 +293,11 @@ private:
 	 */
 	void ApplyModifierKeys( const FModifierKeysState& InKeysState );
 
+	/** Utility function to create an FReply that properly gets Focus and capture based on the settings*/
+	FReply AcquireFocusAndCapture(FIntPoint MousePosition);
+
+	/** Utility function to figure out if we are currently a game viewport */
+	bool IsCurrentlyGameViewport();
 
 	void WindowRenderTargetUpdate(FSlateRenderer* Renderer, SWindow* Window);
 
@@ -319,6 +328,8 @@ private:
 	FIntPoint MouseDelta;
 	/** true if the cursor is currently visible */
 	bool bIsCursorVisible;
+	/** true if we had Capture when deactivated */
+	bool bShouldCaptureMouseOnActivate;
 	/** true if this viewport requires vsync. */
 	bool bRequiresVsync;
 	/** true if this viewport renders to a separate render target.  false to render directly to the windows back buffer */

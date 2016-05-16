@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -262,6 +262,24 @@ private:
 
 	/** If true ViewSizeMap_Execute can be called, also caches ViewableObjects */
 	bool CanViewSizeMap();
+
+private:
+	/**
+	 * Report the references of the EditingObjects to the GC.  The level of indirection necessary 
+	 * so that we don't break compatibility with all the asset editors out there that individually 
+	 * implement FGCObject.
+	 */
+	class FGCEditingObjects : public FGCObject
+	{
+	public:
+		FGCEditingObjects(FAssetEditorToolkit& InOwnerToolkit) : OwnerToolkit(InOwnerToolkit) {}
+
+		/** FGCObject interface */
+		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+
+	private:
+		FAssetEditorToolkit& OwnerToolkit;
+	} GCEditingObjects;
 
 protected:
 

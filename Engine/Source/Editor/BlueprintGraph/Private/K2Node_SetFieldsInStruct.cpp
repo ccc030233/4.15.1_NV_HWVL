@@ -1,10 +1,11 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "BlueprintGraphPrivatePCH.h"
 #include "K2Node_SetFieldsInStruct.h"
 #include "MakeStructHandler.h"
 #include "CompilerResultsLog.h"
 #include "KismetCompiler.h"
+#include "Editor/PropertyEditor/Public/PropertyCustomizationHelpers.h"
 
 #define LOCTEXT_NAMESPACE "K2Node_MakeStruct"
 
@@ -104,7 +105,7 @@ void UK2Node_SetFieldsInStruct::ValidateNodeDuringCompilation(FCompilerResultsLo
 	Super::ValidateNodeDuringCompilation(MessageLog);
 
 	UEdGraphPin* FoundPin = FindPin(SetFieldsInStructHelper::StructRefPinName());
-	if (!ensure(FoundPin) || (FoundPin->LinkedTo.Num() <= 0))
+	if (!FoundPin || (FoundPin->LinkedTo.Num() <= 0))
 	{
 		FText ErrorMessage = LOCTEXT("SetStructFields_NoStructRefError", "The @@ pin must be connected to the struct that you wish to set.");
 		MessageLog.Error(*ErrorMessage.ToString(), FoundPin);
@@ -215,6 +216,18 @@ void UK2Node_SetFieldsInStruct::ExpandNode(class FKismetCompilerContext& Compile
 		}
 	}
 	Pins.Remove(OutPin);
+}
+
+bool UK2Node_SetFieldsInStruct::IsConnectionDisallowed(const UEdGraphPin* MyPin, const UEdGraphPin* OtherPin, FString& OutReason) const
+{
+	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
+	if (MyPin->bNotConnectable)
+	{
+		OutReason = LOCTEXT("SetFieldsInStructConnectionDisallowed", "This pin must enable the override to set a value!").ToString();
+		return true;
+	}
+
+	return Super::IsConnectionDisallowed(MyPin, OtherPin, OutReason);
 }
 
 #undef LOCTEXT_NAMESPACE

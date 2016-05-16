@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 namespace UnrealBuildTool.Rules
 {
@@ -40,7 +40,6 @@ namespace UnrealBuildTool.Rules
 
                     // @todo do we really need to include these two? Maybe a smart interface would help here?
                     "GameplayTasks",
-                    "GameplayAbilities",    
 				}
                 );
 
@@ -48,8 +47,9 @@ namespace UnrealBuildTool.Rules
                 new string[]
 				    {
 					    // ... add any modules that your module loads dynamically here ...
-				    }
-                );
+					    "GameplayAbilities",
+					}
+				);
 
             if (UEBuildConfiguration.bBuildEditor == true)
             {
@@ -63,6 +63,8 @@ namespace UnrealBuildTool.Rules
             {
                 PrivateDependencyModuleNames.Add("Navmesh");
             }
+
+			PrecompileForTargets = PrecompileTargetsType.Any;
         }
     }
 }

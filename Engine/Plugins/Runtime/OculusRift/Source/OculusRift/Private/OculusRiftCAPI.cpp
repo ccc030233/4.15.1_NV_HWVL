@@ -1,3 +1,5 @@
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+
 #include "HMDPrivatePCH.h"
 #include "OculusRiftHMD.h"
 
@@ -10,6 +12,7 @@
 #include <OVR_CAPI_Util.cpp>
 #include <OVR_StereoProjection.cpp>
 #include <HeadMountedDisplayCommon.cpp>
+#include <AsyncLoadingSplash.cpp>
 
 #if PLATFORM_WINDOWS
 	// It is required to undef WINDOWS_PLATFORM_TYPES_GUARD for any further D3D11 private includes

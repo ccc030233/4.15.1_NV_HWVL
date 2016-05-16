@@ -1,12 +1,12 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "OculusInput.h"
 #include "IOculusInputPlugin.h"
 #include "IOculusRiftPlugin.h"
 
-#if OCULUS_TOUCH_SUPPORTED_PLATFORMS
+#if OCULUS_INPUT_SUPPORTED_PLATFORMS
 
-#define LOCTEXT_NAMESPACE "OculusTouch"
+#define LOCTEXT_NAMESPACE "OculusInput"
 
 class FOculusInputModule : public IOculusInputPlugin
 {
@@ -26,13 +26,13 @@ class FOculusInputModule : public IOculusInputPlugin
 	}
 };
 
-#else	//	OCULUS_TOUCH_SUPPORTED_PLATFORMS
+#else	//	OCULUS_INPUT_SUPPORTED_PLATFORMS
 
 class FOculusInputModule : public FDefaultModuleImpl
 {
 };
 
 #undef LOCTEXT_NAMESPACE
-#endif	// OCULUS_TOUCH_SUPPORTED_PLATFORMS
+#endif	// OCULUS_INPUT_SUPPORTED_PLATFORMS
 
 IMPLEMENT_MODULE( FOculusInputModule, OculusInput )

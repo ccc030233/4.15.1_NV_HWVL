@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "CorePrivatePCH.h"
 #include "Misc/App.h"
@@ -655,11 +655,18 @@ void FTextLocalizationManager::UpdateFromLocalizationResource(const FString& Loc
 {
 	TArray<FLocalizationEntryTracker> LocalizationEntryTrackers;
 
-	FLocalizationEntryTracker LocalizationEntryTracker = LocalizationEntryTrackers[LocalizationEntryTrackers.Add(FLocalizationEntryTracker())];
+	FLocalizationEntryTracker& LocalizationEntryTracker = LocalizationEntryTrackers[LocalizationEntryTrackers.Add(FLocalizationEntryTracker())];
 	LocalizationEntryTracker.LoadFromFile(LocalizationResourceFilePath);
 	LocalizationEntryTracker.DetectAndLogConflicts();
 
 	UpdateFromLocalizations(LocalizationEntryTrackers);
+}
+
+void FTextLocalizationManager::RefreshResources()
+{
+	const bool ShouldLoadEditor = WITH_EDITOR;
+	const bool ShouldLoadGame = FApp::IsGame();
+	LoadLocalizationResourcesForCulture(FInternationalization::Get().GetCurrentCulture()->GetName(), ShouldLoadEditor, ShouldLoadGame);
 }
 
 void FTextLocalizationManager::OnCultureChanged()

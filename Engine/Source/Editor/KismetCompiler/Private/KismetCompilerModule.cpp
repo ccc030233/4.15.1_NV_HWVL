@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	KismetCompilerModule.cpp
@@ -15,6 +15,7 @@
 
 #include "UserDefinedStructureCompilerUtils.h"
 #include "Engine/UserDefinedStruct.h"
+#include "BlueprintCompilerCppBackendInterface.h"
 
 DEFINE_LOG_CATEGORY(LogK2Compiler);
 DECLARE_CYCLE_STAT(TEXT("Compile Time"), EKismetCompilerStats_CompileTime, STATGROUP_KismetCompiler);
@@ -128,6 +129,24 @@ void FKismet2CompilerModule::CompileStructure(UUserDefinedStruct* Struct, FCompi
 	FUserDefinedStructureCompilerUtils::CompileStruct(Struct, Results, true);
 }
 
+FString FKismet2CompilerModule::GenerateCppCodeForEnum(UUserDefinedEnum* UDEnum)
+{
+	TUniquePtr<IBlueprintCompilerCppBackend> Backend_CPP(IBlueprintCompilerCppBackendModuleInterface::Get().Create());
+	return Backend_CPP->GenerateCodeFromEnum(UDEnum);
+}
+
+FString FKismet2CompilerModule::GenerateCppCodeForStruct(UUserDefinedStruct* UDStruct)
+{
+	TUniquePtr<IBlueprintCompilerCppBackend> Backend_CPP(IBlueprintCompilerCppBackendModuleInterface::Get().Create());
+	return Backend_CPP->GenerateCodeFromStruct(UDStruct);
+}
+
+FString FKismet2CompilerModule::GenerateCppWrapper(UBlueprintGeneratedClass* BPGC)
+{
+	TUniquePtr<IBlueprintCompilerCppBackend> Backend_CPP(IBlueprintCompilerCppBackendModuleInterface::Get().Create());
+	return Backend_CPP->GenerateWrapperForClass(BPGC);
+}
+
 extern UNREALED_API FSecondsCounterData BlueprintCompileAndLoadTimerData;
 
 // Compiles a blueprint.
@@ -158,6 +177,12 @@ void FKismet2CompilerModule::CompileBlueprint(class UBlueprint* Blueprint, const
 		FKismetCompilerOptions SkeletonCompileOptions;
 		SkeletonCompileOptions.CompileType = EKismetCompileType::SkeletonOnly;
 		CompileBlueprintInner(Blueprint, SkeletonCompileOptions, SkeletonResults, ParentReinstancer, ObjLoaded);
+
+		// Only when doing full compiles do we want to compile all skeletons before continuing to compile 
+		if (CompileOptions.CompileType == EKismetCompileType::Full)
+		{
+			SkeletonReinstancer->ReinstanceObjects();
+		}
 	}
 
 	// If this was a full compile, take appropriate actions depending on the success of failure of the compile
@@ -203,7 +228,7 @@ void FKismet2CompilerModule::CompileBlueprint(class UBlueprint* Blueprint, const
 				}
 			}
 			const bool bBytecodeOnly = EKismetCompileType::BytecodeOnly == CompileOptions.CompileType;
-			auto StubReinstancer = FBlueprintCompileReinstancer::Create(Blueprint->GeneratedClass, bBytecodeOnly);
+			auto StubReinstancer = FBlueprintCompileReinstancer::Create(Blueprint->GeneratedClass, bBytecodeOnly, false, false);
 
 			// Toss the half-baked class and generate a stubbed out skeleton class that can be used
 			FCompilerResultsLog StubResults;

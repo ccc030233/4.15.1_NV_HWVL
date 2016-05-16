@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "EnginePrivate.h"
 
@@ -82,7 +82,7 @@ void SGameLayerManager::AddWidgetForPlayer(ULocalPlayer* Player, TSharedRef<SWid
 	TSharedPtr<FPlayerLayer> PlayerLayer = FindOrCreatePlayerLayer(Player);
 	
 	// NOTE: Returns FSimpleSlot but we're ignoring here.  Could be used for alignment though.
-	PlayerLayer->Widget->AddSlot(ZOrder)
+	PlayerLayer->Overlay->AddSlot(ZOrder)
 	[
 		ViewportContent
 	];
@@ -94,7 +94,7 @@ void SGameLayerManager::RemoveWidgetForPlayer(ULocalPlayer* Player, TSharedRef<S
 	if ( PlayerLayerPtr )
 	{
 		TSharedPtr<FPlayerLayer> PlayerLayer = *PlayerLayerPtr;
-		PlayerLayer->Widget->RemoveSlot(ViewportContent);
+		PlayerLayer->Overlay->RemoveSlot(ViewportContent);
 	}
 }
 
@@ -104,7 +104,7 @@ void SGameLayerManager::ClearWidgetsForPlayer(ULocalPlayer* Player)
 	if ( PlayerLayerPtr )
 	{
 		TSharedPtr<FPlayerLayer> PlayerLayer = *PlayerLayerPtr;
-		PlayerLayer->Widget->ClearChildren();
+		PlayerLayer->Overlay->ClearChildren();
 	}
 }
 
@@ -132,7 +132,7 @@ bool SGameLayerManager::AddLayerForPlayer(ULocalPlayer* Player, const FName& Lay
 
 		PlayerLayer->Layers.Add(LayerName, Layer);
 
-		PlayerLayer->Widget->AddSlot(ZOrder)
+		PlayerLayer->Overlay->AddSlot(ZOrder)
 		[
 			Layer->AsWidget()
 		];
@@ -163,6 +163,14 @@ void SGameLayerManager::Tick(const FGeometry& AllottedGeometry, const double InC
 	CachedGeometry = AllottedGeometry;
 
 	UpdateLayout();
+}
+
+int32 SGameLayerManager::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyClippingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+{
+	FPlatformMisc::BeginNamedEvent(FColor::Green, "Paint: Game UI");
+	const int32 ResultLayer = SCompoundWidget::OnPaint(Args, AllottedGeometry, MyClippingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+	FPlatformMisc::EndNamedEvent();
+	return ResultLayer;
 }
 
 bool SGameLayerManager::OnVisualizeTooltip(const TSharedPtr<SWidget>& TooltipContent)
@@ -224,8 +232,11 @@ TSharedPtr<SGameLayerManager::FPlayerLayer> SGameLayerManager::FindOrCreatePlaye
 		TSharedPtr<FPlayerLayer> NewLayer = MakeShareable(new FPlayerLayer());
 
 		// Create a new overlay widget to house any widgets we want to display for the player.
-		NewLayer->Widget = SNew(SOverlay)
-			.AddMetaData(StopNavigation);
+		NewLayer->Root = SNew(SScissorRectBox)
+			[
+				SAssignNew(NewLayer->Overlay, SOverlay)
+				.AddMetaData(StopNavigation)
+			];
 		
 		// Add the overlay to the player canvas, which we'll update every frame to match
 		// the dimensions of the player's split screen rect.
@@ -234,7 +245,7 @@ TSharedPtr<SGameLayerManager::FPlayerLayer> SGameLayerManager::FindOrCreatePlaye
 			.VAlign(VAlign_Fill)
 			.Expose(NewLayer->Slot)
 			[
-				NewLayer->Widget.ToSharedRef()
+				NewLayer->Root.ToSharedRef()
 			];
 
 		PlayerLayerPtr = &PlayerLayers.Add(LocalPlayer, NewLayer);
@@ -267,7 +278,7 @@ void SGameLayerManager::RemoveMissingPlayerLayers(const TArray<ULocalPlayer*>& G
 void SGameLayerManager::RemovePlayerWidgets(ULocalPlayer* LocalPlayer)
 {
 	TSharedPtr<FPlayerLayer> Layer = PlayerLayers.FindRef(LocalPlayer);
-	PlayerCanvas->RemoveSlot(Layer->Widget.ToSharedRef());
+	PlayerCanvas->RemoveSlot(Layer->Root.ToSharedRef());
 
 	PlayerLayers.Remove(LocalPlayer);
 }
@@ -296,11 +307,42 @@ void SGameLayerManager::AddOrUpdatePlayerLayers(const FGeometry& AllottedGeometr
 			Position.X = SplitData.OriginX;
 			Position.Y = SplitData.OriginY;
 
-			Size = Size * AllottedGeometry.GetLocalSize() * InverseDPIScale;
-			Position = Position * AllottedGeometry.GetLocalSize() * InverseDPIScale;
+			FVector2D AspectRatioInset = GetAspectRatioInset(Player);
+
+			Size = ( Size * AllottedGeometry.GetLocalSize() + ( AspectRatioInset * 2.0f ) ) * InverseDPIScale;
+			Position = ( Position * AllottedGeometry.GetLocalSize() + AspectRatioInset ) * InverseDPIScale;
 
 			PlayerLayer->Slot->Size(Size);
 			PlayerLayer->Slot->Position(Position);
 		}
 	}
+}
+
+FVector2D SGameLayerManager::GetAspectRatioInset(ULocalPlayer* LocalPlayer) const
+{
+	FVector2D Offset(0.f, 0.f);
+
+	if ( LocalPlayer )
+	{
+		// Create a view family for the game viewport
+		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
+			LocalPlayer->ViewportClient->Viewport,
+			LocalPlayer->GetWorld()->Scene,
+			LocalPlayer->ViewportClient->EngineShowFlags)
+			.SetRealtimeUpdate(true));
+
+		// Calculate a view where the player is to update the streaming from the players start location
+		FVector ViewLocation;
+		FRotator ViewRotation;
+		FSceneView* SceneView = LocalPlayer->CalcSceneView(&ViewFamily, /*out*/ ViewLocation, /*out*/ ViewRotation, LocalPlayer->ViewportClient->Viewport);
+
+		if ( SceneView )
+		{
+			// This accounts for the borders when the aspect ratio is locked
+			Offset.X = ( SceneView->UnscaledViewRect.Min.X - SceneView->UnconstrainedViewRect.Min.X );
+			Offset.Y = ( SceneView->UnscaledViewRect.Min.Y - SceneView->UnconstrainedViewRect.Min.Y );
+		}
+	}
+
+	return Offset;
 }

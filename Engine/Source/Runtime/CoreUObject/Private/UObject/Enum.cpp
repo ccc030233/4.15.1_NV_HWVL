@@ -1,6 +1,7 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "CoreUObjectPrivate.h"
+#include "UObjectThreadContext.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogEnum, Log, All);
 
@@ -60,21 +61,6 @@ void UEnum::Serialize( FArchive& Ar )
 		}
 		AddNamesToMasterList();
 	}
-
-	// !!!HACKY!!!
-	// We can't modify headers due to binary compatibility in releases,
-	// so adding UUserDefinedEnum::Serialize in it's parent class.
-	// !!!HACKY!!!
-#if WITH_EDITOR
-	static FName NAME_UserDefinedEnum(TEXT("UserDefinedEnum"));
-	if (Ar.IsLoading() && Ar.IsPersistent() && (GetClass()->GetFName() == NAME_UserDefinedEnum))
-	{
-		for (int32 i = 0; i < Names.Num(); ++i)
-		{
-			Names[i].Value = i;
-		}
-	}
-#endif // WITH_EDITOR
 }
 
 FString UEnum::GetBaseEnumNameOnDuplication() const
@@ -94,18 +80,21 @@ FString UEnum::GetBaseEnumNameOnDuplication() const
 
 void UEnum::RenameNamesAfterDuplication()
 {
-	// Get name of base enum, from which we're duplicating.
-	FString BaseEnumName = GetBaseEnumNameOnDuplication();
-
-	// Get name of duplicated enum.
-	FString ThisName = GetName();
-
-	// Replace all usages of base class name to the duplicated one.
-	for (TPair<FName, uint8>& Kvp : Names)
+	if (Names.Num() != 0)
 	{
-		FString NameString = Kvp.Key.ToString();
-		NameString.ReplaceInline(*BaseEnumName, *ThisName);
-		Kvp.Key = FName(*NameString);
+		// Get name of base enum, from which we're duplicating.
+		FString BaseEnumName = GetBaseEnumNameOnDuplication();
+
+		// Get name of duplicated enum.
+		FString ThisName = GetName();
+
+		// Replace all usages of base class name to the duplicated one.
+		for (TPair<FName, uint8>& Kvp : Names)
+		{
+			FString NameString = Kvp.Key.ToString();
+			NameString.ReplaceInline(*BaseEnumName, *ThisName);
+			Kvp.Key = FName(*NameString);
+		}
 	}
 }
 
@@ -389,10 +378,12 @@ int32 UEnum::FindEnumIndex(FName InName) const
 		EnumIndex = FindEnumRedirects(this, InName);
 	}
 
-	if (EnumIndex == INDEX_NONE && InName != NAME_None)
+	// None is passed in by blueprints at various points, isn't an error. Any other failed resolve should be fixed
+	if ((EnumIndex == INDEX_NONE) && (InName != NAME_None))
 	{
-		// None is passed in by blueprints at various points, isn't an error. Any other failed resolve should be fixed
-		UE_LOG(LogEnum, Warning, TEXT("Enum Text %s for Enum %s failed to resolve to any value"), *InName.ToString(), *GetName());
+		FUObjectThreadContext& ThreadContext = FUObjectThreadContext::Get();
+		
+		UE_LOG(LogEnum, Warning, TEXT("In asset '%s', there is an enum property of type '%s' with an invalid value of '%s'"), *GetPathNameSafe(ThreadContext.SerializedObject), *GetName(), *InName.ToString());
 	}
 
 	return EnumIndex;
@@ -565,7 +556,8 @@ FText UEnum::GetToolTipText(int32 NameIndex) const
 	if ( !FText::FindText( Namespace, Key, /*OUT*/LocalizedToolTip, &NativeToolTip ) )
 	{
 		static const FString DoxygenSee(TEXT("@see"));
-		if (NativeToolTip.Split(DoxygenSee, &NativeToolTip, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromStart))
+		static const FString TooltipSee(TEXT("See:"));
+		if (NativeToolTip.ReplaceInline(*DoxygenSee, *TooltipSee) > 0)
 		{
 			NativeToolTip.TrimTrailing();
 		}

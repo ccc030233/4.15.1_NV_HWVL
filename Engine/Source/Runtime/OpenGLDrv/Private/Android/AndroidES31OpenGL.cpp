@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #if PLATFORM_ANDROIDES31
 /*=============================================================================
@@ -37,6 +37,18 @@ void FAndroidES31OpenGL::ProcessExtensions(const FString& ExtensionsString)
 	FOpenGLES31::ProcessExtensions(ExtensionsString);
 
 	bSupportsBindlessTexture = ExtensionsString.Contains(TEXT("GL_NV_bindless_texture"));
+
+	// Nexus 9 running Android < 6.0 runs slow with NvTimerQuery so disable it
+	if (FAndroidMisc::GetDeviceModel() == FString(TEXT("Nexus 9")))
+	{
+		TArray<FString> VersionParts;
+		FAndroidMisc::GetAndroidVersion().ParseIntoArray(VersionParts, TEXT("."), true);
+		if (VersionParts.Num() > 0 && FCString::Atoi(*VersionParts[0]) < 6)
+		{
+			UE_LOG(LogRHI, Log, TEXT("Disabling support for NvTimerQuery on Nexus 9 before Android 6.0"));
+			bSupportsNvTimerQuery = false;
+		}
+	}
 }
 
 
@@ -123,7 +135,7 @@ void FPlatformOpenGLDevice::Init()
 	UE_LOG( LogRHI, Warning, TEXT("Entering FPlatformOpenGLDevice::Init"));
 	extern void InitDebugContext();
 
-	AndroidEGL::GetInstance()->InitSurface(false);
+	AndroidEGL::GetInstance()->InitSurface(false, true);
 	AndroidEGL::GetInstance()->SetSingleThreadRenderingContext();
 
 	// Initialize all of the entry points we have to query manually
@@ -557,7 +569,7 @@ FString FAndroidMisc::GetGLVersion()
 
 bool FAndroidMisc::SupportsFloatingPointRenderTargets()
 {
-	return FAndroidGPUInfo::Get().bSupportsFloatingPointRenderTargets;
+	return FAndroidGPUInfo::Get().bSupportsFloatingPointRenderTargets && FAndroidGPUInfo::Get().bSupportsTextureHalfFloat;
 }
 
 bool FAndroidMisc::SupportsShaderFramebufferFetch()

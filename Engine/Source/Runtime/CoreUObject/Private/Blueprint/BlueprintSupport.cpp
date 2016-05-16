@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "CoreUObjectPrivate.h"
 #include "UObject/LinkerPlaceholderClass.h"
@@ -8,6 +8,7 @@
 #include "PropertyTag.h"
 #include "UObject/StructScriptLoader.h"
 #include "UObject/UObjectThreadContext.h"
+#include "ModuleManager.h"
 
 /** 
  * Defined in BlueprintSupport.cpp
@@ -448,6 +449,42 @@ bool FLinkerLoad::DeferPotentialCircularImport(const int32 Index)
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 }
 
+#if WITH_EDITOR
+bool FLinkerLoad::IsSuppressableBlueprintImportError(int32 ImportIndex) const
+{
+	// We want to suppress any import errors that target a BlueprintGeneratedClass
+	// since these issues can occur when an externally referenced Blueprint is saved 
+	// without compiling. This should not be a problem because all Blueprints are
+	// compiled-on-load.
+	static const FName NAME_BlueprintGeneratedClass("BlueprintGeneratedClass");
+
+	bool bImportBelongsToBlueprint = false;
+	// We will look at each outer of the Import to see if any of them are a BPGC
+	while (ImportMap.IsValidIndex(ImportIndex))
+	{
+		const FObjectImport& TestImport = ImportMap[ImportIndex];
+		if (TestImport.ClassName == NAME_BlueprintGeneratedClass)
+		{
+			// The import is a BPGC, suppress errors
+			bImportBelongsToBlueprint = true;
+			break;
+		}
+
+		if (!TestImport.OuterIndex.IsNull() && TestImport.OuterIndex.IsImport())
+		{
+			ImportIndex = TestImport.OuterIndex.ToImport();
+		}
+		else
+		{
+			// It's not an import, we are done
+			break;
+		}
+	}
+
+	return bImportBelongsToBlueprint;
+}
+#endif // WITH_EDITOR
+
 /** 
  * A helper utility for tracking exports whose classes we're currently running
  * through ForceRegenerateClass(). This is primarily relied upon to help prevent
@@ -576,7 +613,7 @@ bool FLinkerLoad::DeferExportCreation(const int32 Index)
 	// class... either way, we don't have to defer the export (as long as we 
 	// make sure the export's class is fully regenerated... presumably it is in 
 	// the midst of doing so somewhere up the callstack)
-	if (!bIsLoadingExportClass)
+	if (!bIsLoadingExportClass || (LoadFlags & LOAD_ResolvingDeferredExports) != 0 )
 	{
 		DEFERRED_DEPENDENCY_CHECK(!IsExportBeingResolved(Index));
 		FScopedResolvingExportTracker ReentranceGuard(this, Index);
@@ -980,7 +1017,7 @@ int32 FLinkerLoad::ResolveDependencyPlaceholder(FLinkerPlaceholderBase* Placehol
 	// holding onto objects that are spawned during the process (to ensure 
 	// they're not thrown away prematurely)
 	bool const bIsAsyncLoadRef = (UnresolvedReferences.ExternalReferences.Num() == 1) &&
-		PlaceholderObj->HasAnyFlags(RF_AsyncLoading) && (UnresolvedReferences.ExternalReferences[0].Referencer == FGCObject::GGCObjectReferencer);
+		PlaceholderObj->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading) && (UnresolvedReferences.ExternalReferences[0].Referencer == FGCObject::GGCObjectReferencer);
 
 	DEFERRED_DEPENDENCY_CHECK(!bIsReferenced || bIsAsyncLoadRef);
 #endif // USE_DEFERRED_DEPENDENCY_CHECK_VERIFICATION_TESTS
@@ -1060,8 +1097,8 @@ void FLinkerLoad::FinalizeBlueprint(UClass* LoadClass)
 		FLinkerLoad* SuperLinker = SuperClass->GetLinker();
 		if ((SuperLinker != nullptr) && SuperLinker->IsBlueprintFinalizationPending())
 		{
-			DEFERRED_DEPENDENCY_CHECK(SuperLinker->DeferredCDOIndex != INDEX_NONE);
-			UObject* SuperCDO = SuperLinker->ExportMap[SuperLinker->DeferredCDOIndex].Object;
+			DEFERRED_DEPENDENCY_CHECK(SuperLinker->DeferredCDOIndex != INDEX_NONE || SuperLinker->bForceBlueprintFinalization);
+			UObject* SuperCDO = SuperLinker->DeferredCDOIndex != INDEX_NONE ? SuperLinker->ExportMap[SuperLinker->DeferredCDOIndex].Object : SuperClass->ClassDefaultObject;
 			// we MUST have the super fully serialized before we can finalize  
 			// this (class and CDO); if the SuperCDO is already in the midst of 
 			// serializing somewhere up the stack (and a cyclic dependency has  
@@ -1109,8 +1146,11 @@ void FLinkerLoad::FinalizeBlueprint(UClass* LoadClass)
 	// some nested call
 	if (IsBlueprintFinalizationPending())
 	{
-		FObjectExport& CDOExport = ExportMap[DeferredCDOIndex];
-		// clear this so IsBlueprintFinalizationPending() doesn't report true
+		int32 DeferredCDOIndexCopy = DeferredCDOIndex;
+		UObject* CDO = DeferredCDOIndex != INDEX_NONE ? ExportMap[DeferredCDOIndexCopy].Object : LoadClass->ClassDefaultObject;
+		// clear this so IsBlueprintFinalizationPending() doesn't report true:
+		FLinkerLoad::bForceBlueprintFinalization = false;
+		// clear this because we're processing this CDO now:
 		DeferredCDOIndex = INDEX_NONE;
 
 #if USE_DEFERRED_DEPENDENCY_CHECK_VERIFICATION_TESTS
@@ -1131,7 +1171,7 @@ void FLinkerLoad::FinalizeBlueprint(UClass* LoadClass)
 		}
 		DEFERRED_DEPENDENCY_CHECK(ClassInstances.Num() == 0);
 
-		UClass* BlueprintClass = Cast<UClass>(IndexToObject(CDOExport.ClassIndex));
+		UClass* BlueprintClass = DeferredCDOIndexCopy != INDEX_NONE ? Cast<UClass>(IndexToObject(ExportMap[DeferredCDOIndexCopy].ClassIndex)) : LoadClass;
 		DEFERRED_DEPENDENCY_CHECK(BlueprintClass == LoadClass);
 		DEFERRED_DEPENDENCY_CHECK(BlueprintClass->HasAnyClassFlags(CLASS_CompiledFromBlueprint));
 #endif // USE_DEFERRED_DEPENDENCY_CHECK_VERIFICATION_TESTS
@@ -1150,7 +1190,7 @@ void FLinkerLoad::FinalizeBlueprint(UClass* LoadClass)
 		if (!LoadClass->bCooked)
 		{
 			UObject* OldCDO = LoadClass->ClassDefaultObject;
-			if (RegenerateBlueprintClass(LoadClass, CDOExport.Object))
+			if (RegenerateBlueprintClass(LoadClass, CDO))
 			{
 				// emulate class CDO serialization (RegenerateBlueprintClass() could 
 				// have a side-effect where it overwrites the class's CDO; so we 
@@ -1158,7 +1198,7 @@ void FLinkerLoad::FinalizeBlueprint(UClass* LoadClass)
 				// stale one)
 				if (OldCDO == LoadClass->ClassDefaultObject)
 				{
-					LoadClass->ClassDefaultObject = CDOExport.Object;
+					LoadClass->ClassDefaultObject = CDO;
 				}
 			}
 		}
@@ -1174,10 +1214,9 @@ void FLinkerLoad::ResolveDeferredExports(UClass* LoadClass)
 		return;
 	}
 
-	DEFERRED_DEPENDENCY_CHECK(DeferredCDOIndex != INDEX_NONE);
-	FObjectExport& CDOExport = ExportMap[DeferredCDOIndex];
+	DEFERRED_DEPENDENCY_CHECK(DeferredCDOIndex != INDEX_NONE || bForceBlueprintFinalization);
 
-	UObject* BlueprintCDO = CDOExport.Object;
+	UObject* BlueprintCDO = DeferredCDOIndex != INDEX_NONE ? ExportMap[DeferredCDOIndex].Object : LoadClass->ClassDefaultObject;
 	DEFERRED_DEPENDENCY_CHECK(BlueprintCDO != nullptr);
 
 	if (!FBlueprintSupport::IsDeferredExportCreationDisabled())
@@ -1187,7 +1226,7 @@ void FLinkerLoad::ResolveDeferredExports(UClass* LoadClass)
 		{
 			FReferencerInformationList UnresolvedReferences;
 			UObject* PlaceholderObj = ExportPlaceholder;
-			return IsReferenced(PlaceholderObj, RF_NoFlags, /*bCheckSubObjects =*/false, &UnresolvedReferences);
+			return IsReferenced(PlaceholderObj, GARBAGE_COLLECTION_KEEPFLAGS, EInternalObjectFlags::GarbageCollectionKeepFlags, /*bCheckSubObjects =*/false, &UnresolvedReferences);
 		};
 #endif // USE_DEFERRED_DEPENDENCY_CHECK_VERIFICATION_TESTS
 
@@ -1196,6 +1235,12 @@ void FLinkerLoad::ResolveDeferredExports(UClass* LoadClass)
 		// instancing operations when the class ultimately finalizes)... so here, we
 		// find those skipped exports and properly create them (before we finalize 
 		// our own class)
+
+		// Mark this linker as ResolvingDeferredExports so that we don't continue deferring exports
+		// we clear this flag after the loop. We have no TGuardValue for flags and so I'm setting
+		// and clearing the bit manually:
+		LoadFlags |= LOAD_ResolvingDeferredExports;
+
 		for (int32 ExportIndex = 0; ExportIndex < ExportMap.Num() && IsBlueprintFinalizationPending(); ++ExportIndex)
 		{
 			FObjectExport& Export = ExportMap[ExportIndex];
@@ -1250,6 +1295,8 @@ void FLinkerLoad::ResolveDeferredExports(UClass* LoadClass)
 				DEFERRED_DEPENDENCY_CHECK( !IsPlaceholderReferenced(PlaceholderExport) );
 			}
 		}
+
+		LoadFlags &= ~LOAD_ResolvingDeferredExports;
 	}
 
 #if USE_DEFERRED_DEPENDENCY_CHECK_VERIFICATION_TESTS
@@ -1274,10 +1321,13 @@ void FLinkerLoad::ResolveDeferredExports(UClass* LoadClass)
 		// have to prematurely set the CDO's linker so we can force a Preload()/
 		// Serialization of the CDO before we regenerate the Blueprint class
 		{
-			const EObjectFlags OldFlags = BlueprintCDO->GetFlags();
-			BlueprintCDO->ClearFlags(RF_NeedLoad | RF_NeedPostLoad);
-			BlueprintCDO->SetLinker(this, DeferredCDOIndex, /*bShouldDetatchExisting =*/false);
-			BlueprintCDO->SetFlags(OldFlags);
+			if (DeferredCDOIndex != INDEX_NONE)
+			{
+				const EObjectFlags OldFlags = BlueprintCDO->GetFlags();
+				BlueprintCDO->ClearFlags(RF_NeedLoad | RF_NeedPostLoad);
+				BlueprintCDO->SetLinker(this, DeferredCDOIndex, /*bShouldDetatchExisting =*/false);
+				BlueprintCDO->SetFlags(OldFlags);
+			}
 		}
 		DEFERRED_DEPENDENCY_CHECK(BlueprintCDO->GetClass() == LoadClass);
 
@@ -1326,10 +1376,18 @@ void FLinkerLoad::ResolveDeferredExports(UClass* LoadClass)
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 }
 
+void FLinkerLoad::ForceBlueprintFinalization()
+{
+#if USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
+	check(!bForceBlueprintFinalization);
+	bForceBlueprintFinalization = true;
+#endif
+}
+
 bool FLinkerLoad::IsBlueprintFinalizationPending() const
 {
 #if USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
-	return (DeferredCDOIndex != INDEX_NONE);
+	return bForceBlueprintFinalization || (DeferredCDOIndex != INDEX_NONE);
 #else  // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 	return false;
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
@@ -1403,12 +1461,81 @@ void FLinkerLoad::ResetDeferredLoadingState()
 {
 #if USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 	DeferredCDOIndex = INDEX_NONE;
+	bForceBlueprintFinalization = false;
 	ResolvingDeferredPlaceholder = nullptr;
 	LoadFlags &= ~(LOAD_DeferDependencyLoads);
 
 	FResolvingExportTracker::Get().Reset(this);
 	FUnresolvedStructTracker::Reset(this);
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
+}
+
+#if WITH_EDITORONLY_DATA
+extern int32 GLinkerAllowDynamicClasses;
+#endif
+
+UObject* FLinkerLoad::FindImport(UClass* ImportClass, UObject* ImportOuter, const TCHAR* Name)
+{	
+	UObject* Result = StaticFindObject(ImportClass, ImportOuter, Name);
+#if WITH_EDITORONLY_DATA
+	static FName NAME_BlueprintGeneratedClass(TEXT("BlueprintGeneratedClass"));
+	if (GLinkerAllowDynamicClasses && !Result && ImportClass->GetFName() == NAME_BlueprintGeneratedClass)
+	{
+		Result = StaticFindObject(UDynamicClass::StaticClass(), ImportOuter, Name);
+	}
+#endif
+	return Result;
+}
+
+UObject* FLinkerLoad::FindImportFast(UClass* ImportClass, UObject* ImportOuter, FName Name)
+{
+	UObject* Result = StaticFindObjectFast(ImportClass, ImportOuter, Name);
+#if WITH_EDITORONLY_DATA
+	static FName NAME_BlueprintGeneratedClass(TEXT("BlueprintGeneratedClass"));
+	if (GLinkerAllowDynamicClasses && !Result && ImportClass->GetFName() == NAME_BlueprintGeneratedClass)
+	{
+		Result = StaticFindObjectFast(UDynamicClass::StaticClass(), ImportOuter, Name);
+	}
+#endif
+	return Result;
+}
+
+void FLinkerLoad::CreateDynamicTypeLoader()
+{
+	// In this case we can skip serializing PackageFileSummary and fill all the required info here
+	bHasSerializedPackageFileSummary = true;
+
+	// Try to get dependencies for dynamic classes
+	TArray<FBlueprintDependencyData> ImportDependencyPackages;
+	FConvertedBlueprintsDependencies::Get().GetAssets(LinkerRoot->GetFName(), ImportDependencyPackages);
+
+	// Create Imports
+	for (FBlueprintDependencyData& Import : ImportDependencyPackages)
+	{
+		FObjectImport* ObjectImport = new(ImportMap)FObjectImport(nullptr);
+		ObjectImport->ClassName = Import.ClassName;
+		ObjectImport->ClassPackage = Import.ClassPackageName;
+		ObjectImport->ObjectName = Import.ObjectName;
+		ObjectImport->OuterIndex = FPackageIndex::FromImport(ImportMap.Num());
+
+		FObjectImport* OuterImport = new(ImportMap)FObjectImport(nullptr);
+		OuterImport->ClassName = NAME_Package;
+		OuterImport->ClassPackage = GLongCoreUObjectPackageName;
+		OuterImport->ObjectName = Import.PackageName;
+	}
+
+	// Create Exports
+	{
+		FObjectExport* Export = new (ExportMap)FObjectExport();
+		const FName* TypeNamePtr = GetConvertedDynamicPackageNameToTypeName().Find(LinkerRoot->GetFName());
+		Export->ObjectName = TypeNamePtr ? *TypeNamePtr : NAME_None;
+		Export->ThisIndex = FPackageIndex::FromExport(ExportMap.Num() - 1);
+		// This allows us to skip creating two additional imports for UDynamicClass and its package
+		Export->bDynamicClass = true;
+		Export->ObjectFlags |= RF_Public;
+	}
+
+	LinkerRoot->SetPackageFlags(LinkerRoot->GetPackageFlags() | PKG_CompiledIn);
 }
 
 /*******************************************************************************
@@ -1653,3 +1780,151 @@ void FDeferredObjInitializerTracker::ResolveDeferredSubClassObjects(UClass* Supe
 
 // don't want other files ending up with this internal define
 #undef DEFERRED_DEPENDENCY_CHECK
+
+FConvertedBlueprintsDependencies& FConvertedBlueprintsDependencies::Get()
+{
+	static FConvertedBlueprintsDependencies ConvertedBlueprintsDependencies;
+	return ConvertedBlueprintsDependencies;
+}
+
+void FConvertedBlueprintsDependencies::RegisterClass(FName PackageName, GetDependenciesNamesFunc GetAssets)
+{
+	check(!PackageNameToGetter.Contains(PackageName));
+	ensure(GetAssets);
+	PackageNameToGetter.Add(PackageName, GetAssets);
+}
+
+void FConvertedBlueprintsDependencies::GetAssets(FName PackageName, TArray<FBlueprintDependencyData>& OutDependencies) const
+{
+	auto FuncPtr = PackageNameToGetter.Find(PackageName);
+	auto Func = (FuncPtr) ? (*FuncPtr) : nullptr;
+	ensure(Func || !FuncPtr);
+	if (Func)
+	{
+		Func(OutDependencies);
+	}
+}
+
+/*******************************************************************************
+ * FScriptCookReplacementCoordinator
+ ******************************************************************************/
+#if WITH_EDITOR
+
+FScriptCookReplacementCoordinator* FScriptCookReplacementCoordinator::CoordinatorInstance = nullptr;
+
+FScriptCookReplacementCoordinator* FScriptCookReplacementCoordinator::Get()
+{
+	return CoordinatorInstance;
+}
+
+void FScriptCookReplacementCoordinator::Create(bool bEnabled, const TArray<FString>& ExcludedAssetTypes, const TArray<FString>& ExcludedBlueprintTypes, const TMap<UObject*, UClass*>& ReplacementMap)
+{
+	CoordinatorInstance = new FScriptCookReplacementCoordinator(bEnabled, ExcludedAssetTypes, ExcludedBlueprintTypes, ReplacementMap);
+}
+
+FScriptCookReplacementCoordinator::FScriptCookReplacementCoordinator(bool bInEnabled, const TArray<FString>& InExcludedAssetTypes, const TArray<FString>& InExcludedBlueprintTypes, const TMap<UObject*, UClass*>& InReplacementMap)
+	: bEnabled(bInEnabled)
+	, ExcludedAssetTypes(InExcludedAssetTypes)
+	, ExcludedBlueprintTypes(InExcludedBlueprintTypes)
+	, ReplacementMap(InReplacementMap)
+{
+}
+
+bool FScriptCookReplacementCoordinator::Initialize()
+{
+	return true;
+}
+
+DEFINE_LOG_CATEGORY_STATIC(LogDan, Log, All);
+
+UClass* FScriptCookReplacementCoordinator::FindReplacedClass(const UObject* Obj) const
+{
+	if (!bEnabled)
+	{
+		return nullptr;
+	}
+
+	// we're only looking to replace class types:
+	const UClass* AsClass = Obj->GetClass();
+	while (AsClass)
+	{
+		if (UClass* const* ReplacementPtr = ReplacementMap.Find(AsClass))
+		{
+			return *ReplacementPtr;
+		}
+
+		AsClass = AsClass->GetSuperClass();
+	}
+
+	return nullptr;
+}
+
+EReplacementResult FScriptCookReplacementCoordinator::IsTargetedForReplacement(const UPackage* Package) const
+{
+	if (!bEnabled)
+	{
+		return EReplacementResult::DontReplace;
+	}
+
+	// non-native packages with enums and structs should be converted, unless they are blacklisted:
+	UStruct* Struct = nullptr;
+	UEnum* Enum = nullptr;
+	TArray<UObject*> Objects;
+	GetObjectsWithOuter(Package, Objects, false);
+	for (auto Entry : Objects)
+	{
+		Struct = Cast<UStruct>(Entry);
+		Enum = Cast<UEnum>(Entry);
+		if (Struct || Enum)
+		{
+			break;
+		}
+	}
+
+	UObject* Target = Struct;
+	if (Target == nullptr)
+	{
+		Target = Enum;
+	}
+	return IsTargetedForReplacement(Target);
+}
+
+EReplacementResult FScriptCookReplacementCoordinator::IsTargetedForReplacement(const UObject* Object) const
+{
+	const UStruct* Struct = Cast<UStruct>(Object);
+	const UEnum* Enum = Cast<UEnum>(Object);
+
+	if (Struct == nullptr && Enum == nullptr)
+	{
+		return EReplacementResult::DontReplace;
+	}
+
+	// check blacklists:
+	// we can't use FindObject, because we may be converting a type while saving
+	if ((Struct && ExcludedAssetTypes.Find(Struct->GetPathName()) != INDEX_NONE) ||
+		(Enum && ExcludedAssetTypes.Find(Enum->GetPathName()) != INDEX_NONE))
+	{
+		return EReplacementResult::GenerateStub;
+	}
+
+	EReplacementResult Result = EReplacementResult::ReplaceCompletely;
+	while (Struct)
+	{
+		// This happens because the cooker incorrectly cooks editor only packages. Specifically happens for the blackjack sample
+		// project due to a FStringAssetReference in BaseEditor.ini:
+		if (Struct->RootPackageHasAnyFlags(PKG_EditorOnly))
+		{
+			return EReplacementResult::DontReplace;
+		}
+
+		if (ExcludedBlueprintTypes.Find(Struct->GetPathName()) != INDEX_NONE)
+		{
+			Result = EReplacementResult::GenerateStub;
+		}
+		Struct = Struct->GetSuperStruct();
+	}
+
+	return Result;
+}
+
+#endif // WITH_EDITOR

@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -123,7 +123,7 @@ protected:
 	bool ValidateAndRegisterNetIfLiteral(FKismetFunctionContext& Context, UEdGraphPin* Net);
 
 	// Helper to register literal term
-	FBPTerminal* RegisterLiteral(FKismetFunctionContext& Context, UEdGraphPin* Net);
+	virtual FBPTerminal* RegisterLiteral(FKismetFunctionContext& Context, UEdGraphPin* Net);
 public:
 	FNodeHandlingFunctor(FKismetCompilerContext& InCompilerContext)
 		: CompilerContext(InCompilerContext)

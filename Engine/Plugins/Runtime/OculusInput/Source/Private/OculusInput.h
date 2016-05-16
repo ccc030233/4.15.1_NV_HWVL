@@ -1,19 +1,22 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "OculusInputPrivatePCH.h"
 #include "OculusInputState.h"
 
-#if OCULUS_TOUCH_SUPPORTED_PLATFORMS
+#if OCULUS_INPUT_SUPPORTED_PLATFORMS
 
 #if PLATFORM_SUPPORTS_PRAGMA_PACK
 	#pragma pack (push,8)
 #endif
 
+#define OVR_PARTNER_CODE //? @TEMP
+
 #include <OVR_Version.h>
-#include <OVR_CAPI_0_8_0.h>
+#include <OVR_CAPI.h>
 #include <OVR_CAPI_Keys.h>
+#include <Extras/OVR_CAPI_Util.h>
 #include <Extras/OVR_Math.h>
 #include <OVR_ErrorCode.h>
 
@@ -44,8 +47,6 @@ struct FOculusTouchControllerPair
 	}
 };
 
-
-
 /**
  * Unreal Engine support for Oculus motion controller devices
  */
@@ -60,8 +61,10 @@ public:
 	/** Clean everything up */
 	virtual ~FOculusInput();
 
+	static void PreInit();
+
 	/** Loads any settings from the config folder that we need */
-	void LoadConfig();
+	static void LoadConfig();
 
 	// IInputDevice overrides
 	virtual void Tick( float DeltaTime ) override;
@@ -73,6 +76,7 @@ public:
 
 	// IMotionController overrides
 	virtual bool GetControllerOrientationAndPosition( const int32 ControllerIndex, const EControllerHand DeviceHand, FRotator& OutOrientation, FVector& OutPosition ) const override;
+	virtual ETrackingStatus GetControllerTrackingStatus(const int32 ControllerIndex, const EControllerHand DeviceHand) const override;
 
 	// IHapticDevice overrides
 	IHapticDevice* GetHapticDevice() override { return (IHapticDevice*)this; }
@@ -93,10 +97,15 @@ private:
 	/** List of the connected pairs of controllers, with state for each controller device */
 	TArray< FOculusTouchControllerPair > ControllerPairs;
 
+	FOculusRemoteControllerState Remote;
+
 	/** Threshold for treating trigger pulls as button presses, from 0.0 to 1.0 */
-	float TriggerThreshold;
+	static float TriggerThreshold;
+
+	/** Are Remote keys mapped to gamepad or not. */
+	static bool bRemoteKeysMappedToGamepad;
 };
 
 DEFINE_LOG_CATEGORY_STATIC(LogOcInput, Log, All);
 
-#endif //OCULUS_TOUCH_SUPPORTED_PLATFORMS
+#endif //OCULUS_INPUT_SUPPORTED_PLATFORMS

@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "SuperSearchPrivatePCH.h"
 #include "SSearchBox.h"
@@ -25,7 +25,7 @@ static TSharedRef<FSearchEntry> AskQuestionEntry (new FSearchEntry());
 #define LOCTEXT_NAMESPACE "SuperSearch"
 
 SSuperSearchBox::SSuperSearchBox()
-	: SelectedSuggestion(-1)
+	: SelectedSuggestion(INDEX_NONE)
 	, bIgnoreUIUpdate(false)
 {
 	CategoryToIconMap.Add("Documentation", FName("LevelEditor.BrowseDocumentation") );
@@ -50,10 +50,8 @@ void SSuperSearchBox::Construct( const FArguments& InArgs )
 {
 	// Allow style to be optionally overridden, but fallback to SSearchBox default if not specified
 	const FSearchBoxStyle* InStyle = InArgs._Style.IsSet() ? InArgs._Style.GetValue() : &FCoreStyle::Get().GetWidgetStyle<FSearchBoxStyle>("SearchBox");
-	const FComboBoxStyle* InSearchEngineStyle = InArgs._SearchEngineComboBoxStyle.IsSet() ? InArgs._SearchEngineComboBoxStyle.GetValue() : &FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>("ComboBox");
 
 	CurrentSearchEngine = InArgs._SearchEngine;
-	SearchEngineChanged = InArgs._OnSearchEngineChanged;
 
 	ChildSlot
 	[
@@ -62,19 +60,6 @@ void SSuperSearchBox::Construct( const FArguments& InArgs )
 		.Method( EPopupMethod::UseCurrentWindow )
 		[
 			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SNew(SComboBox< TSharedPtr<ESearchEngine> >)
-				.ComboBoxStyle(InSearchEngineStyle)
-				.OptionsSource(&SearchEngines)
-				.OnGenerateWidget(this, &SSuperSearchBox::GenerateSearchEngineItem)
-				.OnSelectionChanged(this, &SSuperSearchBox::HandleSearchEngineChanged)
-				[
-					SNew(STextBlock)
-					.Text(this, &SSuperSearchBox::GetSelectedSearchEngineText)
-				]
-			]
 
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
@@ -111,39 +96,9 @@ void SSuperSearchBox::Construct( const FArguments& InArgs )
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-TSharedRef<SWidget> SSuperSearchBox::GenerateSearchEngineItem(TSharedPtr<ESearchEngine> SearchEngine)
+void SSuperSearchBox::SetSearchEngine(ESearchEngine SearchEngine)
 {
-	return SNew(STextBlock)
-		.Text(GetSearchEngineText(*SearchEngine));
-}
-
-void SSuperSearchBox::HandleSearchEngineChanged(TSharedPtr<ESearchEngine> InSearchEngine, ESelectInfo::Type)
-{
-	CurrentSearchEngine = *InSearchEngine;
-
-	SearchEngineChanged.Execute(CurrentSearchEngine);
-
-	//Broadcast to anyone registered
-	//FSuperSearchModule& SuperSearchModule = FModuleManager::LoadModuleChecked< FSuperSearchModule >(TEXT("SuperSearch"));
-//	SuperSearchModule.GetSearchEngineChanged().Broadcast(CurrentSearchEngine);
-}
-
-FText SSuperSearchBox::GetSelectedSearchEngineText() const
-{
-	return GetSearchEngineText(CurrentSearchEngine);
-}
-
-FText SSuperSearchBox::GetSearchEngineText(ESearchEngine Type) const
-{
-	switch ( Type )
-	{
-	case ESearchEngine::Google:
-		return LOCTEXT("Google", "Google");
-	case ESearchEngine::Bing:
-		return LOCTEXT("Bing", "Bing");
-	}
-
-	return FText::GetEmpty();
+	CurrentSearchEngine = SearchEngine;
 }
 
 int32 GetNumRealSuggestions(const TArray< TSharedPtr<FSearchEntry> > & Suggestions)
@@ -375,7 +330,7 @@ void SSuperSearchBox::OnTextChanged(const FText& InText)
 	{
 		TSharedRef<class IHttpRequest> HttpRequest = FHttpModule::Get().CreateRequest();
 
-		FString UrlEncodedString = FGenericPlatformHttp::UrlEncode(InText.ToString());	//we need to url encode for special characters (especially other languages)
+		FString UrlEncodedString = FPlatformHttp::UrlEncode(InText.ToString());	//we need to url encode for special characters (especially other languages)
 
 		if ( CurrentSearchEngine == ESearchEngine::Bing )
 		{
@@ -479,7 +434,6 @@ void SSuperSearchBox::OnTextChanged(const FText& InText)
 	else
 	{
 		ClearSuggestions();
-		SuggestionBox->SetIsOpen(false);
 	}
 }
 
@@ -705,16 +659,15 @@ void SSuperSearchBox::UpdateSuggestions()
 	const FText& Query = InputText->GetText();
 	FSearchResults* SearchResults = SearchResultsCache.Find(Query.ToString());
 
+	//go through and build new suggestion list for list view widget
+	ClearSuggestions();
+
 	//still waiting on results for current query
 	if (SearchResults == nullptr)
 	{
 		return;
 	}
 
-	//go through and build new suggestion list for list view widget
-	Suggestions.Empty();
-	SelectedSuggestion = -1;
-	
 	//first tutorials
 	UpdateSuggestionHelper(NSLOCTEXT("SuperSearch", "tutorials", "Tutorials"), SearchResults->TutorialResults, Suggestions);
 
@@ -765,10 +718,6 @@ void SSuperSearchBox::MarkActiveSuggestion()
 void SSuperSearchBox::ClearSuggestions()
 {
 	SelectedSuggestion = INDEX_NONE;
-	SuggestionBox->SetIsOpen(false);
-	SelectedSuggestion = INDEX_NONE;
-	SelectedSuggestion = -1;
-	SuggestionBox->SetIsOpen(false);
 	Suggestions.Empty();
 }
 

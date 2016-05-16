@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	OpenGL3.cpp: OpenGL 3.2 implementation.
@@ -135,6 +135,12 @@ bool FOpenGLES31::bRequiresGLFragCoordVaryingLimitHack = false;
 
 /* This hack fixes an issue with SGX540 compiler which can get upset with some operations that mix highp and mediump */
 bool FOpenGLES31::bRequiresTexture2DPrecisionHack = false;
+
+/* This is to avoid a bug in Adreno drivers that define GL_EXT_shader_framebuffer_fetch even when device does not support this extension  */
+bool FOpenGLES31::bRequiresShaderFramebufferFetchUndef = false;
+
+/* This is to avoid a bug in Adreno drivers that define GL_ARM_shader_framebuffer_fetch_depth_stencil even when device does not support this extension  */
+bool FOpenGLES31::bRequiresARMShaderFramebufferFetchDepthStencilUndef = false;
 
 /* Indicates shader compiler hack checks are being tested */
 bool FOpenGLES31::bIsCheckingShaderCompilerHacks = false;

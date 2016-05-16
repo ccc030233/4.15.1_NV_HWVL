@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	KismetCompilerVMBackend.cpp
@@ -15,6 +15,7 @@
 #include "Editor/UnrealEd/Public/Kismet2/KismetDebugUtilities.h"
 #include "Engine/UserDefinedStruct.h"
 
+#define LOCTEXT_NAMESPACE "KismetCompilerVMBackend"
 //////////////////////////////////////////////////////////////////////////
 // FScriptBytecodeWriter
 
@@ -463,22 +464,33 @@ public:
 				if (StructProperty->Struct == VectorStruct)
 				{
 					FVector V = FVector::ZeroVector;
-					FDefaultValueHelper::ParseVector(Term->Name, /*out*/ V);
+					const bool bParsedUsingCustomFormat = FDefaultValueHelper::ParseVector(Term->Name, /*out*/ V);
+					if (!bParsedUsingCustomFormat)
+					{
+						StructProperty->ImportText(*Term->Name, &V, PPF_None, nullptr);
+					}
 					Writer << EX_VectorConst;
 					Writer << V;
-
 				}
 				else if (StructProperty->Struct == RotatorStruct)
 				{
 					FRotator R = FRotator::ZeroRotator;
-					FDefaultValueHelper::ParseRotator(Term->Name, /*out*/ R);
+					const bool bParsedUsingCustomFormat = FDefaultValueHelper::ParseRotator(Term->Name, /*out*/ R);
+					if (!bParsedUsingCustomFormat)
+					{
+						StructProperty->ImportText(*Term->Name, &R, PPF_None, nullptr);
+					}
 					Writer << EX_RotationConst;
 					Writer << R;
 				}
 				else if (StructProperty->Struct == TransformStruct)
 				{
 					FTransform T = FTransform::Identity;
-					T.InitFromString( Term->Name );
+					const bool bParsedUsingCustomFormat = T.InitFromString(Term->Name);
+					if (!bParsedUsingCustomFormat)
+					{
+						StructProperty->ImportText(*Term->Name, &T, PPF_None, nullptr);
+					}
 					Writer << EX_TransformConst;
 					Writer << T;
 				}
@@ -511,6 +523,7 @@ public:
 							// Create a new term for each property, and serialize it out
 							FBPTerminal NewTerm;
 							NewTerm.bIsLiteral = true;
+							NewTerm.Source = Term->Source;
 							Prop->ExportText_InContainer(ArrayIter, NewTerm.Name, StructData, StructData, NULL, PPF_None);
 							if (Prop->IsA(UTextProperty::StaticClass()))
 							{
@@ -545,6 +558,7 @@ public:
 				{
 					FBPTerminal NewTerm;
 					NewTerm.bIsLiteral = true;
+					NewTerm.Source = Term->Source;
 					uint8* RawElemData = ScriptArrayHelper.GetRawPtr(ElemIdx);
 					InnerProp->ExportText_Direct(NewTerm.Name, RawElemData, RawElemData, NULL, PPF_None);
 					if (InnerProp->IsA(UTextProperty::StaticClass()))
@@ -577,7 +591,7 @@ public:
 			{
 				Writer << EX_AssetConst;
 				FAssetPtr AssetPtr(Term->ObjectLiteral);
-				EmitStringLiteral(AssetPtr.GetUniqueID().AssetLongPathname);
+				EmitStringLiteral(AssetPtr.GetUniqueID().ToString());
 			}
 			else if (CoerceProperty->IsA(UObjectPropertyBase::StaticClass()))
 			{
@@ -615,7 +629,13 @@ public:
 			// Cannot assign a literal to a multicast delegate; it should be added instead of assigned
 			else
 			{
-				ensureMsgf(false, TEXT("It is not possible to express this type as a literal value! (%s)"), *CoerceProperty->GetFullName());
+				if (ensure(CurrentCompilerContext))
+				{
+					FFormatNamedArguments Args;
+					Args.Add(TEXT("PropertyType"), CoerceProperty->GetClass()->GetDisplayNameText());
+					Args.Add(TEXT("PropertyName"), CoerceProperty->GetDisplayNameText());
+					CurrentCompilerContext->MessageLog.Error(*FText::Format(LOCTEXT("InvalidProperty", "It is not possible to express this type ({PropertyType}) as a literal value for the property {PropertyName} on pin @@! If it is inside a struct, you can add a Make struct node to resolve this issue!"), Args).ToString(), Term->Source);
+				}
 			}
 		}
 		else
@@ -928,6 +948,7 @@ public:
 		if (bIsArray)
 		{
 			Writer << EX_Let;
+			ensure(DestinationExpression->AssociatedVarProperty);
 			Writer << DestinationExpression->AssociatedVarProperty;
 		}
 		else if (bIsMulticastDelegate)
@@ -956,6 +977,7 @@ public:
 		else
 		{
 			Writer << EX_Let;
+			ensure(DestinationExpression->AssociatedVarProperty);
 			Writer << DestinationExpression->AssociatedVarProperty;
 
 		}
@@ -1302,6 +1324,18 @@ public:
 		Writer.CommitSkip(PatchUpNeededAtOffset, Writer.ScriptBuffer.Num());
 	}
 
+	void EmitInstrumentation(FBlueprintCompiledStatement& Statement)
+	{
+		int32 EventType = 0;
+		switch (Statement.Type)
+		{
+			case KCST_InstrumentedWireExit:		EventType = EScriptInstrumentation::NodeExit; break;
+			case KCST_InstrumentedWireEntry:	EventType = EScriptInstrumentation::NodeEntry; break;
+		}
+		Writer << EX_InstrumentationEvent;
+		Writer << EventType;
+	}
+
 	void PushReturnAddress(FBlueprintCompiledStatement& ReturnTarget)
 	{
 		Writer << EX_PushExecutionFlow;
@@ -1456,6 +1490,42 @@ public:
 		case KCST_SwitchValue:
 			EmitSwitchValue(Statement);
 			break;
+		case KCST_InstrumentedWireExit:
+			{
+				UEdGraphPin const* TrueSourcePin = Cast<UEdGraphPin const>(FunctionContext.MessageLog.FindSourceObject(Statement.ExecContext));
+				if (TrueSourcePin)
+				{
+					int32 Offset = Writer.ScriptBuffer.Num() + sizeof(int32);
+					ClassBeingBuilt->GetDebugData().RegisterPinToCodeAssociation(TrueSourcePin, FunctionContext.Function, Offset);
+				}
+			}
+			// no break, continue down.
+		case KCST_InstrumentedWireEntry:
+			{
+				if (SourceNode != NULL)
+				{
+					// Record where this NOP is
+					UEdGraphNode* TrueSourceNode = Cast<UEdGraphNode>(FunctionContext.MessageLog.FindSourceObject(SourceNode));
+					if (TrueSourceNode)
+					{
+						// If this is a debug site for an expanded macro instruction, there should also be a macro source node associated with it
+						UEdGraphNode* MacroSourceNode = Cast<UEdGraphNode>(CompilerContext.MessageLog.FinalNodeBackToMacroSourceMap.FindSourceObject(SourceNode));
+						if (MacroSourceNode == SourceNode)
+						{
+							// The function above will return the given node if not found in the map. In that case there is no associated source macro node, so we clear it.
+							MacroSourceNode = NULL;
+						}
+	
+						TArray<TWeakObjectPtr<UEdGraphNode>> MacroInstanceNodes;
+						int32 Offset = Writer.ScriptBuffer.Num() + sizeof(int32);
+						ClassBeingBuilt->GetDebugData().RegisterNodeToCodeAssociation(TrueSourceNode, MacroSourceNode, MacroInstanceNodes, FunctionContext.Function, Offset, false);
+					}
+				}
+				// Emit Statement
+				EmitInstrumentation(Statement);
+				break;
+			}
+
 		default:
 			UE_LOG(LogK2Compiler, Warning, TEXT("VM backend encountered unsupported statement type %d"), (int32)Statement.Type);
 		}
@@ -1564,3 +1634,5 @@ void FKismetCompilerVMBackend::ConstructFunction(FKismetFunctionContext& Functio
 	static_assert(sizeof(CodeSkipSizeType) == 4, "Update this code as size changed.");
 #endif
 }
+
+#undef LOCTEXT_NAMESPACE

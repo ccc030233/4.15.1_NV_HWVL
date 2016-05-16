@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	RHI.cpp: Render Hardware Interface implementation.
@@ -29,6 +29,15 @@ DEFINE_STAT(STAT_IndexBufferMemory);
 DEFINE_STAT(STAT_VertexBufferMemory);
 DEFINE_STAT(STAT_StructuredBufferMemory);
 DEFINE_STAT(STAT_PixelBufferMemory);
+
+const FString FResourceTransitionUtility::ResourceTransitionAccessStrings[(int32)EResourceTransitionAccess::EMaxAccess + 1] =
+{
+	FString(TEXT("EReadable")),
+	FString(TEXT("EWritable")),	
+	FString(TEXT("ERWBarrier")),
+	FString(TEXT("ERWNoBarrier")),
+	FString(TEXT("EMaxAccess")),
+};
 
 #if STATS
 #include "StatsData.h"
@@ -72,15 +81,15 @@ const FClearValueBinding FClearValueBinding::DepthNear((float)ERHIZBuffer::NearP
 const FClearValueBinding FClearValueBinding::DepthFar((float)ERHIZBuffer::FarPlane, 0);
 
 
-TLockFreePointerList<FRHIResource> FRHIResource::PendingDeletes;
+TLockFreePointerListUnordered<FRHIResource> FRHIResource::PendingDeletes;
 FRHIResource* FRHIResource::CurrentlyDeleting = nullptr;
+TArray<FRHIResource::ResourcesToDelete> FRHIResource::DeferredDeletionQueue;
+uint32 FRHIResource::CurrentFrame = 0;
 
-#if !DISABLE_RHI_DEFFERED_DELETE
 bool FRHIResource::Bypass()
 {
 	return GRHICommandList.Bypass();
 }
-#endif
 
 DECLARE_CYCLE_STAT(TEXT("Delete Resources"), STAT_DeleteResources, STATGROUP_RHICMDLIST);
 
@@ -91,14 +100,9 @@ void FRHIResource::FlushPendingDeletes()
 	check(IsInRenderingThread());
 	FRHICommandListExecutor::CheckNoOutstandingCmdLists();
 	FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-	while (1)
+
+	auto Delete = [](TArray<FRHIResource*>& ToDelete)
 	{
-		TArray<FRHIResource*> ToDelete;
-		PendingDeletes.PopAll(ToDelete);
-		if (!ToDelete.Num())
-		{
-			break;
-		}
 		for (int32 Index = 0; Index < ToDelete.Num(); Index++)
 		{
 			FRHIResource* Ref = ToDelete[Index];
@@ -115,9 +119,58 @@ void FRHIResource::FlushPendingDeletes()
 				FPlatformMisc::MemoryBarrier();
 			}
 		}
+	};
+
+	while (1)
+	{
+		if (PendingDeletes.IsEmpty())
+		{
+			break;
+		}
+		if (PlatformNeedsExtraDeletionLatency())
+		{
+			const int32 Index = DeferredDeletionQueue.AddDefaulted();
+			ResourcesToDelete& ResourceBatch = DeferredDeletionQueue[Index];
+			ResourceBatch.FrameDeleted = CurrentFrame;
+			PendingDeletes.PopAll(ResourceBatch.Resources);
+			check(ResourceBatch.Resources.Num());
+		}
+		else
+		{
+			TArray<FRHIResource*> ToDelete;
+			PendingDeletes.PopAll(ToDelete);
+			check(ToDelete.Num());
+			Delete(ToDelete);
+		}
+	}
+
+	const uint32 NumFramesToExpire = 3;
+
+	if (DeferredDeletionQueue.Num())
+	{
+		int32 DeletedBatchCount = 0;
+		while (DeletedBatchCount < DeferredDeletionQueue.Num())
+		{
+			ResourcesToDelete& ResourceBatch = DeferredDeletionQueue[DeletedBatchCount];
+			if (((ResourceBatch.FrameDeleted + NumFramesToExpire) < CurrentFrame) || !GIsRHIInitialized)
+			{
+				Delete(ResourceBatch.Resources);
+				++DeletedBatchCount;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		if (DeletedBatchCount)
+		{
+			DeferredDeletionQueue.RemoveAt(0, DeletedBatchCount);
+		}
+
+		++CurrentFrame;
 	}
 }
-
 
 static_assert(ERHIZBuffer::FarPlane != ERHIZBuffer::NearPlane, "Near and Far planes must be different!");
 static_assert((int32)ERHIZBuffer::NearPlane == 0 || (int32)ERHIZBuffer::NearPlane == 1, "Invalid Values for Near Plane, can only be 0 or 1!");
@@ -178,6 +231,9 @@ int32 GMaxTextureMipCount = MAX_TEXTURE_MIP_COUNT;
 bool GSupportsQuadBufferStereo = false;
 bool GSupportsDepthFetchDuringDepthTest = true;
 FString GRHIAdapterName;
+FString GRHIAdapterInternalDriverVersion;
+FString GRHIAdapterUserDriverVersion;
+FString GRHIAdapterDriverDate;
 uint32 GRHIVendorId = 0;
 bool GSupportsRenderDepthTargetableShaderResources = true;
 bool GSupportsRenderTargetFormat_PF_G8 = true;
@@ -192,6 +248,7 @@ bool GSupportsSeparateRenderTargetBlendState = false;
 bool GSupportsDepthRenderTargetWithoutColorRenderTarget = true;
 float GMinClipZ = 0.0f;
 float GProjectionSignY = 1.0f;
+bool GRHINeedsExtraDeletionLatency = false;
 int32 GMaxShadowDepthBufferSizeX = 2048;
 int32 GMaxShadowDepthBufferSizeY = 2048;
 int32 GMaxTextureDimensions = 2048;
@@ -204,12 +261,15 @@ bool GTriggerGPUProfile = false;
 bool GRHISupportsTextureStreaming = false;
 bool GSupportsDepthBoundsTest = false;
 bool GRHISupportsBaseVertexIndex = true;
+bool GRHISupportsInstancing = true;
 bool GRHISupportsFirstInstance = false;
 bool GRHIRequiresEarlyBackBufferRenderTarget = true;
 bool GRHISupportsRHIThread = false;
 bool GRHISupportsParallelRHIExecute = false;
 bool GSupportsHDR32bppEncodeModeIntrinsic = false;
+bool GSupportsParallelOcclusionQueries = false;
 
+bool GRHISupportsMSAADepthSampleAccess = false;
 
 /** Whether we are profiling GPU hitches. */
 bool GTriggerGPUHitchProfile = false;
@@ -303,6 +363,8 @@ static FName NAME_SF_METAL_MRT(TEXT("SF_METAL_MRT"));
 static FName NAME_GLSL_310_ES_EXT(TEXT("GLSL_310_ES_EXT"));
 static FName NAME_SF_METAL_SM5(TEXT("SF_METAL_SM5"));
 static FName NAME_PC_VULKAN_ES2(TEXT("PC_VULKAN_ES2"));
+static FName NAME_SF_METAL_SM4(TEXT("SF_METAL_SM4"));
+static FName NAME_SF_METAL_MACES3_1(TEXT("SF_METAL_MACES3_1"));
 
 FName LegacyShaderPlatformToShaderFormat(EShaderPlatform Platform)
 {
@@ -343,8 +405,12 @@ FName LegacyShaderPlatformToShaderFormat(EShaderPlatform Platform)
 		return NAME_SF_METAL;
 	case SP_METAL_MRT:
 		return NAME_SF_METAL_MRT;
+	case SP_METAL_SM4:
+		return NAME_SF_METAL_SM4;
 	case SP_METAL_SM5:
 		return NAME_SF_METAL_SM5;
+	case SP_METAL_MACES3_1:
+		return NAME_SF_METAL_MACES3_1;
 	case SP_OPENGL_ES31_EXT:
 		return NAME_GLSL_310_ES_EXT;
 	case SP_VULKAN_ES2:
@@ -378,6 +444,8 @@ EShaderPlatform ShaderFormatToLegacyShaderPlatform(FName ShaderFormat)
 	if (ShaderFormat == NAME_GLSL_310_ES_EXT)	return SP_OPENGL_ES31_EXT;
 	if (ShaderFormat == NAME_SF_METAL_SM5)		return SP_METAL_SM5;
 	if (ShaderFormat == NAME_PC_VULKAN_ES2)		return SP_VULKAN_ES2;
+	if (ShaderFormat == NAME_SF_METAL_SM4)		return SP_METAL_SM4;
+	if (ShaderFormat == NAME_SF_METAL_MACES3_1)	return SP_METAL_MACES3_1;
 	return SP_NumPlatforms;
 }
 

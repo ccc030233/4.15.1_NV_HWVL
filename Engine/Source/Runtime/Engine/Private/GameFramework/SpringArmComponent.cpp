@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "EnginePrivate.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -196,6 +196,27 @@ void USpringArmComponent::OnRegister()
 
 	// Init deprecated var, for old code that may refer to it.
 	SetDeprecatedControllerViewRotation(*this, bUsePawnControlRotation);
+
+	// 4.11.2 Hack (UE-24725): Set up tick dependency on simulated objects in the parent hierarchy, so we use post-physics transforms.
+	// Probably only relevant for simulated SkeletalMeshComponents.
+	if (!IsTemplate())
+	{
+		USceneComponent* Parent = GetAttachParent();
+		while (Parent != nullptr)
+		{
+			if (UPrimitiveComponent* PrimitiveParent = Cast<UPrimitiveComponent>(Parent))
+			{
+				if (PrimitiveParent->IsSimulatingPhysics())
+				{
+					PrimitiveParent->PostPhysicsComponentTick.bCanEverTick = true;
+					PrimitiveParent->PostPhysicsComponentTick.SetTickFunctionEnable(true);
+					PrimaryComponentTick.AddPrerequisite(PrimitiveParent, PrimitiveParent->PostPhysicsComponentTick);
+					break;
+				}
+			}
+			Parent = Parent->GetAttachParent();
+		}
+	}
 }
 
 void USpringArmComponent::PostLoad()

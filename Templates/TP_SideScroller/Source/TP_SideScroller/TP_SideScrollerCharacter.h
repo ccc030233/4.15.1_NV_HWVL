@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 #pragma once
 #include "GameFramework/Character.h"
 #include "TP_SideScrollerCharacter.generated.h"
@@ -9,6 +9,7 @@ class ATP_SideScrollerCharacter : public ACharacter
 	GENERATED_BODY()
 
 	/** Side view camera */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* SideViewCameraComponent;
 
 	/** Camera boom positioning the camera beside the character */

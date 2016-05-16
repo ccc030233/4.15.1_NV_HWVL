@@ -1,9 +1,8 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "ModuleManager.h"
-#include "AbilitySystemGlobals.h"
 
 
 /**
@@ -22,7 +21,9 @@ public:
 	 */
 	static inline IGameplayAbilitiesModule& Get()
 	{
-		return FModuleManager::LoadModuleChecked< IGameplayAbilitiesModule >("GameplayAbilities");
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_IGameplayAbilitiesModule_Get);
+		static IGameplayAbilitiesModule& Singleton = FModuleManager::LoadModuleChecked< IGameplayAbilitiesModule >("GameplayAbilities");
+		return Singleton;
 	}
 
 	/**
@@ -32,10 +33,11 @@ public:
 	 */
 	static inline bool IsAvailable()
 	{
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_IGameplayAbilitiesModule_IsAvailable);
 		return FModuleManager::Get().IsModuleLoaded( "GameplayAbilities" );
 	}
 
-	virtual UAbilitySystemGlobals* GetAbilitySystemGlobals() = 0;
+	virtual class UAbilitySystemGlobals* GetAbilitySystemGlobals() = 0;
 
 	virtual bool IsAbilitySystemGlobalsAvailable() = 0;
 

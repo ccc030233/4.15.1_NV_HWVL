@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -129,7 +129,7 @@ protected:
 		return OpenFile ? *OpenFile : NULL;
 	}
 
-	void PackageFile( FString& Filename, FArchive& Out );
+	bool PackageFile( FString& Filename, FArchive& Out);
 
 	/**
 	 * Processes a RecompileShaders message.

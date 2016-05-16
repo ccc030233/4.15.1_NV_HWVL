@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	BodySetup.cpp
@@ -45,6 +45,7 @@ UBodySetup::UBodySetup(const FObjectInitializer& ObjectInitializer)
 	bMeshCollideAll = false;
 	CollisionTraceFlag = CTF_UseDefault;
 	bHasCookedCollisionData = true;
+	bNeverNeedsCookedCollisionData = false;
 	bGenerateMirroredCollision = true;
 	bGenerateNonMirroredCollision = true;
 	DefaultInstance.SetObjectType(ECC_PhysicsBody);
@@ -108,6 +109,12 @@ void UBodySetup::CreatePhysicsMeshes()
 #if WITH_PHYSX
 	// Create meshes from cooked data if not already done
 	if(bCreatedPhysicsMeshes)
+	{
+		return;
+	}
+
+	// If we don't have any convex/trimesh data we can skip this whole function
+	if (bNeverNeedsCookedCollisionData)
 	{
 		return;
 	}
@@ -321,7 +328,7 @@ struct FAddShapesHelper
 	, NewShapes(InNewShapes)
 	, bShapeSharing(InShapeSharing)
 	{
-		SetupNonUniformHelper(Scale3D, MinScale, MinScaleAbs, Scale3DAbs);
+		SetupNonUniformHelper(Scale3D, MinScale, MinScaleAbs, ShapeScale3DAbs);
 		{
 			float MinScaleRelative;
 			float MinScaleAbsRelative;
@@ -331,10 +338,17 @@ struct FAddShapesHelper
 			SetupNonUniformHelper(Scale3DRelative, MinScaleRelative, MinScaleAbsRelative, Scale3DAbsRelative);
 
 			MinScaleAbs *= MinScaleAbsRelative;
-			Scale3DAbs.X *= Scale3DAbsRelative.X;
-			Scale3DAbs.Y *= Scale3DAbsRelative.Y;
-			Scale3DAbs.Z *= Scale3DAbsRelative.Z;
+			ShapeScale3DAbs.X *= Scale3DAbsRelative.X;
+			ShapeScale3DAbs.Y *= Scale3DAbsRelative.Y;
+			ShapeScale3DAbs.Z *= Scale3DAbsRelative.Z;
+
+			ShapeScale3D = Scale3D;
+			ShapeScale3D.X *= Scale3DAbsRelative.X;
+			ShapeScale3D.Y *= Scale3DAbsRelative.Y;
+			ShapeScale3D.Z *= Scale3DAbsRelative.Z;
 		}
+
+		GetContactOffsetParams(ContactOffsetFactor, MaxContactOffset);
 	}
 
 	UBodySetup* BodySetup;
@@ -351,14 +365,15 @@ struct FAddShapesHelper
 
 	float MinScaleAbs;
 	float MinScale;
-	FVector Scale3DAbs;
+	FVector ShapeScale3DAbs;
+	FVector ShapeScale3D;
+
+	float ContactOffsetFactor;
+	float MaxContactOffset;
 
 public:
-	void AddSpheresToRigidActor_AssumesLocked() const
+	FORCEINLINE_DEBUGGABLE void AddSpheresToRigidActor_AssumesLocked() const
 	{
-		float ContactOffsetFactor, MaxContactOffset;
-		GetContactOffsetParams(ContactOffsetFactor, MaxContactOffset);
-
 		for (int32 i = 0; i < BodySetup->AggGeom.SphereElems.Num(); i++)
 		{
 			const FKSphereElem& SphereElem = BodySetup->AggGeom.SphereElems[i];
@@ -385,19 +400,16 @@ public:
 		}
 	}
 
-	void AddBoxesToRigidActor_AssumesLocked() const
+	FORCEINLINE_DEBUGGABLE void AddBoxesToRigidActor_AssumesLocked() const
 	{
-		float ContactOffsetFactor, MaxContactOffset;
-		GetContactOffsetParams(ContactOffsetFactor, MaxContactOffset);
-
 		for (int32 i = 0; i < BodySetup->AggGeom.BoxElems.Num(); i++)
 		{
 			const FKBoxElem& BoxElem = BodySetup->AggGeom.BoxElems[i];
 
 			PxBoxGeometry PBoxGeom;
-			PBoxGeom.halfExtents.x = (0.5f * BoxElem.X * Scale3DAbs.X);
-			PBoxGeom.halfExtents.y = (0.5f * BoxElem.Y * Scale3DAbs.Y);
-			PBoxGeom.halfExtents.z = (0.5f * BoxElem.Z * Scale3DAbs.Z);
+			PBoxGeom.halfExtents.x = (0.5f * BoxElem.X * ShapeScale3DAbs.X);
+			PBoxGeom.halfExtents.y = (0.5f * BoxElem.Y * ShapeScale3DAbs.Y);
+			PBoxGeom.halfExtents.z = (0.5f * BoxElem.Z * ShapeScale3DAbs.Z);
 
 			FTransform BoxTransform = BoxElem.GetTransform() * RelativeTM;
 			if (PBoxGeom.isValid() && BoxTransform.IsValid())
@@ -420,13 +432,10 @@ public:
 		}
 	}
 
-	void AddSphylsToRigidActor_AssumesLocked() const
+	FORCEINLINE_DEBUGGABLE void AddSphylsToRigidActor_AssumesLocked() const
 	{
-		float ContactOffsetFactor, MaxContactOffset;
-		GetContactOffsetParams(ContactOffsetFactor, MaxContactOffset);
-
-		float ScaleRadius = FMath::Max(Scale3DAbs.X, Scale3DAbs.Y);
-		float ScaleLength = Scale3DAbs.Z;
+		float ScaleRadius = FMath::Max(ShapeScale3DAbs.X, ShapeScale3DAbs.Y);
+		float ScaleLength = ShapeScale3DAbs.Z;
 
 		for (int32 i = 0; i < BodySetup->AggGeom.SphylElems.Num(); i++)
 		{
@@ -436,7 +445,7 @@ public:
 			// first apply the scale first 
 			float Radius = FMath::Max(SphylElem.Radius * ScaleRadius, 0.1f);
 			float Length = SphylElem.Length + SphylElem.Radius * 2.f;
-			float HalfLength = Length * ScaleLength * 0.5f;
+			float HalfLength = FMath::Max(Length * ScaleLength * 0.5f, 0.1f);
 			Radius = FMath::Clamp(Radius, 0.1f, HalfLength);	//radius is capped by half length
 			float HalfHeight = HalfLength - Radius;
 			HalfHeight = FMath::Max(0.1f, HalfHeight);
@@ -466,11 +475,8 @@ public:
 		}
 	}
 
-	void AddConvexElemsToRigidActor_AssumesLocked() const
+	FORCEINLINE_DEBUGGABLE void AddConvexElemsToRigidActor_AssumesLocked() const
 	{
-		float ContactOffsetFactor, MaxContactOffset;
-		GetContactOffsetParams(ContactOffsetFactor, MaxContactOffset);
-
 		for (int32 i = 0; i < BodySetup->AggGeom.ConvexElems.Num(); i++)
 		{
 			const FKConvexElem& ConvexElem = BodySetup->AggGeom.ConvexElems[i];
@@ -482,7 +488,7 @@ public:
 
 				PxConvexMeshGeometry PConvexGeom;
 				PConvexGeom.convexMesh = bUseNegX ? ConvexElem.ConvexMeshNegX : ConvexElem.ConvexMesh;
-				PConvexGeom.scale.scale = U2PVector(Scale3DAbs * ConvexElem.GetTransform().GetScale3D().GetAbs());
+				PConvexGeom.scale.scale = U2PVector(ShapeScale3DAbs * ConvexElem.GetTransform().GetScale3D().GetAbs());	//scale shape about the origin
 				FTransform ConvexTransform = ConvexElem.GetTransform();
 				if (ConvexTransform.GetScale3D().X < 0 || ConvexTransform.GetScale3D().Y < 0 || ConvexTransform.GetScale3D().Z < 0)
 				{
@@ -490,6 +496,7 @@ public:
 				}
 				if (ConvexTransform.IsValid())
 				{
+					//Scale the position independent of shape scale. This is because physx transforms have no concept of scale
 					PxTransform PElementTransform = U2PTransform(ConvexTransform * RelativeTM);
 					PLocalPose.q *= PElementTransform.q;
 					PLocalPose.p = PElementTransform.p;
@@ -524,17 +531,14 @@ public:
 		}
 	}
 
-	void AddTriMeshToRigidActor_AssumesLocked() const
+	FORCEINLINE_DEBUGGABLE void AddTriMeshToRigidActor_AssumesLocked() const
 	{
-		float ContactOffsetFactor, MaxContactOffset;
-		GetContactOffsetParams(ContactOffsetFactor, MaxContactOffset);
-
 		for(PxTriangleMesh* TriMesh : BodySetup->TriMeshes)
 		{
 		
 			PxTriangleMeshGeometry PTriMeshGeom;
 			PTriMeshGeom.triangleMesh = TriMesh;
-			PTriMeshGeom.scale.scale = U2PVector(Scale3D);
+			PTriMeshGeom.scale.scale = U2PVector(ShapeScale3D); //scale shape about the origin
 			if (BodySetup->bDoubleSidedGeometry)
 			{
 				PTriMeshGeom.meshFlags |= PxMeshGeometryFlag::eDOUBLE_SIDED;
@@ -542,6 +546,7 @@ public:
 
 			if (PTriMeshGeom.isValid())
 			{
+				//Scale the position independent of shape scale. This is because physx transforms have no concept of scale
 				PxTransform PElementTransform = U2PTransform(RelativeTM);
 				PElementTransform.p.x *= Scale3D.X;
 				PElementTransform.p.y *= Scale3D.Y;
@@ -908,10 +913,12 @@ FByteBulkData* UBodySetup::GetCookedData(FName Format)
 #if WITH_PHYSX
 	if (!bContainedData)
 	{
+#if !defined(WITH_RUNTIME_PHYSICS_COOKING) || !WITH_RUNTIME_PHYSICS_COOKING
 		if (FPlatformProperties::RequiresCookedData())
 		{
 			UE_LOG(LogPhysics, Error, TEXT("Attempt to build physics data for %s when we are unable to. This platform requires cooked packages."), *GetPathName());
 		}
+#endif
 
 		if (AggGeom.ConvexElems.Num() == 0 && (CDP == NULL || CDP->ContainsPhysicsTriMeshData(bMeshCollideAll) == false))
 		{

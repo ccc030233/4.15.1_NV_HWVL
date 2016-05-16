@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 
 #include "BehaviorTreeEditorPrivatePCH.h"
@@ -695,8 +695,6 @@ void SGraphNode_BehaviorTree::CreatePinWidgets()
 			TSharedPtr<SGraphPin> NewPin = SNew(SBehaviorTreePin, MyPin)
 				.ToolTipText( this, &SGraphNode_BehaviorTree::GetPinTooltip, MyPin);
 
-			NewPin->SetIsEditable(IsEditable);
-
 			AddPin(NewPin.ToSharedRef());
 		}
 	}
@@ -1061,6 +1059,34 @@ TSharedRef<SGraphNode> SGraphNode_BehaviorTree::GetNodeUnderMouse(const FGeometr
 {
 	TSharedPtr<SGraphNode> SubNode = GetSubNodeUnderCursor(MyGeometry, MouseEvent);
 	return SubNode.IsValid() ? SubNode.ToSharedRef() : StaticCastSharedRef<SGraphNode>(AsShared());
+}
+
+void SGraphNode_BehaviorTree::MoveTo(const FVector2D& NewPosition, FNodeSet& NodeFilter)
+{
+	SGraphNodeAI::MoveTo(NewPosition, NodeFilter);
+
+	// keep node order (defined by linked pins) up to date with actual positions
+	// this function will keep spamming on every mouse move update
+	UBehaviorTreeGraphNode* BTGraphNode = Cast<UBehaviorTreeGraphNode>(GraphNode);
+	if (BTGraphNode && !BTGraphNode->IsSubNode())
+	{
+		UBehaviorTreeGraph* BTGraph = BTGraphNode->GetBehaviorTreeGraph();
+		if (BTGraph)
+		{
+			for (int32 Idx = 0; Idx < BTGraphNode->Pins.Num(); Idx++)
+			{
+				UEdGraphPin* Pin = BTGraphNode->Pins[Idx];
+				if (Pin && Pin->Direction == EGPD_Input && Pin->LinkedTo.Num() == 1) 
+				{
+					UEdGraphPin* ParentPin = Pin->LinkedTo[0];
+					if (ParentPin)
+					{
+						BTGraph->RebuildChildOrder(ParentPin->GetOwningNode());
+					}
+				}
+			}
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

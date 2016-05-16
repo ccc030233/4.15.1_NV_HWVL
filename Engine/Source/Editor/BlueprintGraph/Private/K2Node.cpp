@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 
 #include "BlueprintGraphPrivatePCH.h"
@@ -8,6 +8,8 @@
 #include "KismetDebugUtilities.h" // for HasDebuggingData(), GetWatchText()
 #include "KismetCompiler.h"
 #include "GraphEditorSettings.h"
+#include "BlueprintEditorSettings.h"
+#include "Editor/PropertyEditor/Public/PropertyCustomizationHelpers.h"
 
 #include "ObjectEditorUtils.h"
 
@@ -297,6 +299,7 @@ void UK2Node::ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& OldPins)
 					{
 						NewPin->PinType = OldPin->ParentPin->PinType;
 						GetSchema()->SplitPin(NewPin);
+						break;
 					}
 				}
 			}
@@ -829,12 +832,12 @@ bool FOptionalPinManager::CanTreatPropertyAsOptional(UProperty* TestProperty) co
 void FOptionalPinManager::RebuildPropertyList(TArray<FOptionalPinFromProperty>& Properties, UStruct* SourceStruct)
 {
 	// Save the old visibility
-	TMap<FName, bool> OldVisibility;
+	TMap<FName, FOldOptionalPinSettings> OldPinSettings;
 	for (auto ExtraPropertyIt = Properties.CreateIterator(); ExtraPropertyIt; ++ExtraPropertyIt)
 	{
 		FOptionalPinFromProperty& PropertyEntry = *ExtraPropertyIt;
 
-		OldVisibility.Add(PropertyEntry.PropertyName, PropertyEntry.bShowPin);
+		OldPinSettings.Add(PropertyEntry.PropertyName, FOldOptionalPinSettings(PropertyEntry.bShowPin, PropertyEntry.bIsOverrideEnabled, PropertyEntry.bIsSetValuePinVisible, PropertyEntry.bIsOverridePinVisible));
 	}
 
 	// Rebuild the property list
@@ -867,12 +870,8 @@ void FOptionalPinManager::RebuildPropertyList(TArray<FOptionalPinFromProperty>& 
 			CategoryName = FObjectEditorUtils::GetCategoryFName(TestProperty);
 #endif //WITH_EDITOR
 
-			UProperty* OverrideProperty = nullptr;
-			if (OverridesMap.RemoveAndCopyValue(TestProperty->GetFName(), OverrideProperty) && OverrideProperty)
-			{
-				RebuildProperty(OverrideProperty, CategoryName, Properties, SourceStruct, OldVisibility);
-			}
-			RebuildProperty(TestProperty, CategoryName, Properties, SourceStruct, OldVisibility);
+			OverridesMap.Remove(TestProperty->GetFName());
+			RebuildProperty(TestProperty, CategoryName, Properties, SourceStruct, OldPinSettings);
 		}
 	}
 
@@ -886,26 +885,33 @@ void FOptionalPinManager::RebuildPropertyList(TArray<FOptionalPinFromProperty>& 
 		CategoryName = FObjectEditorUtils::GetCategoryFName(TestProperty);
 #endif //WITH_EDITOR
 
-		RebuildProperty(TestProperty, CategoryName, Properties, SourceStruct, OldVisibility);
+		RebuildProperty(TestProperty, CategoryName, Properties, SourceStruct, OldPinSettings);
 	}
 }
 
-void FOptionalPinManager::RebuildProperty(UProperty* TestProperty, FName CategoryName, TArray<FOptionalPinFromProperty>& Properties, UStruct* SourceStruct, TMap<FName, bool>& OldVisibility)
+void FOptionalPinManager::RebuildProperty(UProperty* TestProperty, FName CategoryName, TArray<FOptionalPinFromProperty>& Properties, UStruct* SourceStruct, TMap<FName, FOldOptionalPinSettings>& OldSettings)
 {
 	FOptionalPinFromProperty* Record = new (Properties)FOptionalPinFromProperty;
 	Record->PropertyName = TestProperty->GetFName();
 	Record->PropertyFriendlyName = UEditorEngine::GetFriendlyName(TestProperty, SourceStruct);
 	Record->PropertyTooltip = TestProperty->GetToolTipText();
 	Record->CategoryName = CategoryName;
+
+	bool bNegate = false;
+	Record->bHasOverridePin = PropertyCustomizationHelpers::GetEditConditionProperty(TestProperty, bNegate) != nullptr;
+
 	// Get the defaults
 	GetRecordDefaults(TestProperty, *Record);
 
 	// If this is a refresh, propagate the old visibility
 	if (Record->bCanToggleVisibility)
 	{
-		if (bool* pShowHide = OldVisibility.Find(Record->PropertyName))
+		if (FOldOptionalPinSettings* OldSetting = OldSettings.Find(Record->PropertyName))
 		{
-			Record->bShowPin = *pShowHide;
+			Record->bShowPin = OldSetting->bOldVisibility;
+			Record->bIsOverrideEnabled = OldSetting->bIsOldOverrideEnabled;
+			Record->bIsSetValuePinVisible = OldSetting->bIsOldSetValuePinVisible;
+			Record->bIsOverridePinVisible = OldSetting->bIsOldOverridePinVisible;
 		}
 	}
 }
@@ -945,6 +951,8 @@ void FOptionalPinManager::CreateVisiblePins(TArray<FOptionalPinFromProperty>& Pr
 							const FString PinName = PinFriendlyName.ToString();
 							NewPin = TargetNode->CreatePin(Direction, PinType, PinName);
 							NewPin->PinFriendlyName = PinFriendlyName;
+							NewPin->bNotConnectable = !PropertyEntry.bIsSetValuePinVisible;
+							NewPin->bDefaultValueIsIgnored = !PropertyEntry.bIsSetValuePinVisible;
 							Schema->ConstructBasicPinTooltip(*NewPin, PropertyEntry.PropertyTooltip, NewPin->PinToolTip);
 
 							// Allow the derived class to customize the created pin
@@ -978,6 +986,8 @@ void FOptionalPinManager::CreateVisiblePins(TArray<FOptionalPinFromProperty>& Pr
 						const FString PinName = PropertyEntry.PropertyName.ToString();
 						NewPin = TargetNode->CreatePin(Direction, PinType, PinName);
 						NewPin->PinFriendlyName = PropertyEntry.PropertyFriendlyName.IsEmpty() ? FText::FromString(PinName) : FText::FromString(PropertyEntry.PropertyFriendlyName);
+						NewPin->bNotConnectable = !PropertyEntry.bIsSetValuePinVisible;
+						NewPin->bDefaultValueIsIgnored = !PropertyEntry.bIsSetValuePinVisible;
 						Schema->ConstructBasicPinTooltip(*NewPin, PropertyEntry.PropertyTooltip, NewPin->PinToolTip);
 
 						// Allow the derived class to customize the created pin
@@ -1014,24 +1024,39 @@ UEdGraphPin* UK2Node::GetExecPin() const
 
 UEdGraphPin* UK2Node::GetPassThroughPin(const UEdGraphPin* FromPin) const
 {
-	UEdGraphPin* MatchedPin = nullptr;
+	UEdGraphPin* PassThroughPin = nullptr;
 	if(FromPin && Pins.Contains(FromPin))
 	{
 		const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 		if(K2Schema->IsExecPin(*FromPin))
 		{
-			if(FromPin->Direction == EGPD_Input)
+			// Locate the first exec pin that's opposite the given exec pin, if any.
+			for(auto Pin : Pins)
 			{
-				MatchedPin = FindPin(K2Schema->PN_Then);
-			}
-			else
-			{
-				MatchedPin = FindPin(K2Schema->PN_Execute);
+				if(Pin && Pin != FromPin && Pin->Direction != FromPin->Direction && K2Schema->IsExecPin(*Pin))
+				{
+					PassThroughPin = Pin;
+					break;
+				}
 			}
 		}
 	}
 
-	return MatchedPin;
+	return PassThroughPin;
+}
+
+bool UK2Node::IsInDevelopmentMode() const
+{
+	// Check class setting (which can override the default setting)
+	const UBlueprint* OwningBP = GetBlueprint();
+	if(OwningBP != nullptr
+		&& OwningBP->CompileMode != EBlueprintCompileMode::Default)
+	{
+		return OwningBP->CompileMode == EBlueprintCompileMode::Development;
+	}
+
+	// Check default setting
+	return Super::IsInDevelopmentMode();
 }
 
 bool UK2Node::CanCreateUnderSpecifiedSchema(const UEdGraphSchema* DesiredSchema) const
@@ -1131,7 +1156,6 @@ void UK2Node::GetPinHoverText(const UEdGraphPin& Pin, FString& HoverTextOut) con
 	// grab the debug value of the pin
 	FString WatchText;
 	const FKismetDebugUtilities::EWatchTextResult WatchStatus = FKismetDebugUtilities::GetWatchText(/*inout*/ WatchText, Blueprint, ActiveObject, &Pin);
-
 	// if this is an array pin, then we possibly have too many lines (too many entries)
 	if (Pin.PinType.bIsArray)
 	{

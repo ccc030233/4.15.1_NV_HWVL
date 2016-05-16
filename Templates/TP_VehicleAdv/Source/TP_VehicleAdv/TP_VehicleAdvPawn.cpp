@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "TP_VehicleAdv.h"
 #include "TP_VehicleAdvPawn.h"
@@ -16,11 +16,11 @@
 #include "Engine/SkeletalMesh.h"
 
 
-#ifdef HMD_INTGERATION
 // Needed for VR Headset
 #include "Engine.h"
+#if HMD_MODULE_INCLUDED
 #include "IHeadMountedDisplay.h"
-#endif // HMD_INTGERATION
+#endif // HMD_MODULE_INCLUDED
 
 const FName ATP_VehicleAdvPawn::LookUpBinding("LookUp");
 const FName ATP_VehicleAdvPawn::LookRightBinding("LookRight");
@@ -130,13 +130,16 @@ ATP_VehicleAdvPawn::ATP_VehicleAdvPawn()
 	Camera->FieldOfView = 90.f;
 
 	// Create In-Car camera component 
-	InternalCameraOrigin = FVector(-34.0f, 0.0f, 50.0f);
+	InternalCameraOrigin = FVector(-34.0f, -10.0f, 50.0f);
+	InternalCameraBase = CreateDefaultSubobject<USceneComponent>(TEXT("InternalCameraBase"));
+	InternalCameraBase->SetRelativeLocation(InternalCameraOrigin);
+	InternalCameraBase->AttachTo(GetMesh());
+
 	InternalCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("InternalCamera"));
 	//InternalCamera->AttachTo(SpringArm, USpringArmComponent::SocketName);
 	InternalCamera->bUsePawnControlRotation = false;
 	InternalCamera->FieldOfView = 90.f;
-	InternalCamera->SetRelativeLocation(InternalCameraOrigin);
-	InternalCamera->AttachTo(GetMesh());
+	InternalCamera->AttachTo(InternalCameraBase);
 
 	// In car HUD
 	// Create text render component for in car speed display
@@ -169,6 +172,8 @@ ATP_VehicleAdvPawn::ATP_VehicleAdvPawn()
 
 void ATP_VehicleAdvPawn::SetupPlayerInputComponent(class UInputComponent* InputComponent)
 {
+	Super::SetupPlayerInputComponent(InputComponent);
+
 	// set up gameplay key bindings
 	check(InputComponent);
 
@@ -241,6 +246,8 @@ void ATP_VehicleAdvPawn::EnableIncarView(const bool bState)
 
 void ATP_VehicleAdvPawn::Tick(float Delta)
 {
+	Super::Tick(Delta);
+
 	// Setup the flag to say we are in reverse gear
 	bInReverseGear = GetVehicleMovement()->GetCurrentGear() < 0;
 	
@@ -254,12 +261,12 @@ void ATP_VehicleAdvPawn::Tick(float Delta)
 	SetupInCarHUD();
 
 	bool bHMDActive = false;
-#ifdef HMD_INTGERATION
+#if HMD_MODULE_INCLUDED
 	if ((GEngine->HMDDevice.IsValid() == true ) && ( (GEngine->HMDDevice->IsHeadTrackingAllowed() == true) || (GEngine->IsStereoscopic3D() == true)))
 	{
 		bHMDActive = true;
 	}
-#endif // HMD_INTGERATION
+#endif // HMD_MODULE_INCLUDED
 	if( bHMDActive == false )
 	{
 		if ( (InputComponent) && (bInCarCameraActive == true ))
@@ -278,17 +285,19 @@ void ATP_VehicleAdvPawn::Tick(float Delta)
 
 void ATP_VehicleAdvPawn::BeginPlay()
 {
+	Super::BeginPlay();
+
 	bool bWantInCar = false;
-	// First disable both speed/gear displays
+	// First disable both speed/gear displays 
 	bInCarCameraActive = false;
 	InCarSpeed->SetVisibility(bInCarCameraActive);
 	InCarGear->SetVisibility(bInCarCameraActive);
 
-#ifdef HMD_INTGERATION
 	// Enable in car view if HMD is attached
-	bWantInCar = GEngine->HMDDevice.IsValid()
-#endif // HMD_INTGERATION
-	
+#if HMD_MODULE_INCLUDED
+	bWantInCar = UHeadMountedDisplayFunctionLibrary::IsHeadMountedDisplayEnabled();
+#endif // HMD_MODULE_INCLUDED
+
 	EnableIncarView(bWantInCar);
 	// Start an engine sound playing
 	EngineSoundComponent->Play();
@@ -296,14 +305,14 @@ void ATP_VehicleAdvPawn::BeginPlay()
 
 void ATP_VehicleAdvPawn::OnResetVR()
 {
-#ifdef HMD_INTGERATION
+#if HMD_MODULE_INCLUDED
 	if (GEngine->HMDDevice.IsValid())
 	{
 		GEngine->HMDDevice->ResetOrientationAndPosition();
 		InternalCamera->SetRelativeLocation(InternalCameraOrigin);
 		GetController()->SetControlRotation(FRotator());
 	}
-#endif // HMD_INTGERATION
+#endif // HMD_MODULE_INCLUDED
 }
 
 void ATP_VehicleAdvPawn::UpdateHUDStrings()

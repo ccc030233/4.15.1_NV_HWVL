@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	D3D11Util.h: D3D RHI utility implementation.
@@ -247,9 +247,14 @@ void VerifyComRefCount(IUnknown* Object,int32 ExpectedRefs,const TCHAR* Code,con
 	{
 		Object->AddRef();
 		NumRefs = Object->Release();
+
+		checkSlow(NumRefs == ExpectedRefs);
+
 		if (NumRefs != ExpectedRefs)
 		{
-			UE_LOG(LogD3D11RHI,Fatal,
+			UE_LOG(
+				LogD3D11RHI,
+				Error,
 				TEXT("%s:(%d): %s has %d refs, expected %d"),
 				Filename,
 				Line,
@@ -298,7 +303,7 @@ FD3D11DynamicBuffer::FD3D11DynamicBuffer(FD3D11DynamicRHI* InD3DRHI, D3D11_BIND_
 	, BindFlags(InBindFlags)
 	, LockedBufferIndex(-1)
 {
-	while (BufferSizes.Num() < MAX_BUFFERS && *InBufferSizes > 0)
+	while (BufferSizes.Num() < MAX_BUFFER_SIZES && *InBufferSizes > 0)
 	{
 		uint32 Size = *InBufferSizes++;
 		BufferSizes.Add(Size);

@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "CoreUObjectPrivate.h"
 
@@ -12,7 +12,7 @@
  * @param	InTargetObjects			array of objects to search for references to
  * @param	bFindAlsoWeakReferences should we also look into weak references?
  */
-FFindReferencersArchive::FFindReferencersArchive(UObject* InPotentialReferencer, TArray<UObject*> InTargetObjects, bool bFindAlsoWeakReferences)
+FFindReferencersArchive::FFindReferencersArchive(UObject* InPotentialReferencer, const TArray<UObject*>& InTargetObjects, bool bFindAlsoWeakReferences)
 {
 	// use the optimized RefLink to skip over properties which don't contain object references
 	ArIsObjectReferenceCollector = true;
@@ -54,6 +54,39 @@ void FFindReferencersArchive::ResetPotentialReferencer(UObject* InPotentialRefer
 
 	// now start the search
 	PotentialReferencer->Serialize(*this);
+
+	// search for references coming from AddReferencedObjects
+	class FArchiveProxyCollector : public FReferenceCollector
+	{
+		/** Archive we are a proxy for */
+		FArchive& Archive;
+	public:
+		FArchiveProxyCollector(FArchive& InArchive)
+			: Archive(InArchive)
+		{
+		}
+		virtual void HandleObjectReference(UObject*& Object, const UObject* ReferencingObject, const UProperty* ReferencingProperty) override
+		{
+			Archive << Object;
+		}
+		virtual void HandleObjectReferences(UObject** InObjects, const int32 ObjectNum, const UObject* InReferencingObject, const UProperty* InReferencingProperty) override
+		{
+			for (int32 ObjectIndex = 0; ObjectIndex < ObjectNum; ++ObjectIndex)
+			{
+				UObject*& Object = InObjects[ObjectIndex];
+				Archive << Object;
+			}
+		}
+		virtual bool IsIgnoringArchetypeRef() const override
+		{
+			return false;
+		}
+		virtual bool IsIgnoringTransient() const override
+		{
+			return false;
+		}
+	} ArchiveProxyCollector(*this);
+	PotentialReferencer->GetClass()->CallAddReferencedObjects(PotentialReferencer, ArchiveProxyCollector);
 }
 
 /**

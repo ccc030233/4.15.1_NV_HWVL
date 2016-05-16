@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "BlueprintGraphPrivatePCH.h"
 #include "SlateBasics.h"
@@ -402,61 +402,11 @@ bool UK2Node_MacroInstance::CanPasteHere(const UEdGraph* TargetGraph) const
 	return bCanPaste && Super::CanPasteHere(TargetGraph);
 }
 
-void UK2Node_MacroInstance::ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& OldPins)
+void UK2Node_MacroInstance::PostFixupAllWildcardPins(bool bInAllWildcardPinsUnlinked)
 {
-	Super::ReallocatePinsDuringReconstruction(OldPins);
-
-	const UEdGraphSchema_K2* const Schema = GetDefault<UEdGraphSchema_K2>();
-
-	// determine if all wildcard pins are unlinked.
-	// if they are, we should revert them all back to wildcard status
-	bool bAllWildcardsAreUnlinked = true;
-	for (auto PinIt = Pins.CreateConstIterator(); PinIt; PinIt++)
+	if (bInAllWildcardPinsUnlinked)
 	{
-		// for each of the wildcard pins...
-		UEdGraphPin* const Pin = *PinIt;
-		if ( Pin->PinType.PinCategory == Schema->PC_Wildcard )
-		{
-			// find it in the old pins array (where it might not be a wildcard)
-			// and see if it's unlinked
-			for (auto OldPinIt = OldPins.CreateConstIterator(); OldPinIt; OldPinIt++)
-			{
-				UEdGraphPin const* const OldPin = *OldPinIt;
-				if (OldPin->PinName == Pin->PinName)
-				{
-					if (OldPin->LinkedTo.Num() > 0)
-					{
-						bAllWildcardsAreUnlinked = false;
-						break;
-					}
-				}
-			}
-		}
-	}
-
-	if (bAllWildcardsAreUnlinked == false)
-	{
-		// Copy pin types from old pins for wildcard pins
-		for (auto PinIt = Pins.CreateConstIterator(); PinIt; PinIt++)
-		{
-			UEdGraphPin* const Pin = *PinIt;
-			if ( Pin->PinType.PinCategory == Schema->PC_Wildcard )
-			{
-				// find it in the old pins and copy the type
-				for (auto OldPinIt = OldPins.CreateConstIterator(); OldPinIt; OldPinIt++)
-				{
-					UEdGraphPin const* const OldPin = *OldPinIt;
-					if (OldPin->PinName == Pin->PinName)
-					{
-						Pin->PinType = OldPin->PinType;
-					}
-				}
-			}
-		}
-	}
-	else
-	{
-		// no type
+		// Reset the type to a wildcard because there are no longer any wildcard pins linked to determine a type with
 		ResolvedWildcardType.ResetToDefaults();
 	}
 }
@@ -475,6 +425,21 @@ bool UK2Node_MacroInstance::HasExternalDependencies(TArray<class UStruct*>* Opti
 		if (UClass* OtherClass = *OtherBlueprint->GeneratedClass)
 		{
 			OptionalOutput->AddUnique(OtherClass);
+		}
+
+		for (UEdGraphPin* Pin : Pins)
+		{
+			if (Pin->PinType.PinSubCategoryObject.IsValid())
+			{
+				if (UStruct* Struct = Cast<UStruct>(Pin->PinType.PinSubCategoryObject.Get()))
+				{
+					OptionalOutput->AddUnique(Struct);
+				}
+				else
+				{
+					OptionalOutput->AddUnique(Pin->PinType.PinSubCategoryObject.Get()->GetClass());
+				}
+			}
 		}
 	}
 	const bool bSuperResult = Super::HasExternalDependencies(OptionalOutput);

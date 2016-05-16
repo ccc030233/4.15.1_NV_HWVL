@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /**
  * Transaction tracking system, manages the undo and redo buffer.
@@ -32,6 +32,9 @@ public:
 	/** Maximum number of bytes the transaction buffer is allowed to occupy */
 	SIZE_T MaxMemory;
 
+	/** Undo barrier stack */
+	TArray<int32> UndoBarrierStack;
+
 public:
 
 	// Constructor.
@@ -47,12 +50,12 @@ public:
 
 public:
 
-	// Begin UObject interface.
+	//~ Begin UObject Interface.
 
 	virtual void Serialize( FArchive& Ar ) override;
 	virtual void FinishDestroy() override;
 
-	// End UObject interface.
+	//~ End UObject Interface.
 
 protected:
 	
@@ -88,7 +91,7 @@ protected:
 
 public:
 
-	// Begin UTransactor interface.
+	//~ Begin UTransactor Interface.
 
 	virtual int32 Begin( const TCHAR* SessionContext, const FText& Description ) override;
 	virtual int32 End() override;
@@ -102,6 +105,9 @@ public:
 	virtual SIZE_T GetUndoSize() const override;
 	virtual int32 GetUndoCount( ) const override { return UndoCount; }
 	virtual FUndoSessionContext GetRedoContext() override;
+	virtual void SetUndoBarrier() override;
+	virtual void RemoveUndoBarrier() override;
+	virtual void ClearUndoBarriers() override;
 	virtual bool Undo() override;
 	virtual bool Redo() override;
 	virtual bool EnableObjectSerialization() override;
@@ -116,7 +122,7 @@ public:
 		return ActiveCount > 0;
 	}
 
-	// End UTransactor interface.
+	//~ End UTransactor Interface.
 
 public:
 

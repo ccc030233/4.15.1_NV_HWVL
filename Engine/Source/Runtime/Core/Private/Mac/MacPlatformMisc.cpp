@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	MacPlatformMisc.mm: Mac implementations of misc functions
@@ -21,6 +21,7 @@
 
 #include <dlfcn.h>
 #include <IOKit/IOKitLib.h>
+#include <IOKit/kext/KextManager.h>
 #include <IOKit/network/IOEthernetInterface.h>
 #include <IOKit/network/IONetworkInterface.h>
 #include <IOKit/network/IOEthernetController.h>
@@ -32,6 +33,34 @@
 #include <notify.h>
 #include <uuid/uuid.h>
 
+/*------------------------------------------------------------------------------
+ Settings defines.
+ ------------------------------------------------------------------------------*/
+
+#if WITH_EDITOR
+#define MAC_GRAPHICS_SETTINGS TEXT("/Script/MacGraphicsSwitching.MacGraphicsSwitchingSettings")
+#define MAC_GRAPHICS_INI GEditorSettingsIni
+#else
+#define MAC_GRAPHICS_SETTINGS TEXT("/Script/MacTargetPlatform.MacTargetSettings")
+#define MAC_GRAPHICS_INI GEngineIni
+#endif
+
+/*------------------------------------------------------------------------------
+ Console variables.
+ ------------------------------------------------------------------------------*/
+
+/** The selected explicit renderer ID. */
+static int32 GMacExplicitRendererID = -1;
+static FAutoConsoleVariableRef CVarMacExplicitRendererID(
+	TEXT("Mac.ExplicitRendererID"),
+	GMacExplicitRendererID,
+	TEXT("Forces the Mac RHI to use the specified rendering device which is a 0-based index into the list of GPUs provided by FMacPlatformMisc::GetGPUDescriptors or -1 to disable & use the default device. (Default: -1, off)"),
+	ECVF_RenderThreadSafe|ECVF_ReadOnly
+	);
+
+/*------------------------------------------------------------------------------
+ FMacApplicationInfo - class to contain all state for crash reporting that is unsafe to acquire in a signal.
+ ------------------------------------------------------------------------------*/
 
 /**
  * Information that cannot be obtained during a signal-handler is initialised here.
@@ -133,7 +162,7 @@ struct FMacApplicationInfo
 		
 		FString CrashVideoPath = FPaths::GameLogDir() + TEXT("CrashVideo.avi");
 		
-		BranchBaseDir = FString::Printf( TEXT( "%s!%s!%s!%d" ), *FApp::GetBranchName(), FPlatformProcess::BaseDir(), FPlatformMisc::GetEngineMode(), GEngineVersion.GetChangelist() );
+		BranchBaseDir = FString::Printf( TEXT( "%s!%s!%s!%d" ), *FApp::GetBranchName(), FPlatformProcess::BaseDir(), FPlatformMisc::GetEngineMode(), FEngineVersion::Current().GetChangelist() );
 		
 		// Get the paths that the files will actually have been saved to
 		FString LogDirectory = FPaths::GameLogDir();
@@ -200,6 +229,12 @@ struct FMacApplicationInfo
 		
 		NSString* PLCrashReportFile = [TemporaryCrashReportFolder().GetNSString() stringByAppendingPathComponent:TemporaryCrashReportName().GetNSString()];
 		[PLCrashReportFile getCString:PLCrashReportPath maxLength:PATH_MAX encoding:NSUTF8StringEncoding];
+		
+		SystemLogSize = 0;
+		if (!bIsSandboxed)
+		{
+			SystemLogSize = IFileManager::Get().FileSize(TEXT("/var/log/system.log"));
+		}
 	}
 	
 	~FMacApplicationInfo()
@@ -265,6 +300,7 @@ struct FMacApplicationInfo
 	bool RunningOnMavericks;
 	int32 PowerSourceNotification;
 	int32 NumCores;
+	int64 SystemLogSize;
 	char AppNameUTF8[PATH_MAX+1];
 	char AppLogPath[PATH_MAX+1];
 	char CrashReportPath[PATH_MAX+1];
@@ -309,6 +345,11 @@ void FMacPlatformMisc::PlatformPreInit()
 	FGenericPlatformMisc::PlatformPreInit();
 	
 	GMacAppInfo.Init();
+
+	FMacApplication::UpdateScreensArray();
+	
+	// No SIGPIPE crashes please - they are a pain to debug!
+	signal(SIGPIPE, SIG_IGN);
 
 	// Increase the maximum number of simultaneously open files
 	uint32 MaxFilesPerProc = OPEN_MAX;
@@ -1004,25 +1045,120 @@ void FMacPlatformMisc::NormalizePath(FString& InPath)
 	SCOPED_AUTORELEASE_POOL;
 	if (InPath.Len() > 1)
 	{
+#if WITH_EDITOR
 		const bool bAppendSlash = InPath[InPath.Len() - 1] == '/'; // NSString will remove the trailing slash, if present, so we need to restore it after conversion
 		InPath = [[InPath.GetNSString() stringByStandardizingPath] stringByResolvingSymlinksInPath];
 		if (bAppendSlash)
 		{
 			InPath += TEXT("/");
 		}
+#else
+		InPath.ReplaceInline(TEXT("\\"), TEXT("/"));
+		// This replacement addresses a "bug" where some callers
+		// pass in paths that are badly composed with multiple
+		// subdir separators.
+		InPath.ReplaceInline(TEXT("//"), TEXT("/"));
+		if (!InPath.IsEmpty() && InPath[InPath.Len() - 1] == TEXT('/'))
+		{
+			InPath.LeftChop(1);
+		}
+		// Remove redundant current-dir references.
+		InPath.ReplaceInline(TEXT("/./"), TEXT("/"));
+#endif
 	}
 }
 
-FString FMacPlatformMisc::GetPrimaryGPUBrand()
+FMacPlatformMisc::FGPUDescriptor::FGPUDescriptor()
+: PCIDevice(0)
+, GPUName(nil)
+, GPUMetalBundle(nil)
+, GPUOpenGLBundle(nil)
+, GPUBundleID(nil)
+, GPUVendorId(0)
+, GPUDeviceId(0)
+, GPUMemoryMB(0)
+, GPUIndex(0)
+, GPUHeadless(false)
 {
-	static FString PrimaryGPU;
-	if(PrimaryGPU.IsEmpty())
+}
+
+FMacPlatformMisc::FGPUDescriptor::FGPUDescriptor(FGPUDescriptor const& Other)
+: PCIDevice(0)
+, GPUName(nil)
+, GPUMetalBundle(nil)
+, GPUOpenGLBundle(nil)
+, GPUBundleID(nil)
+, GPUVendorId(0)
+, GPUDeviceId(0)
+, GPUMemoryMB(0)
+, GPUIndex(0)
+, GPUHeadless(false)
+{
+	operator=(Other);
+}
+
+FMacPlatformMisc::FGPUDescriptor::~FGPUDescriptor()
+{
+	if(PCIDevice)
+	{
+		IOObjectRelease((io_registry_entry_t)PCIDevice);
+	}
+	[GPUName release];
+	[GPUMetalBundle release];
+	[GPUOpenGLBundle release];
+	[GPUBundleID release];
+}
+
+FMacPlatformMisc::FGPUDescriptor& FMacPlatformMisc::FGPUDescriptor::operator=(FGPUDescriptor const& Other)
+{
+	if(this != &Other)
+	{
+		if(Other.PCIDevice)
+		{
+			IOObjectRetain((io_registry_entry_t)Other.PCIDevice);
+		}
+		if(PCIDevice)
+		{
+			IOObjectRelease((io_registry_entry_t)PCIDevice);
+		}
+		PCIDevice = Other.PCIDevice;
+		
+		
+		[Other.GPUName retain];
+		[Other.GPUMetalBundle retain];
+		[Other.GPUOpenGLBundle retain];
+		[Other.GPUBundleID retain];
+		
+		[GPUName release];
+		[GPUMetalBundle release];
+		[GPUOpenGLBundle release];
+		[GPUBundleID release];
+
+		GPUName = Other.GPUName;
+		GPUMetalBundle = Other.GPUMetalBundle;
+		GPUOpenGLBundle = Other.GPUOpenGLBundle;
+		GPUBundleID = Other.GPUBundleID;
+		
+		GPUVendorId = Other.GPUVendorId;
+		GPUDeviceId = Other.GPUDeviceId;
+		GPUMemoryMB = Other.GPUMemoryMB;
+		GPUIndex = Other.GPUIndex;
+		GPUHeadless = Other.GPUHeadless;
+	}
+	return *this;
+}
+
+TArray<FMacPlatformMisc::FGPUDescriptor> const& FMacPlatformMisc::GetGPUDescriptors()
+{
+	static TArray<FMacPlatformMisc::FGPUDescriptor> GPUs;
+	if(GPUs.Num() == 0)
 	{
 		// Enumerate the GPUs via IOKit to avoid dragging in OpenGL
 		io_iterator_t Iterator;
 		CFMutableDictionaryRef MatchDictionary = IOServiceMatching("IOPCIDevice");
 		if(IOServiceGetMatchingServices(kIOMasterPortDefault, MatchDictionary, &Iterator) == kIOReturnSuccess)
 		{
+			uint32 Index = 0;
 			io_registry_entry_t ServiceEntry;
 			while((ServiceEntry = IOIteratorNext(Iterator)))
 			{
@@ -1033,30 +1169,106 @@ FString FMacPlatformMisc::GetPrimaryGPUBrand()
 					const CFDataRef ClassCode = (const CFDataRef)CFDictionaryGetValue(ServiceInfo, CFSTR("class-code"));
 					if(ClassCode && CFGetTypeID(ClassCode) == CFDataGetTypeID())
 					{
-						const uint32* Value = reinterpret_cast<const uint32*>(CFDataGetBytePtr(ClassCode));
-						if(Value && *Value == 0x30000)
+						const uint32* ClassCodeValue = reinterpret_cast<const uint32*>(CFDataGetBytePtr(ClassCode));
+						if(ClassCodeValue && *ClassCodeValue == 0x30000)
 						{
-							// If there are StartupDisplay & hda-gfx entries then this is likely the online display
-							const CFDataRef HDAGfx = (const CFDataRef)CFDictionaryGetValue(ServiceInfo, CFSTR("hda-gfx"));
-							if(HDAGfx)
+							FMacPlatformMisc::FGPUDescriptor Desc;
+							
+							Desc.GPUIndex = Index++;
+							
+							IOObjectRetain(ServiceEntry);
+							Desc.PCIDevice = (uint32)ServiceEntry;
+							
+							const CFDataRef Model = (const CFDataRef)CFDictionaryGetValue(ServiceInfo, CFSTR("model"));
+							if(Model)
 							{
-								const CFDataRef Model = (const CFDataRef)CFDictionaryGetValue(ServiceInfo, CFSTR("model"));
-								if(Model && CFGetTypeID(Model) == CFDataGetTypeID())
+								if(CFGetTypeID(Model) == CFDataGetTypeID())
 								{
 									CFStringRef ModelName = CFStringCreateFromExternalRepresentation(kCFAllocatorDefault, Model, kCFStringEncodingASCII);
-									// Append all the GPUs together, watching out for malformed Intel strings...
-									if ( PrimaryGPU.IsEmpty() )
-									{
-										PrimaryGPU = FString((NSString*)ModelName).Trim();
-									}
-									else
-									{
-										PrimaryGPU += TEXT(" - ");
-										PrimaryGPU += FString((NSString*)ModelName).Trim();
-									}
-									CFRelease(ModelName);
+
+									Desc.GPUName = (NSString*)ModelName;
+								}
+								else
+								{
+									CFRelease(Model);
 								}
 							}
+							
+							const CFDataRef DeviceID = (const CFDataRef)CFDictionaryGetValue(ServiceInfo, CFSTR("device-id"));
+							if(DeviceID && CFGetTypeID(DeviceID) == CFDataGetTypeID())
+							{
+								const uint32* Value = reinterpret_cast<const uint32*>(CFDataGetBytePtr(DeviceID));
+								Desc.GPUDeviceId = *Value;
+							}
+							
+							const CFDataRef VendorID = (const CFDataRef)CFDictionaryGetValue(ServiceInfo, CFSTR("vendor-id"));
+							if(DeviceID && CFGetTypeID(DeviceID) == CFDataGetTypeID())
+							{
+								const uint32* Value = reinterpret_cast<const uint32*>(CFDataGetBytePtr(VendorID));
+								Desc.GPUVendorId = *Value;
+							}
+							
+							const CFBooleanRef Headless = (const CFBooleanRef)CFDictionaryGetValue(ServiceInfo, CFSTR("headless"));
+							if(Headless && CFGetTypeID(Headless) == CFBooleanGetTypeID())
+							{
+								Desc.GPUHeadless = (bool)CFBooleanGetValue(Headless);
+							}
+							
+							CFTypeRef VRAM = IORegistryEntrySearchCFProperty(ServiceEntry, kIOServicePlane, CFSTR("VRAM,totalMB"), kCFAllocatorDefault, kIORegistryIterateRecursively);
+							if (VRAM)
+							{
+								if(CFGetTypeID(VRAM) == CFDataGetTypeID())
+								{
+									const uint32* Value = reinterpret_cast<const uint32*>(CFDataGetBytePtr((CFDataRef)VRAM));
+									Desc.GPUMemoryMB = *Value;
+								}
+								else if(CFGetTypeID(VRAM) == CFNumberGetTypeID())
+								{
+									CFNumberGetValue((CFNumberRef)VRAM, kCFNumberSInt32Type, &Desc.GPUMemoryMB);
+								}
+								CFRelease(VRAM);
+							}
+							
+							const CFStringRef MetalLibName = (const CFStringRef)IORegistryEntrySearchCFProperty(ServiceEntry, kIOServicePlane, CFSTR("MetalPluginName"), kCFAllocatorDefault, kIORegistryIterateRecursively);
+							if(MetalLibName)
+							{
+								if(CFGetTypeID(MetalLibName) == CFStringGetTypeID())
+								{
+									Desc.GPUMetalBundle = (NSString*)MetalLibName;
+								}
+								else
+								{
+									CFRelease(MetalLibName);
+								}
+							}
+							
+							const CFStringRef OpenGLLibName = (const CFStringRef)IORegistryEntrySearchCFProperty(ServiceEntry, kIOServicePlane, CFSTR("IOGLBundleName"), kCFAllocatorDefault, kIORegistryIterateRecursively);
+							if(OpenGLLibName)
+							{
+								if(CFGetTypeID(OpenGLLibName) == CFStringGetTypeID())
+								{
+									Desc.GPUOpenGLBundle = (NSString*)OpenGLLibName;
+								}
+								else
+								{
+									CFRelease(OpenGLLibName);
+								}
+							}
+							
+							const CFStringRef BundleID = (const CFStringRef)IORegistryEntrySearchCFProperty(ServiceEntry, kIOServicePlane, CFSTR("CFBundleIdentifier"), kCFAllocatorDefault, kIORegistryIterateRecursively);
+							if(BundleID)
+							{
+								if(CFGetTypeID(BundleID) == CFStringGetTypeID())
+								{
+									Desc.GPUBundleID = (NSString*)BundleID;
+								}
+								else
+								{
+									CFRelease(BundleID);
+								}
+							}
+							
+							GPUs.Add(Desc);
 						}
 					}
 					CFRelease(ServiceInfo);
@@ -1064,20 +1276,227 @@ FString FMacPlatformMisc::GetPrimaryGPUBrand()
 				IOObjectRelease(ServiceEntry);
 			}
 			IOObjectRelease(Iterator);
-			
-			if ( PrimaryGPU.IsEmpty() )
+		}
+	}
+	return GPUs;
+}
+
+int32 FMacPlatformMisc::GetExplicitRendererIndex()
+{
+	check(GConfig && GConfig->IsReadyForUse());
+	
+	int32 ExplicitRenderer = -1;
+	if ((FParse::Value(FCommandLine::Get(),TEXT("MacExplicitRenderer="), ExplicitRenderer) && ExplicitRenderer >= 0)
+		|| (GConfig->GetInt(MAC_GRAPHICS_SETTINGS, TEXT("RendererID"), ExplicitRenderer, MAC_GRAPHICS_INI) && ExplicitRenderer >= 0))
+	{
+		return ExplicitRenderer;
+	}
+	else
+	{
+		return GMacExplicitRendererID;
+	}
+}
+
+FString FMacPlatformMisc::GetPrimaryGPUBrand()
+{
+	static FString PrimaryGPU;
+	if(PrimaryGPU.IsEmpty())
+	{
+		TArray<FMacPlatformMisc::FGPUDescriptor> const& GPUs = GetGPUDescriptors();
+		
+		if(GPUs.Num() > 1)
+		{
+			for(FMacPlatformMisc::FGPUDescriptor const& GPU : GPUs)
 			{
-				PrimaryGPU = FGenericPlatformMisc::GetPrimaryGPUBrand();
+				if(!GPU.GPUHeadless && GPU.GPUVendorId != 0x8086)
+				{
+					PrimaryGPU = GPU.GPUName;
+					break;
+				}
 			}
+		}
+		
+		if ( PrimaryGPU.IsEmpty() && GPUs.Num() > 0 )
+		{
+			PrimaryGPU = GPUs[0].GPUName;
+		}
+		
+		if ( PrimaryGPU.IsEmpty() )
+		{
+			PrimaryGPU = FGenericPlatformMisc::GetPrimaryGPUBrand();
 		}
 	}
 	return PrimaryGPU;
+}
+
+void FMacPlatformMisc::GetGPUDriverInfo(const FString DeviceDescription, FString& InternalDriverVersion, FString& UserDriverVersion, FString& DriverDate)
+{
+	SCOPED_AUTORELEASE_POOL;
+
+	TArray<FMacPlatformMisc::FGPUDescriptor> const& GPUs = GetGPUDescriptors();
+	for(FMacPlatformMisc::FGPUDescriptor const& GPU : GPUs)
+	{
+		if (FString(GPU.GPUName) == DeviceDescription)
+		{
+			bool bGotInternalVersionInfo = false;
+			bool bGotUserVersionInfo = false;
+			bool bGotDate = false;
+			
+			for(uint32 Index = 0; Index < _dyld_image_count(); Index++)
+			{
+				char const* IndexName = _dyld_get_image_name(Index);
+				FString FullModulePath(IndexName);
+				FString Name = FPaths::GetBaseFilename(FullModulePath);
+				if(Name == FString(GPU.GPUMetalBundle) || Name == FString(GPU.GPUOpenGLBundle))
+				{
+					struct mach_header_64 const* IndexModule64 = NULL;
+					struct load_command const* LoadCommands = NULL;
+					
+					struct mach_header const* IndexModule32 = _dyld_get_image_header(Index);
+					check(IndexModule32->magic == MH_MAGIC_64);
+					
+					IndexModule64 = (struct mach_header_64 const*)IndexModule32;
+					LoadCommands = (struct load_command const*)(IndexModule64 + 1);
+					struct load_command const* Command = LoadCommands;
+					struct dylib_command const* DylibID = nullptr;
+					struct source_version_command const* SourceVersion = nullptr;
+					for(uint32 CommandIndex = 0; CommandIndex < IndexModule64->ncmds; CommandIndex++)
+					{
+						if (Command && Command->cmd == LC_ID_DYLIB)
+						{
+							DylibID = (struct dylib_command const*)Command;
+							break;
+						}
+						else if(Command && Command->cmd == LC_SOURCE_VERSION)
+						{
+							SourceVersion = (struct source_version_command const*)Command;
+						}
+						Command = (struct load_command const*)(((char const*)Command) + Command->cmdsize);
+					}
+					if(DylibID)
+					{
+						uint32 Major = ((DylibID->dylib.current_version >> 16) & 0xffff);
+						uint32 Minor = ((DylibID->dylib.current_version >> 8) & 0xff);
+						uint32 Patch = ((DylibID->dylib.current_version & 0xff));
+						InternalDriverVersion = FString::Printf(TEXT("%d.%d.%d"), Major, Minor, Patch);
+						
+						time_t DylibTime = (time_t)DylibID->dylib.timestamp;
+						struct tm Time;
+						gmtime_r(&DylibTime, &Time);
+						DriverDate = FString::Printf(TEXT("%d-%d-%d"), Time.tm_mon + 1, Time.tm_mday, 1900 + Time.tm_year);
+
+						bGotInternalVersionInfo = true;
+						bGotDate = true;
+						break;
+					}
+					else if (SourceVersion)
+					{
+						uint32 A = ((SourceVersion->version >> 40) & 0xffffff);
+						uint32 B = ((SourceVersion->version >> 30) & 0x3ff);
+						uint32 C = ((SourceVersion->version >> 20) & 0x3ff);
+						uint32 D = ((SourceVersion->version >> 10) & 0x3ff);
+						uint32 E = (SourceVersion->version & 0x3ff);
+						InternalDriverVersion = FString::Printf(TEXT("%d.%d.%d.%d.%d"), A, B, C, D, E);
+						
+						struct stat Stat;
+						stat(IndexName, &Stat);
+						
+						struct tm Time;
+						gmtime_r(&Stat.st_mtime, &Time);
+						DriverDate = FString::Printf(TEXT("%d-%d-%d"), Time.tm_mon + 1, Time.tm_mday, 1900 + Time.tm_year);
+						
+						bGotInternalVersionInfo = true;
+						bGotDate = true;
+					}
+				}
+			}
+			
+			if(!GMacAppInfo.bIsSandboxed)
+			{
+				if(!bGotDate || !bGotInternalVersionInfo || !bGotUserVersionInfo)
+				{
+					NSURL* URL = (NSURL*)KextManagerCreateURLForBundleIdentifier(kCFAllocatorDefault, (CFStringRef)GPU.GPUBundleID);
+					if(URL)
+					{
+						NSBundle* ControllerBundle = [NSBundle bundleWithURL:URL];
+						if(ControllerBundle)
+						{
+							NSDictionary* Dict = ControllerBundle.infoDictionary;
+							NSString* BundleVersion = [Dict objectForKey:@"CFBundleVersion"];
+							NSString* BundleShortVersion = [Dict objectForKey:@"CFBundleShortVersionString"];
+							NSString* BundleInfoVersion = [Dict objectForKey:@"CFBundleGetInfoString"];
+							if (!bGotInternalVersionInfo && (BundleVersion || BundleShortVersion))
+							{
+								InternalDriverVersion = FString(BundleShortVersion ? BundleShortVersion : BundleVersion);
+								bGotInternalVersionInfo = true;
+							}
+							if (!bGotUserVersionInfo && BundleInfoVersion)
+							{
+								UserDriverVersion = FString(BundleInfoVersion);
+								bGotUserVersionInfo = true;
+							}
+							
+							if(!bGotDate)
+							{
+								NSURL* Exe = ControllerBundle.executableURL;
+								if (Exe)
+								{
+									id Value = nil;
+									if([Exe getResourceValue:&Value forKey:NSURLContentModificationDateKey error:nil] && Value)
+									{
+										NSDate* Date = (NSDate*)Value;
+										DriverDate = [Date descriptionWithLocale:nil];
+										bGotDate = true;
+									}
+								}
+							}
+						}
+					}
+				}
+				
+				if(!bGotInternalVersionInfo)
+				{
+					NSArray* Array = [NSArray arrayWithObject: GPU.GPUBundleID];
+					NSDictionary* Dict = (NSDictionary*)KextManagerCopyLoadedKextInfo((CFArrayRef)Array, nil);
+					if(Dict)
+					{
+						NSDictionary* ControllerDict = [Dict objectForKey:GPU.GPUBundleID];
+						if(ControllerDict)
+						{
+							NSString* BundleVersion = [ControllerDict objectForKey:@"CFBundleVersion"];
+							InternalDriverVersion = FString(BundleVersion);
+						}
+						[Dict release];
+					}
+				}
+			}
+			else if(bGotInternalVersionInfo && !bGotUserVersionInfo)
+			{
+				UserDriverVersion = InternalDriverVersion;
+			}
+			
+			break;
+		}
+	}
 }
 
 void FMacPlatformMisc::GetOSVersions( FString& out_OSVersionLabel, FString& out_OSSubVersionLabel )
 {
 	out_OSVersionLabel = GMacAppInfo.OSVersion;
 	out_OSSubVersionLabel = GMacAppInfo.OSBuild;
+}
+
+bool FMacPlatformMisc::GetDiskTotalAndFreeSpace(const FString& InPath, uint64& TotalNumberOfBytes, uint64& NumberOfFreeBytes)
+{
+	struct statfs FSStat = { 0 };
+	FTCHARToUTF8 Converter(*InPath);
+	int Err = statfs((ANSICHAR*)Converter.Get(), &FSStat);
+	if (Err == 0)
+	{
+		TotalNumberOfBytes = FSStat.f_blocks * FSStat.f_bsize;
+		NumberOfFreeBytes = FSStat.f_bavail * FSStat.f_bsize;
+	}
+	return (Err == 0);
 }
 
 #include "ModuleManager.h"
@@ -1140,45 +1559,6 @@ uint32 FMacPlatformMisc::GetCPUInfo()
 	return Args[0];
 }
 
-int32 FMacPlatformMisc::ConvertSlateYPositionToCocoa(int32 YPosition)
-{
-	NSArray* AllScreens = [NSScreen screens];
-	NSScreen* PrimaryScreen = (NSScreen*)[AllScreens objectAtIndex: 0];
-	NSRect ScreenFrame = [PrimaryScreen frame];
-	NSRect WholeWorkspace = {{0,0},{0,0}};
-	for(NSScreen* Screen in AllScreens)
-	{
-		if(Screen)
-		{
-			WholeWorkspace = NSUnionRect(WholeWorkspace, [Screen frame]);
-		}
-	}
-	
-	const float WholeWorkspaceOrigin = FMath::Min((ScreenFrame.size.height - (WholeWorkspace.origin.y + WholeWorkspace.size.height)), 0.0);
-	const float WholeWorkspaceHeight = WholeWorkspace.origin.y + WholeWorkspace.size.height;
-	return -((YPosition - WholeWorkspaceOrigin) - WholeWorkspaceHeight + 1);
-}
-
-int32 FMacPlatformMisc::ConvertCocoaYPositionToSlate(int32 YPosition)
-{
-	NSArray* AllScreens = [NSScreen screens];
-	NSScreen* PrimaryScreen = (NSScreen*)[AllScreens objectAtIndex: 0];
-	NSRect ScreenFrame = [PrimaryScreen frame];
-	NSRect WholeWorkspace = {{0,0},{0,0}};
-	for(NSScreen* Screen in AllScreens)
-	{
-		if(Screen)
-		{
-			WholeWorkspace = NSUnionRect(WholeWorkspace, [Screen frame]);
-		}
-	}
-	
-	CGFloat const OffsetToPrimary = ((ScreenFrame.origin.y + ScreenFrame.size.height) - (WholeWorkspace.origin.y + WholeWorkspace.size.height));
-	CGFloat const OffsetToWorkspace = (WholeWorkspace.size.height - (YPosition)) + WholeWorkspace.origin.y;
-	return OffsetToWorkspace + OffsetToPrimary;
-}
-
-
 FString FMacPlatformMisc::GetDefaultLocale()
 {
 	CFLocaleRef loc = CFLocaleCopyCurrent();
@@ -1192,6 +1572,9 @@ FString FMacPlatformMisc::GetDefaultLocale()
 	CFStringRef countryCodeStr = (CFStringRef)CFLocaleGetValue(loc, kCFLocaleCountryCode);
 	FPlatformString::CFStringToTCHAR(countryCodeStr, countryCode);
 
+	CFRelease(langs);
+	CFRelease(loc);
+	
 	return FString::Printf(TEXT("%s_%s"), langCode, countryCode);
 }
 
@@ -1476,11 +1859,11 @@ void FMacCrashContext::GenerateWindowsErrorReport(char const* WERPath) const
 		WriteLine(ReportFile, TEXT("</Parameter0>"));
 		
 		WriteUTF16String(ReportFile, TEXT("\t\t<Parameter1>"));
-		WriteUTF16String(ReportFile, ItoTCHAR(GEngineVersion.GetMajor(), 10));
+		WriteUTF16String(ReportFile, ItoTCHAR(FEngineVersion::Current().GetMajor(), 10));
 		WriteUTF16String(ReportFile, TEXT("."));
-		WriteUTF16String(ReportFile, ItoTCHAR(GEngineVersion.GetMinor(), 10));
+		WriteUTF16String(ReportFile, ItoTCHAR(FEngineVersion::Current().GetMinor(), 10));
 		WriteUTF16String(ReportFile, TEXT("."));
-		WriteUTF16String(ReportFile, ItoTCHAR(GEngineVersion.GetPatch(), 10));
+		WriteUTF16String(ReportFile, ItoTCHAR(FEngineVersion::Current().GetPatch(), 10));
 		WriteLine(ReportFile, TEXT("</Parameter1>"));
 
 		// App time stamp
@@ -1662,9 +2045,9 @@ void FMacCrashContext::GenerateInfoInFolder(char const* const InfoFolder) const
 			WriteLine(ReportFile, *GMacAppInfo.AppName);
 			
 			WriteUTF16String(ReportFile, TEXT("BuildVersion 1.0."));
-			WriteUTF16String(ReportFile, ItoTCHAR(GEngineVersion.GetChangelist() >> 16, 10));
+			WriteUTF16String(ReportFile, ItoTCHAR(FEngineVersion::Current().GetChangelist() >> 16, 10));
 			WriteUTF16String(ReportFile, TEXT("."));
-			WriteLine(ReportFile, ItoTCHAR(GEngineVersion.GetChangelist() & 0xffff, 10));
+			WriteLine(ReportFile, ItoTCHAR(FEngineVersion::Current().GetChangelist() & 0xffff, 10));
 			
 			WriteUTF16String(ReportFile, TEXT("CommandLine "));
 			WriteLine(ReportFile, *GMacAppInfo.CommandLine);
@@ -1698,6 +2081,29 @@ void FMacCrashContext::GenerateInfoInFolder(char const* const InfoFolder) const
 		{
 			write(LogDst, Data, Bytes);
 		}
+		
+		// Copy the system log to capture GPU restarts and other nasties not reported by our application
+		if ( !GMacAppInfo.bIsSandboxed && GMacAppInfo.SystemLogSize >= 0 && access("/var/log/system.log", R_OK|F_OK) == 0 )
+		{
+			char const* SysLogHeader = "\nAppending System Log:\n";
+			write(LogDst, SysLogHeader, strlen(SysLogHeader));
+			
+			int SysLogSrc = open("/var/log/system.log", O_RDONLY);
+			
+			// Attempt to capture only the system log from while our application was running but
+			if (lseek(SysLogSrc, GMacAppInfo.SystemLogSize, SEEK_SET) != GMacAppInfo.SystemLogSize)
+			{
+				close(SysLogSrc);
+				SysLogSrc = open("/var/log/system.log", O_RDONLY);
+			}
+			
+			while((Bytes = read(SysLogSrc, Data, PATH_MAX)) > 0)
+			{
+				write(LogDst, Data, Bytes);
+			}
+			close(SysLogSrc);
+		}
+		
 		close(LogDst);
 		close(LogSrc);
 		// best effort, so don't care about result: couldn't copy -> tough, no log
@@ -1844,3 +2250,29 @@ void NewReportEnsure( const TCHAR* ErrorMessage )
 	bReentranceGuard = false;
 	EnsureLock.Unlock();
 }
+typedef NSArray* (*MTLCopyAllDevices)(void);
+
+bool FMacPlatformMisc::HasPlatformFeature(const TCHAR* FeatureName)
+{
+	if (FCString::Stricmp(FeatureName, TEXT("Metal")) == 0 && !FParse::Param(FCommandLine::Get(),TEXT("opengl")) && FModuleManager::Get().ModuleExists(TEXT("MetalRHI")))
+	{
+		// Find out if there are any Metal devices on the system - some Mac's have none
+		void* DLLHandle = FPlatformProcess::GetDllHandle(TEXT("/System/Library/Frameworks/Metal.framework/Metal"));
+		if (DLLHandle)
+		{
+			// Use the copy all function because we don't want to invoke a GPU switch at this point on dual-GPU Macbooks
+			MTLCopyAllDevices CopyDevicesPtr = (MTLCopyAllDevices)FPlatformProcess::GetDllExport(DLLHandle, TEXT("MTLCopyAllDevices"));
+			if (CopyDevicesPtr)
+			{
+				SCOPED_AUTORELEASE_POOL;
+				NSArray* MetalDevices = CopyDevicesPtr();
+				[MetalDevices autorelease];
+				FPlatformProcess::FreeDllHandle(DLLHandle);
+				return MetalDevices && [MetalDevices count] > 0;
+			}
+		}
+	}
+
+	return FGenericPlatformMisc::HasPlatformFeature(FeatureName);
+}
+

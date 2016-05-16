@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -85,7 +85,6 @@ static const VectorRegister SSE_SIGN_MASK = MakeVectorRegister( (uint32)SIGN_BIT
 #undef VectorAbs
 #undef VectorNegate
 #undef VectorSwizzle
-#undef VectorLoadByte4Reverse
 #undef VectorGetControlRegister
 #undef VectorSetControlRegister
 #undef VECTOR_ROUND_TOWARD_ZERO
@@ -575,19 +574,6 @@ FORCEINLINE VectorRegister VectorSelect( const VectorRegister& Vec1, const Vecto
 //#define VectorLoadByte4( Ptr )			_mm_cvtpu8_ps( *((__m64*)Ptr) )
 
 /**
- * Loads 4 BYTEs from unaligned memory and converts them into 4 FLOATs in reversed order.
- * IMPORTANT: You need to call VectorResetFloatRegisters() before using scalar FLOATs after you've used this intrinsic!
- *
- * @param Ptr			Unaligned memory pointer to the 4 BYTEs.
- * @return				VectorRegister( float(Ptr[3]), float(Ptr[2]), float(Ptr[1]), float(Ptr[0]) )
- */
-FORCEINLINE VectorRegister VectorLoadByte4Reverse( void* Ptr )
-{
-	VectorRegister Temp = _mm_cvtpu8_ps( *((__m64*)Ptr) );
-	return _mm_shuffle_ps( Temp, Temp, SHUFFLEMASK(3,2,1,0) );
-}
-
-/**
  * Returns non-zero if any component in Vec1 is greater than the corresponding component in Vec2, otherwise 0.
  *
  * @param Vec1			1st source vector
@@ -637,6 +623,15 @@ FORCEINLINE VectorRegister VectorLoadByte4Reverse( void* Ptr )
 #define VectorMask_GE( Vec1, Vec2 )			_mm_cmpge_ps(Vec1, Vec2)
 #define VectorMask_EQ( Vec1, Vec2 )			_mm_cmpeq_ps(Vec1, Vec2)
 #define VectorMask_NE( Vec1, Vec2 )			_mm_cmpneq_ps(Vec1, Vec2)
+
+/**
+ * Shifts the 4 signed or unsigned 32-bit integers right by input amount while shifting in zeros.
+ *
+ * @param Vec1			1st source vector
+ * @param Count			Number of bits to shift
+ * @return				Shifted vector
+ */
+#define VectorShiftRight( Vec1, Count )		_mm_castsi128_ps(_mm_srli_epi32(_mm_castps_si128(Vec1), Count))
 
 /**
  * Returns an integer bit-mask (0x00 - 0x0f) based on the sign-bit for each component in a vector.

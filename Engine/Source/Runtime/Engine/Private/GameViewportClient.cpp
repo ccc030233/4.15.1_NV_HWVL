@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "EnginePrivate.h"
 #include "Engine/Console.h"
@@ -32,9 +32,9 @@
 #include "GameFramework/GameUserSettings.h"
 #include "Runtime/Engine/Classes/Engine/UserInterfaceSettings.h"
 #include "SGameLayerManager.h"
-#include "ActorEditorUtils.h"
 #include "IMovieSceneCapture.h"
 #include "MovieSceneCaptureSettings.h"
+#include "ActorEditorUtils.h"
 
 #define LOCTEXT_NAMESPACE "GameViewport"
 
@@ -74,6 +74,15 @@ static TAutoConsoleVariable<int32> CVarSetBlackBordersEnabled(
 	TEXT("To draw black borders around the rendered image\n")
 	TEXT("(prevents artifacts from post processing passes that read outside of the image e.g. PostProcessAA)\n")
 	TEXT("in pixels, 0:off"),
+	ECVF_Default);
+
+static TAutoConsoleVariable<int32> CVarScreenshotDelegate(
+	TEXT("r.ScreenshotDelegate"),
+	1,
+	TEXT("ScreenshotDelegates prevent processing of incoming screenshot request and break some features. This allows to disable them.\n")
+	TEXT("Ideally we rework the delegate code to not make that needed.\n")
+	TEXT(" 0: off\n")
+	TEXT(" 1: delegates are on (default)"),
 	ECVF_Default);
 
 
@@ -177,7 +186,7 @@ UGameViewportClient::~UGameViewportClient()
 {
 	if (EngineShowFlags.Collision)
 	{
-		EngineShowFlags.Collision = false;
+		EngineShowFlags.SetCollision(false);
 		ToggleShowCollision();
 	}
 
@@ -265,6 +274,9 @@ void UGameViewportClient::Init(struct FWorldContext& WorldContext, UGameInstance
 
 	// remember our game instance
 	GameInstance = OwningGameInstance;
+
+	// Set the projects default viewport mouse capture mode
+	MouseCaptureMode = GetDefault<UInputSettings>()->DefaultViewportMouseCaptureMode;
 
 	// Create the cursor Widgets
 	UUserInterfaceSettings* UISettings = GetMutableDefault<UUserInterfaceSettings>(UUserInterfaceSettings::StaticClass());
@@ -569,9 +581,9 @@ bool UGameViewportClient::RequiresUncapturedAxisInput() const
 		{
 			bRequired = true;
 		}
-		else if (GetWorld() && GetWorld()->GetFirstPlayerController())
+		else if (GameInstance && GameInstance->GetFirstLocalPlayerController())
 		{
-			bRequired = GetWorld()->GetFirstPlayerController()->ShouldShowMouseCursor();
+			bRequired = GameInstance->GetFirstLocalPlayerController()->ShouldShowMouseCursor();
 		}
 	}
 
@@ -581,43 +593,14 @@ bool UGameViewportClient::RequiresUncapturedAxisInput() const
 
 EMouseCursor::Type UGameViewportClient::GetCursor(FViewport* InViewport, int32 X, int32 Y)
 {
-	//bool bIsPlayingMovie = false;//GetMoviePlayer()->IsMovieCurrentlyPlaying();
-
-#if !PLATFORM_WINDOWS
-	bool bIsWithinTitleBar = false;
-#else
-	POINT CursorPos = { X, Y };
-	RECT WindowRect;
-
-	bool bIsWithinWindow = true;
-
-	// For Slate based windows the viewport doesnt have access to the OS window handle and shouln't need it
-	bool bIsWithinTitleBar = false;
-	if( InViewport->GetWindow() )
-	{
-		ClientToScreen( (HWND)InViewport->GetWindow(), &CursorPos );
-		GetWindowRect( (HWND)InViewport->GetWindow(), &WindowRect );
-		bIsWithinWindow = ( CursorPos.x >= WindowRect.left && CursorPos.x <= WindowRect.right &&
-			CursorPos.y >= WindowRect.top && CursorPos.y <= WindowRect.bottom );
-
-		// The user is mousing over the title bar if Y is less than zero and within the window rect
-		bIsWithinTitleBar = Y < 0 && bIsWithinWindow;
-	}
-
-#endif
-
-	if ((!InViewport->HasMouseCapture() && !InViewport->HasFocus()) || (ViewportConsole && ViewportConsole->ConsoleActive()))
+	// If the viewport isn't active or the console is active we don't want to override the cursor
+	if (!FSlateApplication::Get().IsActive() || (!InViewport->HasMouseCapture() && !InViewport->HasFocus()) || (ViewportConsole && ViewportConsole->ConsoleActive()))
 	{
 		return EMouseCursor::Default;
 	}
-	else if ( /*(!bIsPlayingMovie) && */(InViewport->IsFullscreen() || !bIsWithinTitleBar) ) //bIsPlayingMovie has always false value
+	else if (GameInstance && GameInstance->GetFirstLocalPlayerController())
 	{
-		if (GetWorld() && GetWorld()->GetFirstPlayerController())
-		{
-			return GetWorld()->GetFirstPlayerController()->GetMouseCursor();
-		}
-
-		return EMouseCursor::None;
+		return GameInstance->GetFirstLocalPlayerController()->GetMouseCursor();
 	}
 
 	return FViewportClient::GetCursor(InViewport, X, Y);
@@ -753,9 +736,9 @@ bool UGameViewportClient::ShouldForceFullscreenViewport() const
 		{
 			bResult = true;
 		}
-		else
+		else if ( GameInstance )
 		{
-			APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+			APlayerController* PlayerController = GameInstance->GetFirstLocalPlayerController();
 			if( ( PlayerController ) && ( PlayerController->bCinematicMode ) )
 			{
 				bResult = true;
@@ -785,6 +768,58 @@ static UCanvas* GetCanvasByName(FName CanvasName)
 	}
 
 	return *FoundCanvas;
+}
+
+/** Util to gather and sort view extensions */
+static void GatherViewExtensions(FViewport* InViewport, TArray<TSharedPtr<class ISceneViewExtension, ESPMode::ThreadSafe> >& OutViewExtensions)
+{
+#if PLATFORM_PS4
+	// Temp change to force PS4Tracker to be inserted before the HMD. Less hacky vesrion coming in future update
+	// This makes a dirty but reliable assumption that the PS4Tracker is first
+	if (GEngine->ViewExtensions.Num() > 0)
+	{
+		if (GEngine->ViewExtensions[0].IsValid())
+		{
+			OutViewExtensions.Add(GEngine->ViewExtensions[0]);
+		}
+	}
+
+	// Add HMD
+	if (GEngine->HMDDevice.IsValid() && GEngine->IsStereoscopic3D(InViewport))
+	{
+		auto HmdViewExt = GEngine->HMDDevice->GetViewExtension();
+		if (HmdViewExt.IsValid())
+		{
+			OutViewExtensions.Add(HmdViewExt);
+		}
+	}
+
+	// Add remaining view extensions
+	for (int32 ViewExtIndex = 1; ViewExtIndex < GEngine->ViewExtensions.Num(); ++ViewExtIndex)
+	{
+		if (GEngine->ViewExtensions[ViewExtIndex].IsValid())
+		{
+			OutViewExtensions.Add(GEngine->ViewExtensions[ViewExtIndex]);
+		}
+	}
+#else
+	if (GEngine->HMDDevice.IsValid() && GEngine->IsStereoscopic3D(InViewport))
+	{
+		auto HmdViewExt = GEngine->HMDDevice->GetViewExtension();
+		if (HmdViewExt.IsValid())
+		{
+			OutViewExtensions.Add(HmdViewExt);
+		}
+	}
+
+	for (auto ViewExt : GEngine->ViewExtensions)
+	{
+		if (ViewExt.IsValid())
+		{
+			OutViewExtensions.Add(ViewExt);
+		}
+	}
+#endif
 }
 
 void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
@@ -829,20 +864,11 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 		EngineShowFlags)
 		.SetRealtimeUpdate(true));
 
-	if (GEngine->ViewExtensions.Num())
-	{
-		ViewFamily.ViewExtensions.Append(GEngine->ViewExtensions.GetData(), GEngine->ViewExtensions.Num());
-	}
+	GatherViewExtensions(InViewport, ViewFamily.ViewExtensions);
 
-	// Allow HMD to modify the view later, just before rendering
-	if (GEngine->HMDDevice.IsValid() && GEngine->IsStereoscopic3D(InViewport))
+	for (auto ViewExt : ViewFamily.ViewExtensions)
 	{
-		auto HmdViewExt = GEngine->HMDDevice->GetViewExtension();
-		if (HmdViewExt.IsValid())
-		{
-			ViewFamily.ViewExtensions.Add(HmdViewExt);
-			HmdViewExt->SetupViewFamily(ViewFamily);
-		}
+		ViewExt->SetupViewFamily(ViewFamily);
 	}
 
 	if (bStereoRendering && GEngine->HMDDevice.IsValid())
@@ -1267,7 +1293,7 @@ void UGameViewportClient::ProcessScreenShots(FViewport* InViewport)
 
 		if (bScreenshotSuccessful)
 		{
-			if (ScreenshotCapturedDelegate.IsBound())
+			if (ScreenshotCapturedDelegate.IsBound() && CVarScreenshotDelegate.GetValueOnGameThread())
 			{
 				ScreenshotCapturedDelegate.Broadcast(Size.X, Size.Y, Bitmap);
 			}
@@ -1392,6 +1418,16 @@ void UGameViewportClient::ReceivedFocus(FViewport* InViewport)
 bool UGameViewportClient::IsFocused(FViewport* InViewport)
 {
 	return InViewport->HasFocus() || InViewport->HasMouseCapture();
+}
+
+void UGameViewportClient::Activated(FViewport* InViewport, const FWindowActivateEvent& InActivateEvent)
+{
+	ReceivedFocus(InViewport);
+}
+
+void UGameViewportClient::Deactivated(FViewport* InViewport, const FWindowActivateEvent& InActivateEvent)
+{
+	LostFocus(InViewport);
 }
 
 void UGameViewportClient::CloseRequested(FViewport* InViewport)
@@ -2297,9 +2333,10 @@ bool UGameViewportClient::HandleShowCommand( const TCHAR* Cmd, FOutputDevice& Ar
 	return true;
 }
 
-TOptional<EPopupMethod> UGameViewportClient::OnQueryPopupMethod() const
+FPopupMethodReply UGameViewportClient::OnQueryPopupMethod() const
 {
-	return EPopupMethod::UseCurrentWindow;
+	return FPopupMethodReply::UseMethod(EPopupMethod::UseCurrentWindow)
+		.SetShouldThrottle(EShouldThrottle::No);
 }
 
 void UGameViewportClient::ToggleShowVolumes()
@@ -2307,7 +2344,7 @@ void UGameViewportClient::ToggleShowVolumes()
 	// Don't allow 'show collision' and 'show volumes' at the same time, so turn collision off
 	if (EngineShowFlags.Volumes && EngineShowFlags.Collision)
 	{
-		EngineShowFlags.Collision = false;
+		EngineShowFlags.SetCollision(false);
 		ToggleShowCollision();
 	}
 
@@ -2348,7 +2385,7 @@ void UGameViewportClient::ToggleShowCollision()
 		// Don't allow 'show collision' and 'show volumes' at the same time, so turn collision off
 		if (EngineShowFlags.Volumes)
 		{
-			EngineShowFlags.Volumes = false;
+			EngineShowFlags.SetVolumes(false);
 			ToggleShowVolumes();
 		}
 
@@ -2739,6 +2776,18 @@ bool UGameViewportClient::HandleToggleFullscreenCommand()
 		}
 	}
 
+	// Make sure the user's settings are updated after pressing Alt+Enter to toggle fullscreen.  Note
+	// that we don't need to "apply" the setting change, as we already did that above directly.
+	UGameEngine* GameEngine = Cast<UGameEngine>( GEngine );
+	if( GameEngine )
+	{
+		UGameUserSettings* UserSettings = GameEngine->GetGameUserSettings();
+		if( UserSettings != nullptr )
+		{
+			UserSettings->SetFullscreenMode( FullScreenMode );
+		}
+	}
+
 	FSystemResolution::RequestResolutionChange(GSystemResolution.ResX, GSystemResolution.ResY, FullScreenMode);
 	return true;
 }
@@ -2944,7 +2993,7 @@ bool UGameViewportClient::HandleDisplayAllCommand( const TCHAR* Cmd, FOutputDevi
 					// so then we only have to iterate over dynamic things each frame
 					for (TObjectIterator<UObject> It; It; ++It)
 					{
-						if (!GetUObjectArray().IsDisregardForGC(*It))
+						if (!GUObjectArray.IsDisregardForGC(*It))
 						{
 							break;
 						}
@@ -2991,7 +3040,7 @@ bool UGameViewportClient::HandleDisplayAllLocationCommand( const TCHAR* Cmd, FOu
 			// so then we only have to iterate over dynamic things each frame
 			for (TObjectIterator<UObject> It(true); It; ++It)
 			{
-				if (!GetUObjectArray().IsDisregardForGC(*It))
+				if (!GUObjectArray.IsDisregardForGC(*It))
 				{
 					break;
 				}
@@ -3029,7 +3078,7 @@ bool UGameViewportClient::HandleDisplayAllRotationCommand( const TCHAR* Cmd, FOu
 			// so then we only have to iterate over dynamic things each frame
 			for (TObjectIterator<UObject> It(true); It; ++It)
 			{
-				if (!GetUObjectArray().IsDisregardForGC(*It))
+				if (!GUObjectArray.IsDisregardForGC(*It))
 				{
 					break;
 				}

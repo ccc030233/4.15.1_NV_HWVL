@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	MaterialCompiler.h: Material compiler interface.
@@ -7,9 +7,11 @@
 #pragma once
 
 #include "MaterialShared.h"
+#include "Materials/MaterialExpressionScreenPosition.h"
 #include "Materials/MaterialExpressionSpeedTree.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
+#include "Materials/MaterialExpressionTextureProperty.h"
 #include "Materials/MaterialExpressionViewProperty.h"
 
 /** 
@@ -78,7 +80,7 @@ public:
 	virtual int32 CameraVector() = 0;
 	virtual int32 LightVector() = 0;
 
-	virtual int32 ScreenPosition() = 0;
+	virtual int32 ScreenPosition(EMaterialExpressionScreenPositionMapping Mapping) = 0;
 	virtual int32 WorldPosition(EWorldPositionIncludedOffsets WorldPositionIncludedOffsets) = 0;
 	virtual int32 ObjectWorldPosition() = 0;
 	virtual int32 ObjectRadius() = 0;
@@ -93,6 +95,7 @@ public:
 	virtual int32 SphericalParticleOpacity(int32 Density) = 0;
 	virtual int32 ParticleRelativeTime() = 0;
 	virtual int32 ParticleMotionBlurFade() = 0;
+	virtual int32 ParticleRandom() = 0;
 	virtual int32 ParticleDirection() = 0;
 	virtual int32 ParticleSpeed() = 0;
 	virtual int32 ParticleSize() = 0;
@@ -101,8 +104,10 @@ public:
 
 	virtual int32 TextureCoordinate(uint32 CoordinateIndex, bool UnMirrorU, bool UnMirrorV) = 0;
 	virtual int32 TextureSample(int32 Texture,int32 Coordinate,enum EMaterialSamplerType SamplerType,int32 MipValue0Index=INDEX_NONE,int32 MipValue1Index=INDEX_NONE,ETextureMipValueMode MipValueMode=TMVM_None,ESamplerSourceMode SamplerSource=SSM_FromTextureAsset) = 0;
+	virtual int32 TextureProperty(int32 InTexture, EMaterialExposedTextureProperty Property) = 0;
 
 	virtual int32 TextureDecalMipmapLevel(int32 TextureSizeInput) = 0;
+	virtual int32 TextureDecalDerivative(bool bDDY) = 0;
 
 	virtual int32 Texture(UTexture* Texture,ESamplerSourceMode SamplerSource=SSM_FromTextureAsset) = 0;
 	virtual int32 TextureParameter(FName ParameterName,UTexture* DefaultTexture,ESamplerSourceMode SamplerSource=SSM_FromTextureAsset) = 0;
@@ -126,6 +131,10 @@ public:
 	virtual int32 StaticTerrainLayerWeight(FName ParameterName,int32 Default) = 0;
 
 	virtual int32 VertexColor() = 0;
+
+#if WITH_EDITOR
+	virtual int32 MaterialBakingWorldPosition() = 0;
+#endif
 
 	virtual int32 Add(int32 A,int32 B) = 0;
 	virtual int32 Sub(int32 A,int32 B) = 0;
@@ -156,6 +165,7 @@ public:
 
 	virtual int32 LightmassReplace(int32 Realtime, int32 Lightmass) = 0;
 	virtual int32 GIReplace(int32 Direct, int32 StaticIndirect, int32 DynamicIndirect) = 0;
+	virtual int32 MaterialProxyReplace(int32 Realtime, int32 MaterialProxy) = 0;
 
 	virtual int32 ObjectOrientation() = 0;
 	virtual int32 RotateAboutAxis(int32 NormalizedRotationAxisAndAngleIndex, int32 PositionOnAxisIndex, int32 PositionIndex) = 0;
@@ -181,6 +191,9 @@ public:
 	virtual int32 SpeedTree(ESpeedTreeGeometryType GeometryType, ESpeedTreeWindType WindType, ESpeedTreeLODType LODType, float BillboardThreshold, bool bAccurateWindVelocities) = 0;
 	virtual int32 TextureCoordinateOffset() = 0;
 	virtual int32 EyeAdaptation() = 0;
+	// The compiler can run in a different state and this affects caching of sub expression, Expressions are different (e.g. View.PrevWorldViewOrigin) when using previous frame's values
+	// If possible we should re-factor this to avoid having to deal with compiler state
+	virtual bool IsCurrentlyCompilingForPreviousFrame() const { return false; }
 };
 
 /** 
@@ -243,7 +256,7 @@ public:
 	virtual int32 CameraVector() override { return Compiler->CameraVector(); }
 	virtual int32 LightVector() override { return Compiler->LightVector(); }
 
-	virtual int32 ScreenPosition() override { return Compiler->ScreenPosition(); }
+	virtual int32 ScreenPosition(EMaterialExpressionScreenPositionMapping Mapping = MESP_SceneTextureUV) override { return Compiler->ScreenPosition(Mapping); }
 	virtual int32 WorldPosition(EWorldPositionIncludedOffsets WorldPositionIncludedOffsets) override { return Compiler->WorldPosition(WorldPositionIncludedOffsets); }
 	virtual int32 ObjectWorldPosition() override { return Compiler->ObjectWorldPosition(); }
 	virtual int32 ObjectRadius() override { return Compiler->ObjectRadius(); }
@@ -261,10 +274,13 @@ public:
 
 	virtual int32 TextureSample(int32 InTexture,int32 Coordinate,enum EMaterialSamplerType SamplerType,int32 MipValue0Index,int32 MipValue1Index,ETextureMipValueMode MipValueMode,ESamplerSourceMode SamplerSource) override 
 		{ return Compiler->TextureSample(InTexture,Coordinate,SamplerType,MipValue0Index,MipValue1Index,MipValueMode,SamplerSource); }
+	virtual int32 TextureProperty(int32 InTexture, EMaterialExposedTextureProperty Property) override 
+		{ return Compiler->TextureProperty(InTexture, Property); }
 
 	virtual int32 TextureCoordinate(uint32 CoordinateIndex, bool UnMirrorU, bool UnMirrorV) override { return Compiler->TextureCoordinate(CoordinateIndex, UnMirrorU, UnMirrorV); }
 
 	virtual int32 TextureDecalMipmapLevel(int32 TextureSizeInput) override { return Compiler->TextureDecalMipmapLevel(TextureSizeInput); }
+	virtual int32 TextureDecalDerivative(bool bDDY) override { return Compiler->TextureDecalDerivative(bDDY); }
 
 	virtual int32 Texture(UTexture* InTexture,ESamplerSourceMode SamplerSource=SSM_FromTextureAsset) override { return Compiler->Texture(InTexture,SamplerSource); }
 	virtual int32 TextureParameter(FName ParameterName,UTexture* DefaultValue,ESamplerSourceMode SamplerSource=SSM_FromTextureAsset) override { return Compiler->TextureParameter(ParameterName,DefaultValue,SamplerSource); }
@@ -320,6 +336,7 @@ public:
 
 	virtual int32 LightmassReplace(int32 Realtime, int32 Lightmass) override { return Realtime; }
 	virtual int32 GIReplace(int32 Direct, int32 StaticIndirect, int32 DynamicIndirect) override { return Compiler->GIReplace(Direct, StaticIndirect, DynamicIndirect); }
+	virtual int32 MaterialProxyReplace(int32 Realtime, int32 MaterialProxy) override { return Realtime; }
 	virtual int32 ObjectOrientation() override { return Compiler->ObjectOrientation(); }
 	virtual int32 RotateAboutAxis(int32 NormalizedRotationAxisAndAngleIndex, int32 PositionOnAxisIndex, int32 PositionIndex) override
 	{
@@ -371,6 +388,7 @@ public:
 	{
 		return Compiler->EyeAdaptation();
 	}
+
 protected:
 		
 	FMaterialCompiler* Compiler;

@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 var UE_JavaScriptLibary = {
   UE_SendAndRecievePayLoad: function (url, indata, insize, outdataptr, outsizeptr) {
@@ -51,7 +51,7 @@ var UE_JavaScriptLibary = {
   UE_SaveGame: function (name, userIndex, indata, insize){
     // user index is not used.
     var _name = Pointer_stringify(name);
-    var gamedata = Module.HEAP8.subarray(indata, indata + insize);
+    var gamedata = Module.HEAPU8.subarray(indata, indata + insize);
     // local storage only takes strings, we need to convert string to base64 before storing.
     var b64encoded = base64EncArr(gamedata);
     $.jStorage.set(_name, b64encoded);
@@ -68,7 +68,7 @@ var UE_JavaScriptLibary = {
     // copy back the decoded array.
     var outdata = Module._malloc(decodedArray.length);
     // view the allocated data as a HEAP8.
-    var dest = Module.HEAP8.subarray(outdata, outdata + decodedArray.length);
+    var dest = Module.HEAPU8.subarray(outdata, outdata + decodedArray.length);
     // copy back.
     for (var i = 0; i < decodedArray.length; ++i) {
       dest[i] = decodedArray[i];
@@ -121,8 +121,9 @@ var UE_JavaScriptLibary = {
     var _headerArray = _headers.split("%");
     for(var headerArrayidx = 0; headerArrayidx < _headerArray.length; headerArrayidx++){
       var header = _headerArray[headerArrayidx].split(":");
-      xhr.setRequestHeader(header[0],header[1]);
-    }
+      // NOTE: as of Safari 9.0 -- no leading whitespace is allowed on setRequestHeader's 2nd parameter: "value"
+      xhr.setRequestHeader(header[0], header[1].trim());
+  }
 
     // Onload event handler
     xhr.addEventListener('load', function (e) {
@@ -160,7 +161,7 @@ var UE_JavaScriptLibary = {
 
     if (_verb === "POST") {
       var postData = Module.HEAP8.subarray(payload, payload + payloadsize);
-      xhr.setRequestHeader("Connection", "close");
+ //    xhr.setRequestHeader("Connection", "close"); // NOTE: this now errors as of chrome 47.0.2526.80
       xhr.send(postData);
     } else {
       xhr.send(null);

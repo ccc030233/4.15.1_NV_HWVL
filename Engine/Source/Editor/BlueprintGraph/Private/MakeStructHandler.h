@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 #include "KismetCompilerMisc.h"
@@ -16,6 +16,7 @@ public:
 	virtual void RegisterNets(FKismetFunctionContext& Context, UEdGraphNode* InNode) override;
 
 	virtual void RegisterNet(FKismetFunctionContext& Context, UEdGraphPin* Net) override;
+	virtual FBPTerminal* RegisterLiteral(FKismetFunctionContext& Context, UEdGraphPin* Net) override;
 
 	virtual void Compile(FKismetFunctionContext& Context, UEdGraphNode* InNode) override;
 };

@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -128,6 +128,15 @@ struct CORE_API FMemory
 	static void* Malloc( SIZE_T Count, uint32 Alignment=DEFAULT_ALIGNMENT );
 	static void* Realloc( void* Original, SIZE_T Count, uint32 Alignment=DEFAULT_ALIGNMENT );
 	static void Free( void* Original );
+
+	//
+	// Malloc for GPU mapped memory on UMA systems (XB1/PS4/etc)
+	// It is expected that the RHI on platforms that use these knows what to 
+	// do with the memory and avoids unnecessary copies into GPU resources, etc.
+	//
+	static void* GPUMalloc(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
+	static void* GPURealloc(void* Original, SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
+	static void GPUFree(void* Original);
 
 	static SIZE_T GetAllocSize( void* Original );
 

@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 #include "K2Node_StructMemberGet.h"
@@ -9,6 +9,11 @@ UCLASS(MinimalAPI)
 class UK2Node_BreakStruct : public UK2Node_StructMemberGet
 {
 	GENERATED_UCLASS_BODY()
+
+	/** Helper property to handle upgrades from an old system of displaying pins for
+	*	the override values that properties referenced as a conditional of being set in a struct */
+	UPROPERTY()
+	bool bMadeAfterOverridePinRemoval;
 
 	/** 
 	 * Returns false if:
@@ -26,16 +31,20 @@ class UK2Node_BreakStruct : public UK2Node_StructMemberGet
 	 */
 	static bool CanBeBroken(const UScriptStruct* Struct, bool bIncludeEditAnywhere = true, bool bMustHaveValidProperties = false);
 
-	// Begin UEdGraphNode interface
+	// UObject interface
+	virtual void Serialize(FArchive& Ar) override;
+	// End of UObject interface
+
+	//~ Begin UEdGraphNode Interface
 	virtual void AllocateDefaultPins() override;
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual FText GetTooltipText() const override;
 	virtual void ValidateNodeDuringCompilation(class FCompilerResultsLog& MessageLog) const override;
 	virtual FName GetPaletteIcon(FLinearColor& OutColor) const override{ return TEXT("GraphEditor.BreakStruct_16x"); }
-	// End  UEdGraphNode interface
+	//~ End  UEdGraphNode Interface
 
-	// Begin K2Node interface
+	//~ Begin K2Node Interface
 	virtual bool NodeCausesStructuralBlueprintChange() const override { return false; }
 	virtual bool IsNodePure() const override { return true; }
 	virtual bool DrawNodeAsVariable() const override { return false; }
@@ -43,7 +52,7 @@ class UK2Node_BreakStruct : public UK2Node_StructMemberGet
 	virtual class FNodeHandlingFunctor* CreateNodeHandler(class FKismetCompilerContext& CompilerContext) const override;
 	virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
 	virtual FText GetMenuCategory() const override;
-	// End K2Node interface
+	//~ End K2Node Interface
 
 private:
 	/** Constructing FText strings can be costly, so we cache the node's title/tooltip */

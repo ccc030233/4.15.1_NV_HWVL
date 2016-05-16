@@ -1,10 +1,18 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "VoicePrivatePCH.h"
 
 #include "VoiceCaptureWindows.h"
 #include "VoiceCodecOpus.h"
 #include "Voice.h"
+#include "Engine.h"
+#include "Runtime/HeadMountedDisplay/Public/IHeadMountedDisplayModule.h"
+
+static TAutoConsoleVariable<int32> CVarHmdDirectSoundVoiceCaptureDeviceIndex(
+	TEXT("hmd.DirectSoundVoiceCaptureDeviceIndex"),
+	-1,
+	TEXT("Specifies the DirectSound device index to use when HMD is connected. (-1 == Unknown)\n"),
+	ECVF_Default);
 
 FVoiceCaptureDeviceWindows* FVoiceCaptureDeviceWindows::Singleton = NULL;
 
@@ -31,9 +39,24 @@ BOOL CALLBACK CaptureDeviceCallback(
 	LPVOID lpContext
 	)
 {
+	if (!lpGuid)
+	{
+		return false;
+	}
+
 	// @todo identify the proper device
-	FVoiceCaptureWindows* VCPtr = (FVoiceCaptureWindows*)(lpContext);
+	FVoiceCaptureDeviceWindows* VCPtr = (FVoiceCaptureDeviceWindows*)(lpContext);
 	UE_LOG(LogVoiceCapture, Display, TEXT("Device: %s Desc: %s GUID: %s Context:0x%08x"), lpcstrDescription, lpcstrModule, *PrintMSGUID(lpGuid), lpContext);
+
+	// Allow HMD to override the voice capture device
+	if (VCPtr->VoiceCaptureDeviceCount == VCPtr->HmdVoiceCaptureDeviceIndex)
+	{
+		UE_LOG(LogVoice, Display, TEXT("VoiceCapture device overridden by HMD to use '%s' %s"), lpcstrDescription, *PrintMSGUID(lpGuid));
+		VCPtr->VoiceCaptureDeviceGuid = *lpGuid;
+	}
+
+	VCPtr->VoiceCaptureDeviceCount++;
+
 	return true;
 }
 
@@ -245,16 +268,15 @@ bool FVoiceCaptureDeviceWindows::Init()
 		UE_LOG(LogVoiceCapture, Warning, TEXT("Failed to init DirectSound %d"), hr);
 		return false;
 	}
-	
-	if (0)
-	{
-		hr = DirectSoundEnumerate((LPDSENUMCALLBACK)CaptureDeviceCallback, this);
-		if (FAILED(hr))
-		{
-			UE_LOG(LogVoiceCapture, Warning, TEXT("Failed to enumerate render devices %d"), hr);
-			return false;
-		}
-	}
+
+	//TODO:  Removed for 4.11.1 binary compat.   Please remove this, and use the Oculus integration if you need voice support!
+// 	if (IHeadMountedDisplayModule::IsAvailable())
+// 	{
+// 		FHeadMountedDisplayModuleExt* const HmdEx = FHeadMountedDisplayModuleExt::GetExtendedInterface(&IHeadMountedDisplayModule::Get());
+// 		HMDAudioInputDevice = HmdEx ? HmdEx->GetAudioInputDevice() : FString();
+// 	}
+
+	VoiceCaptureDeviceGuid = DSDEVID_DefaultVoiceCapture;
 
 	hr = DirectSoundCaptureEnumerate((LPDSENUMCALLBACK)CaptureDeviceCallback, this);
 	if (FAILED(hr))

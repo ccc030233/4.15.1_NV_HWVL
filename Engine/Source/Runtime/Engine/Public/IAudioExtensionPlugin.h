@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -6,17 +6,26 @@
 #include "ModuleManager.h"
 #include "Runtime/Core/Public/Features/IModularFeatures.h"
 
-// Whether or not we are enabling the "High Quality" Version of the spatialization algorithm
-#define OCULUS_HQ_ENABLED (0) // Note: We are disabling the HQ version since the "FAST" quality seems good.
-
-enum ESpatializationEffectType
+class FAudioSpatializationParams
 {
-	SPATIALIZATION_TYPE_DEFAULT,
-	SPATIALIZATION_TYPE_FAST,
-#if OCULUS_HQ_ENABLED
-	SPATIALIZATION_TYPE_HIGH_QUALITY,
-#endif // #if OCULUS_HQ_ENABLED
-	SPATIALIZATION_TYPE_COUNT
+public:
+	FAudioSpatializationParams()
+		: EmitterPosition(0.0f)
+		, EmitterWorldPosition(0.0f)
+	{}
+
+	FAudioSpatializationParams(const FVector& InEmitterPosition, const FVector& InEmitterWorldPosition)
+		: EmitterPosition(InEmitterPosition)
+		, EmitterWorldPosition(InEmitterWorldPosition)
+	{}
+
+	// Add any more params one might need here...
+
+	/** Normalized emitter position relative to the listener */
+	FVector EmitterPosition;
+
+	/** Raw emitter world position, untransformed relative to listener */
+	FVector EmitterWorldPosition;
 };
 
 /**
@@ -37,13 +46,18 @@ public:
 	}
 
 	/** Uses the given HRTF algorithm to spatialize a mono audio stream. */
-	virtual void ProcessSpatializationForVoice(ESpatializationEffectType Type, uint32 VoiceIndex, float* InSamples, float* OutSamples, const FVector& Position)
+	virtual void ProcessSpatializationForVoice(uint32 VoiceIndex, float* InSamples, float* OutSamples, const FVector& Position)
 	{
 
 	}
-	/** Sets the spatialization effect parameters. */
 
-	virtual void SetSpatializationParameters(uint32 VoiceId, const FVector& EmitterPosition, ESpatializationEffectType AlgorithmType)
+	/** Sets the spatialization effect parameters. */
+	virtual void SetSpatializationParameters(uint32 VoiceId, const FAudioSpatializationParams& Params)
+	{
+	}
+
+	/** Gets the spatialization effect parameters. */
+	virtual void GetSpatializationParameters(uint32 VoiceId, FAudioSpatializationParams& OutParams)
 	{
 	}
 

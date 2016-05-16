@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "UnrealEd.h"
 #include "Editor/UnrealEd/Public/Kismet2/ComponentEditorUtils.h"
@@ -319,7 +319,7 @@ void FComponentEditorUtils::CopyComponents(const TArray<UActorComponent*>& Compo
 	for (UActorComponent* Component : ComponentsToCopy)
 	{
 		// Duplicate the component into a temporary object
-		UObject* DuplicatedComponent = StaticDuplicateObject(Component, GetTransientPackage(), *Component->GetName(), RF_AllFlags & ~RF_ArchetypeObject);
+		UObject* DuplicatedComponent = StaticDuplicateObject(Component, GetTransientPackage(), Component->GetFName(), RF_AllFlags & ~RF_ArchetypeObject);
 		if (DuplicatedComponent)
 		{
 			// If the duplicated component is a scene component, wipe its attach parent (to prevent log warnings for referencing a private object in an external package)
@@ -581,7 +581,7 @@ UActorComponent* FComponentEditorUtils::DuplicateComponent(UActorComponent* Temp
 		const bool bTemplateTransactional = TemplateComponent->HasAllFlags(RF_Transactional);
 		TemplateComponent->SetFlags(RF_Transactional);
 
-		NewCloneComponent = DuplicateObject<UActorComponent>(TemplateComponent, Actor, *NewComponentName.ToString() );
+		NewCloneComponent = DuplicateObject<UActorComponent>(TemplateComponent, Actor, NewComponentName );
 		
 		if (!bTemplateTransactional)
 		{
@@ -631,7 +631,10 @@ void FComponentEditorUtils::AdjustComponentDelta(USceneComponent* Component, FVe
 
 		if (!Component->bAbsoluteLocation)
 		{
-			Drag = ParentToWorldSpace.Inverse().TransformVector(Drag);
+			//transform the drag vector in relative to the parent transform
+			Drag = ParentToWorldSpace.InverseTransformVectorNoScale(Drag);
+			//Now that we have a global drag we can apply the parent scale
+			Drag = Drag * ParentToWorldSpace.Inverse().GetScale3D();
 		}
 
 		if (!Component->bAbsoluteRotation)

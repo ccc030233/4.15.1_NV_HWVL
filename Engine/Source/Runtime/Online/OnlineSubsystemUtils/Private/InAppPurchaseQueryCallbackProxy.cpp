@@ -1,6 +1,7 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemUtilsPrivatePCH.h"
+#include "InAppPurchaseQueryCallbackProxy.h"
 
 //////////////////////////////////////////////////////////////////////////
 // UInAppPurchaseQueryCallbackProxy
@@ -70,9 +71,18 @@ void UInAppPurchaseQueryCallbackProxy::OnInAppPurchaseRead(bool bWasSuccessful)
 
 	if (UWorld* World = WorldPtr.Get())
 	{
-		// Use a local timer handle as we don't need to store it for later but we don't need to look for something to clear
-		FTimerHandle TimerHandle;
-		World->GetTimerManager().SetTimer(OnInAppPurchaseRead_DelayedTimerHandle, this, &UInAppPurchaseQueryCallbackProxy::OnInAppPurchaseRead_Delayed, 0.001f, false);
+		DECLARE_CYCLE_STAT(TEXT("FSimpleDelegateGraphTask.DelayInAppPurchaseRead"), STAT_FSimpleDelegateGraphTask_DelayInAppPurchaseRead, STATGROUP_TaskGraphTasks);
+
+		FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(
+			FSimpleDelegateGraphTask::FDelegate::CreateLambda([=](){
+
+				OnInAppPurchaseRead_Delayed();
+
+			}),
+			GET_STATID(STAT_FSimpleDelegateGraphTask_DelayInAppPurchaseRead), 
+			nullptr, 
+			ENamedThreads::GameThread
+		);
 	}
 
 	ReadObject = NULL;

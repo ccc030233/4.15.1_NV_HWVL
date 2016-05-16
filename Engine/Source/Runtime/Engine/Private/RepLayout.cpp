@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	RepLayout.cpp: Unreal replication layout implementation.
@@ -938,7 +938,7 @@ static FORCEINLINE void WritePropertyHandle( FNetBitWriter & Writer, uint16 Hand
 	}
 #endif
 
-	NETWORK_PROFILER(GNetworkProfiler.TrackWritePropertyHandle( Writer.GetNumBits() - NumStartingBits ));
+	NETWORK_PROFILER(GNetworkProfiler.TrackWritePropertyHandle( Writer.GetNumBits() - NumStartingBits, nullptr ));
 }
 
 static bool ShouldSendProperty( FRepWriterState & WriterState, const uint16 Handle )
@@ -1067,7 +1067,7 @@ uint16 FRepLayout::SendProperties_r(
 
 			const FRepParentCmd& ParentCmd = Parents[Cmd.ParentIndex];
 
-			NETWORK_PROFILER( GNetworkProfiler.TrackReplicateProperty( ParentCmd.Property, NumEndBits - NumStartBits ) );
+			NETWORK_PROFILER( GNetworkProfiler.TrackReplicateProperty( ParentCmd.Property, NumEndBits - NumStartBits, nullptr ) );
 
 			// Make the shadow state match the actual state at the time of send
 			StoreProperty( Cmd, (void*)( StoredData + Cmd.Offset ), (const void*)( Data + Cmd.Offset ) );
@@ -1140,7 +1140,7 @@ void FRepLayout::WritePropertyHeader(
 		Bunch.SerializeIntPacked( ArrayIndex );
 	}
 
-	NETWORK_PROFILER(GNetworkProfiler.TrackWritePropertyHeader(Property, Bunch.GetNumBits() - NumStartingBits));
+	NETWORK_PROFILER(GNetworkProfiler.TrackWritePropertyHeader(Property, Bunch.GetNumBits() - NumStartingBits, nullptr ));
 }
 
 void FRepLayout::SendProperties( 
@@ -1551,7 +1551,14 @@ void FRepLayout::CallRepNotifies( FRepState * RepState, UObject* Object ) const
 	{
 		UProperty * RepProperty = RepState->RepNotifies[i];
 
-		UFunction * RepNotifyFunc = Object->FindFunctionChecked( RepProperty->RepNotifyFunc );
+		UFunction * RepNotifyFunc = Object->FindFunction( RepProperty->RepNotifyFunc );
+
+		if (RepNotifyFunc == nullptr)
+		{
+			UE_LOG(LogRep, Warning, TEXT("FRepLayout::CallRepNotifies: Can't find RepNotify function %s for property %s on object %s."),
+				*RepProperty->RepNotifyFunc.ToString(), *RepProperty->GetName(), *Object->GetName());
+			continue;
+		}
 
 		check( RepNotifyFunc->NumParms <= 1 );	// 2 parms not supported yet
 

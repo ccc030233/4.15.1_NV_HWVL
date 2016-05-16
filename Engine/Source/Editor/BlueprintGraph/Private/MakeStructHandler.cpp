@@ -1,9 +1,10 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "BlueprintGraphPrivatePCH.h"
 #include "MakeStructHandler.h"
 #include "K2Node_MakeStruct.h"
 #include "KismetCompiler.h"
+#include "Editor/PropertyEditor/Public/PropertyCustomizationHelpers.h"
 
 #define LOCTEXT_NAMESPACE "FKCHandler_MakeStruct"
 
@@ -71,8 +72,21 @@ void FKCHandler_MakeStruct::RegisterNets(FKismetFunctionContext& Context, UEdGra
 
 void FKCHandler_MakeStruct::RegisterNet(FKismetFunctionContext& Context, UEdGraphPin* Net)
 {
-	FBPTerminal* Term = Context.CreateLocalTerminalFromPinAutoChooseScope(Net, Context.NetNameMap->MakeValidName(Net));
-	Context.NetMap.Add(Net, Term);
+	if (!Net->bDefaultValueIsIgnored)
+	{
+		FBPTerminal* Term = Context.CreateLocalTerminalFromPinAutoChooseScope(Net, Context.NetNameMap->MakeValidName(Net));
+		Context.NetMap.Add(Net, Term);
+	}
+}
+
+FBPTerminal* FKCHandler_MakeStruct::RegisterLiteral(FKismetFunctionContext& Context, UEdGraphPin* Net)
+{
+	FBPTerminal* ReturnTerm = nullptr;
+	if (!Net->bDefaultValueIsIgnored)
+	{
+		ReturnTerm = FNodeHandlingFunctor::RegisterLiteral(Context, Net);
+	}
+	return ReturnTerm;
 }
 
 void FKCHandler_MakeStruct::Compile(FKismetFunctionContext& Context, UEdGraphNode* InNode)
@@ -95,21 +109,79 @@ void FKCHandler_MakeStruct::Compile(FKismetFunctionContext& Context, UEdGraphNod
 		UEdGraphPin* Pin = Node->Pins[PinIndex];
 		if (Pin && (Pin != StructPin) && !CompilerContext.GetSchema()->IsMetaPin(*Pin) && (Pin->Direction == EGPD_Input))
 		{
-			FBPTerminal** FoundSrcTerm = Context.NetMap.Find(FEdGraphUtilities::GetNetFromPin(Pin));
-			FBPTerminal* SrcTerm = FoundSrcTerm ? *FoundSrcTerm : NULL;
-			check(NULL != SrcTerm);
-
 			UProperty* BoundProperty = FindField<UProperty>(Node->StructType, *(Pin->PinName));
 			check(NULL != BoundProperty);
 
-			FBPTerminal* DstTerm = Context.CreateLocalTerminal();
-			DstTerm->CopyFromPin(Pin, Context.NetNameMap->MakeValidName(Pin));
-			DstTerm->AssociatedVarProperty = BoundProperty;
-			DstTerm->Context = OutputStructTerm;
+			// If the pin is not connectable, do not forward the net
+			if (!Pin->bNotConnectable)
+			{
+				if (FBPTerminal** FoundSrcTerm = Context.NetMap.Find(FEdGraphUtilities::GetNetFromPin(Pin)))
+				{
+					FBPTerminal* SrcTerm = FoundSrcTerm ? *FoundSrcTerm : NULL;
+					check(NULL != SrcTerm);
 
-			FKismetCompilerUtilities::CreateObjectAssignmentStatement(Context, Node, SrcTerm, DstTerm);
+					FBPTerminal* DstTerm = Context.CreateLocalTerminal();
+					DstTerm->CopyFromPin(Pin, Context.NetNameMap->MakeValidName(Pin));
+					DstTerm->AssociatedVarProperty = BoundProperty;
+					DstTerm->Context = OutputStructTerm;
+
+					FKismetCompilerUtilities::CreateObjectAssignmentStatement(Context, Node, SrcTerm, DstTerm);
+				}
+			}
+
+			// Handle injecting the override property values into the node if the property has any
+			bool bNegate = false;
+			UProperty* OverrideProperty = PropertyCustomizationHelpers::GetEditConditionProperty(BoundProperty, bNegate);
+			if (OverrideProperty)
+			{
+				const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
+				FEdGraphPinType PinType;
+				Schema->ConvertPropertyToPinType(OverrideProperty, /*out*/ PinType);
+
+				// Create the term in the list
+				FBPTerminal* OverrideTerm = new (Context.VariableReferences) FBPTerminal();
+				OverrideTerm->Type = PinType;
+				OverrideTerm->AssociatedVarProperty = OverrideProperty;
+				OverrideTerm->Context = OutputStructTerm;
+
+				FBlueprintCompiledStatement* AssignBoolStatement = new FBlueprintCompiledStatement;
+				AssignBoolStatement->Type = KCST_Assignment;
+
+				// Literal Bool Term to set the OverrideProperty to
+				FBPTerminal* BoolTerm = Context.CreateLocalTerminal(ETerminalSpecification::TS_Literal);
+				BoolTerm->Type.PinCategory = CompilerContext.GetSchema()->PC_Boolean;
+				BoolTerm->bIsLiteral = true;
+				// If we are showing the pin, then we are overriding the property
+
+				// Assigning the OverrideProperty to the literal bool term
+				AssignBoolStatement->LHS = OverrideTerm;
+				AssignBoolStatement->RHS.Add(BoolTerm);
+
+				// Need to dig up what the state of the override property should be
+				for (FOptionalPinFromProperty& PropertyEntry : Node->ShowPinForProperties)
+				{
+					if (PropertyEntry.bHasOverridePin && PropertyEntry.bShowPin && PropertyEntry.PropertyName == BoundProperty->GetFName())
+					{
+						if (!PropertyEntry.bIsOverridePinVisible || (PropertyEntry.bIsOverridePinVisible && !PropertyEntry.bIsOverrideEnabled && PropertyEntry.bIsSetValuePinVisible))
+						{
+							CompilerContext.MessageLog.Warning(*LOCTEXT("MakeStruct_InvalidOverrideSetting", "Selected override setting on @@ is no longer a supported workflow and it is advised that you refactor your Blueprint to not use it!").ToString(), Pin);
+						}
+
+						if (PropertyEntry.bIsOverridePinVisible)
+						{
+							BoolTerm->Name = PropertyEntry.bIsOverrideEnabled ? TEXT("true") : TEXT("false");
+							Context.AllGeneratedStatements.Add(AssignBoolStatement);
+
+							TArray<FBlueprintCompiledStatement*>& StatementList = Context.StatementsPerNode.FindOrAdd(Node);
+							StatementList.Add(AssignBoolStatement);
+						}
+						break;
+					}
+				}
+			}
 		}
 	}
+
 	if (!Node->IsNodePure())
 	{
 		GenerateSimpleThenGoto(Context, *Node);

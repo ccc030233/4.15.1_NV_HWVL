@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -135,12 +135,12 @@ public:
 	virtual void Init(struct FWorldContext& WorldContext, UGameInstance* OwningGameInstance, bool bCreateNewAudioDevice = true);
 
 public:
-	// Begin UObject Interface
+	//~ Begin UObject Interface
 	virtual void PostInitProperties() override;
 	virtual void BeginDestroy() override;
-	// End UObject Interface
+	//~ End UObject Interface
 
-	// FViewportClient interface.
+	//~ Begin FViewportClient Interface.
 	virtual void RedrawRequested(FViewport* InViewport) override {}
 	virtual bool InputKey(FViewport* Viewport, int32 ControllerId, FKey Key, EInputEvent EventType, float AmountDepressed=1.f, bool bGamepad=false) override;
 	virtual bool InputAxis(FViewport* Viewport, int32 ControllerId, FKey Key, float Delta, float DeltaTime, int32 NumSamples=1, bool bGamepad=false) override;
@@ -156,21 +156,23 @@ public:
 	virtual void LostFocus(FViewport* Viewport) override;
 	virtual void ReceivedFocus(FViewport* Viewport) override;
 	virtual bool IsFocused(FViewport* Viewport) override;
+	virtual void Activated(FViewport* InViewport, const FWindowActivateEvent& InActivateEvent) override;
+	virtual void Deactivated(FViewport* InViewport, const FWindowActivateEvent& InActivateEvent) override;
 	virtual void CloseRequested(FViewport* Viewport) override;
 	virtual bool RequiresHitProxyStorage() override { return 0; }
 	virtual bool IsOrtho() const override;
 	virtual void MouseEnter(FViewport* Viewport, int32 x, int32 y) override;
 	virtual void MouseLeave(FViewport* Viewport) override;
 	virtual void SetIsSimulateInEditorViewport(bool bInIsSimulateInEditorViewport) override;
-	// End of FViewportClient interface.
+	//~ End FViewportClient Interface.
 
 	/** make any adjustments to the views after they've been completely set up */
 	virtual void FinalizeViews(class FSceneViewFamily* ViewFamily, const TMap<ULocalPlayer*, FSceneView*>& PlayerViewMap)
 	{}
 
-	// Begin FExec interface.
+	//~ Begin FExec Interface.
 	virtual bool Exec( UWorld* InWorld, const TCHAR* Cmd,FOutputDevice& Ar) override;
-	// End of FExec interface.
+	//~ End FExec Interface.
 
 	/**
 	 * Exec command handlers
@@ -636,7 +638,7 @@ public:
 	/**
 	 * Set the mouse capture behavior when the viewport is clicked
 	 */
-	void SetCaptureMouseOnClick(EMouseCaptureMode::Type Mode)
+	void SetCaptureMouseOnClick(EMouseCaptureMode Mode)
 	{
 		MouseCaptureMode = Mode;
 	}
@@ -644,7 +646,7 @@ public:
 	/**
 	 * Gets the mouse capture behavior when the viewport is clicked
 	 */
-	virtual EMouseCaptureMode::Type CaptureMouseOnClick() override
+	virtual EMouseCaptureMode CaptureMouseOnClick() override
 	{
 		return MouseCaptureMode;
 	}
@@ -665,7 +667,7 @@ public:
 		return bHideCursorDuringCapture;
 	}
 
-	virtual TOptional<EPopupMethod> OnQueryPopupMethod() const override;
+	virtual FPopupMethodReply OnQueryPopupMethod() const override;
 
 private:
 	/**
@@ -794,7 +796,7 @@ private:
 	bool bIgnoreInput;
 
 	/** Mouse capture behavior when the viewport is clicked */
-	EMouseCaptureMode::Type MouseCaptureMode;
+	EMouseCaptureMode MouseCaptureMode;
 
 	/** Whether or not the cursor is hidden when the viewport captures the mouse */
 	bool bHideCursorDuringCapture;

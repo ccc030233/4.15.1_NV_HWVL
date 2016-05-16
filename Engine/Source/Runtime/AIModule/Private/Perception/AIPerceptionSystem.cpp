@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "AIModulePrivate.h"
 #include "Perception/AIPerceptionSystem.h"
@@ -117,10 +117,10 @@ void UAIPerceptionSystem::PerformSourceRegistration()
 {
 	SCOPE_CYCLE_COUNTER(STAT_AI_PerceptionSys);
 
-	for (const auto& PercSource : SourcesToRegister)
+	for (const FPerceptionSourceRegistration& PercSource : SourcesToRegister)
 	{
 		AActor* SourceActor = PercSource.Source.Get();
-		if (SourceActor != nullptr && SourceActor->IsPendingKillPending() == false)
+		if (SourceActor != nullptr && SourceActor->IsPendingKillPending() == false && Senses[PercSource.SenseID] != nullptr)
 		{
 			Senses[PercSource.SenseID]->RegisterSource(*SourceActor);
 
@@ -165,6 +165,7 @@ void UAIPerceptionSystem::OnListenerUpdate(const FPerceptionListener& UpdatedLis
 void UAIPerceptionSystem::Tick(float DeltaSeconds)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AI_PerceptionSys);
+	SCOPE_CYCLE_COUNTER(STAT_AI_Overall);
 
 	// if no new stimuli
 	// and it's not time to remove stimuli from "know events"
@@ -365,7 +366,7 @@ void UAIPerceptionSystem::UnregisterSource(AActor& SourceActor, TSubclassOf<UAIS
 		if (Sense)
 		{
 			const FAISenseID SenseID = UAISense::GetSenseID(Sense);
-			if (StimuliSource->RelevantSenses.ShouldRespondToChannel(Senses[SenseID]->GetSenseID()))
+			if (Senses[SenseID] != nullptr && StimuliSource->RelevantSenses.ShouldRespondToChannel(Senses[SenseID]->GetSenseID()))
 			{
 				Senses[SenseID]->UnregisterSource(SourceActor);
 				StimuliSource->RelevantSenses.FilterOutChannel(SenseID);
@@ -375,7 +376,7 @@ void UAIPerceptionSystem::UnregisterSource(AActor& SourceActor, TSubclassOf<UAIS
 		{
 			for (int32 SenseID = 0; SenseID < Senses.Num(); ++SenseID)
 			{
-				if (StimuliSource->RelevantSenses.ShouldRespondToChannel(Senses[SenseID]->GetSenseID()))
+				if (Senses[SenseID] != nullptr && StimuliSource->RelevantSenses.ShouldRespondToChannel(Senses[SenseID]->GetSenseID()))
 				{
 					Senses[SenseID]->UnregisterSource(SourceActor);
 				}
@@ -396,6 +397,42 @@ void UAIPerceptionSystem::OnListenerRemoved(const FPerceptionListener& NewListen
 		if (*SenseInstance != nullptr && NewListener.HasSense((*SenseInstance)->GetSenseID()))
 		{
 			(*SenseInstance)->OnListenerRemoved(NewListener);
+		}
+	}
+}
+
+void UAIPerceptionSystem::OnListenerForgetsActor(const UAIPerceptionComponent& Listener, AActor& ActorToForget)
+{
+	const FPerceptionListenerID ListenerId = Listener.GetListenerId();
+
+	if (ListenerId != FPerceptionListenerID::InvalidID())
+	{
+		FPerceptionListener& ListenerEntry = ListenerContainer[ListenerId];
+		
+		for (UAISense* Sense : Senses)
+		{
+			if (Sense != nullptr && Sense->NeedsNotificationOnForgetting() && ListenerEntry.HasSense(Sense->GetSenseID()))
+			{
+				Sense->OnListenerForgetsActor(ListenerEntry, ActorToForget);
+			}
+		}
+	}
+}
+
+void UAIPerceptionSystem::OnListenerForgetsAll(const UAIPerceptionComponent& Listener)
+{
+	const FPerceptionListenerID ListenerId = Listener.GetListenerId();
+
+	if (ListenerId != FPerceptionListenerID::InvalidID())
+	{
+		FPerceptionListener& ListenerEntry = ListenerContainer[ListenerId];
+
+		for (UAISense* Sense : Senses)
+		{
+			if (Sense != nullptr && Sense->NeedsNotificationOnForgetting() && ListenerEntry.HasSense(Sense->GetSenseID()))
+			{
+				Sense->OnListenerForgetsAll(ListenerEntry);
+			}
 		}
 	}
 }

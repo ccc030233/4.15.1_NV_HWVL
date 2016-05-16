@@ -1,10 +1,11 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "EnginePrivate.h"
 #include "AI/Navigation/NavRelevantComponent.h"
 
 UNavRelevantComponent::UNavRelevantComponent(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
+	bCanEverAffectNavigation = true;
 	bNavigationRelevant = true;
 	bAttachToOwnersRoot = true;
 	bBoundsInitialized = false;
@@ -119,5 +120,5 @@ void UNavRelevantComponent::SetNavigationRelevancy(bool bRelevant)
 
 void UNavRelevantComponent::RefreshNavigationModifiers()
 {
-	UNavigationSystem::UpdateNavOctree(this);
+	UNavigationSystem::UpdateComponentInNavOctree(*this);
 }

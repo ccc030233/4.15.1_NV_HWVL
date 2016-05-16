@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	XAudio2Support.h: XAudio2 specific structures.
@@ -21,6 +21,9 @@
 #ifndef XAUDIO2_SUPPORTS_SENDLIST
 	#define XAUDIO2_SUPPORTS_SENDLIST			1
 #endif	//XAUDIO2_SUPPORTS_SENDLIST
+#ifndef XAUDIO2_SUPPORTS_VOICE_POOL
+	#define XAUDIO2_SUPPORTS_VOICE_POOL			0
+#endif	//XAUDIO2_SUPPORTS_VOICE_POOL
 
 /*------------------------------------------------------------------------------------
 	XAudio2 system headers
@@ -365,7 +368,7 @@ public:
 	/**
 	 * Calculates the volume for each channel
 	 */
-	void GetChannelVolumes( float ChannelVolumes[CHANNELOUT_COUNT], float AttenuatedVolume );
+	void GetChannelVolumes(float ChannelVolumes[CHANNEL_MATRIX_COUNT], float AttenuatedVolume);
 
 	/**
 	 * Returns a string describing the source
@@ -380,12 +383,12 @@ public:
 	/** 
 	 * Maps a sound with a given number of channels to to expected speakers
 	 */
-	void RouteDryToSpeakers( float ChannelVolumes[CHANNELOUT_COUNT] );
+	void RouteDryToSpeakers(float ChannelVolumes[CHANNEL_MATRIX_COUNT]);
 
 	/** 
 	 * Maps the sound to the relevant reverb effect
 	 */
-	void RouteToReverb( float ChannelVolumes[CHANNELOUT_COUNT] );
+	void RouteToReverb(float ChannelVolumes[CHANNEL_MATRIX_COUNT]);
 
 	/** 
 	 * Maps the sound to the relevant radio effect.
@@ -393,7 +396,7 @@ public:
 	 * @param	ChannelVolumes	The volumes associated to each channel. 
 	 *							Note: Not all channels are mapped directly to a speaker.
 	 */
-	void RouteToRadio( float ChannelVolumes[CHANNELOUT_COUNT] );
+	void RouteToRadio(float ChannelVolumes[CHANNEL_MATRIX_COUNT]);
 
 protected:
 
@@ -408,7 +411,7 @@ protected:
 	bool ReadMorePCMData(const int32 BufferIndex, EDataReadMode DataReadMode);
 
 	/** Returns if the source is using the default 3d spatialization. */
-	bool IsUsingDefaultSpatializer();
+	bool IsUsingHrtfSpatializer();
 
 	/** Returns Whether or not to create this source with the 3d spatialization effect. */
 	bool CreateWithSpatializationEffect();
@@ -424,22 +427,27 @@ protected:
 	int32 GetDestinationVoiceIndexForEffect( SourceDestinations Effect );
 
 	/**
+	* Converts a vector orientation from UE4 coordinates to XAudio2 coordinates
+	*/
+	inline FVector ConvertToXAudio2Orientation(const FVector& InputVector);
+
+	/**
 	* Calculates the channel volumes for various input channel configurations.
 	*/
-	void GetMonoChannelVolumes(float ChannelVolumes[CHANNELOUT_COUNT], float AttenuatedVolume);
-	void GetStereoChannelVolumes(float ChannelVolumes[CHANNELOUT_COUNT], float AttenuatedVolume);
-	void GetQuadChannelVolumes(float ChannelVolumes[CHANNELOUT_COUNT], float AttenuatedVolume);
-	void GetHexChannelVolumes(float ChannelVolumes[CHANNELOUT_COUNT], float AttenuatedVolume);
+	void GetMonoChannelVolumes(float ChannelVolumes[CHANNEL_MATRIX_COUNT], float AttenuatedVolume);
+	void GetStereoChannelVolumes(float ChannelVolumes[CHANNEL_MATRIX_COUNT], float AttenuatedVolume);
+	void GetQuadChannelVolumes(float ChannelVolumes[CHANNEL_MATRIX_COUNT], float AttenuatedVolume);
+	void GetHexChannelVolumes(float ChannelVolumes[CHANNEL_MATRIX_COUNT], float AttenuatedVolume);
 
 	/**
 	* Routes channel sends for various input channel configurations.
 	*/
-	void RouteMonoToDry(float ChannelVolumes[CHANNELOUT_COUNT]);
-	void RouteStereoToDry(float ChannelVolumes[CHANNELOUT_COUNT]);
-	void RouteQuadToDry(float ChannelVolumes[CHANNELOUT_COUNT]);
-	void RouteHexToDry(float ChannelVolumes[CHANNELOUT_COUNT]);
-	void RouteMonoToReverb(float ChannelVolumes[CHANNELOUT_COUNT]);
-	void RouteStereoToReverb(float ChannelVolumes[CHANNELOUT_COUNT]);
+	void RouteMonoToDry(float ChannelVolumes[CHANNEL_MATRIX_COUNT]);
+	void RouteStereoToDry(float ChannelVolumes[CHANNEL_MATRIX_COUNT]);
+	void RouteQuadToDry(float ChannelVolumes[CHANNEL_MATRIX_COUNT]);
+	void RouteHexToDry(float ChannelVolumes[CHANNEL_MATRIX_COUNT]);
+	void RouteMonoToReverb(float ChannelVolumes[CHANNEL_MATRIX_COUNT]);
+	void RouteStereoToReverb(float ChannelVolumes[CHANNEL_MATRIX_COUNT]);
 
 	/** Owning classes */
 	FXAudio2Device*				AudioDevice;
@@ -470,8 +478,10 @@ protected:
 	uint32						bResourcesNeedFreeing:1;
 	/** Index of this sound source in the audio device sound source array. */
 	uint32						VoiceId;
-	/** Whether or not this sound is spatializing using default spatialization algorithm. */
-	bool						bUsingDefaultSpatialization;
+	/** Whether or not this sound is spatializing using an HRTF spatialization algorithm. */
+	bool						bUsingHRTFSpatialization;
+	/** Whether or not we've already logged a warning on this sound about it switching algorithms after init. */
+	bool						bEditorWarnedChangedSpatialization;
 
 	friend class FXAudio2Device;
 	friend class FXAudio2SoundSourceCallback;
@@ -574,28 +584,40 @@ struct FXAudioDeviceProperties
 	static XAUDIO2_DEVICE_DETAILS		DeviceDetails;
 #endif	//XAUDIO_SUPPORTS_DEVICE_DETAILS
 
+	// For calculating speaker maps for 3d audio
+	FSpatializationHelper				SpatializationHelper;
+
 	/** Source callback to handle looping sound callbacks */
 	FXAudio2SoundSourceCallback	SourceCallback;
 	
 	/** The array of voice pools. Each pool is according to the sound format (and max effect chain channels) */
 	TArray<FSourceVoicePoolEntry*> VoicePool;
 
+	/** Number of non-free active voices */
+	int32 NumActiveVoices;
+
 	FXAudioDeviceProperties()
 		: XAudio2(nullptr)
 		, MasteringVoice(nullptr)
 		, XAudio2Dll(nullptr)
+		, NumActiveVoices(0)
 	{
 	}
 	
 	~FXAudioDeviceProperties()
 	{
+		// Make sure we've free'd all of our active voices at this point!
+		check(NumActiveVoices == 0);
+
 		// Destroy all the xaudio2 voices allocated in our pools
 		for (int32 i = 0; i < VoicePool.Num(); ++i)
 		{
 			for (int32 j = 0; j < VoicePool[i]->FreeVoices.Num(); ++j)
 			{
-				IXAudio2SourceVoice* Voice = VoicePool[i]->FreeVoices[j];
-				Voice->DestroyVoice();
+				IXAudio2SourceVoice** Voice = &VoicePool[i]->FreeVoices[j];
+				check(*Voice != nullptr);
+				(*Voice)->DestroyVoice();
+				*Voice = nullptr;
 			}
 		}
 
@@ -610,14 +632,15 @@ struct FXAudioDeviceProperties
 		if (MasteringVoice)
 		{
 			MasteringVoice->DestroyVoice();
-			MasteringVoice = NULL;
+			MasteringVoice = nullptr;
 		}
 
 		if (XAudio2)
 		{
 			// Force the hardware to release all references
-			XAudio2->Release();
-			XAudio2 = NULL;
+			Validate(TEXT("~FXAudioDeviceProperties: XAudio2->Release()"),
+					 XAudio2->Release());
+			XAudio2 = nullptr;
 		}
 
 #if PLATFORM_WINDOWS && PLATFORM_64BITS
@@ -631,9 +654,45 @@ struct FXAudioDeviceProperties
 #endif
 	}
 
+	bool Validate(const TCHAR* Function, uint32 ErrorCode) const
+	{
+		if (ErrorCode != S_OK)
+		{
+			switch (ErrorCode)
+			{
+			case XAUDIO2_E_INVALID_CALL:
+			UE_LOG(LogAudio, Error, TEXT("%s error: Invalid Call"), Function);
+			break;
+
+			case XAUDIO2_E_XMA_DECODER_ERROR:
+			UE_LOG(LogAudio, Error, TEXT("%s error: XMA Decoder Error"), Function);
+			break;
+
+			case XAUDIO2_E_XAPO_CREATION_FAILED:
+			UE_LOG(LogAudio, Error, TEXT("%s error: XAPO Creation Failed"), Function);
+			break;
+
+			case XAUDIO2_E_DEVICE_INVALIDATED:
+			UE_LOG(LogAudio, Error, TEXT("%s error: Device Invalidated"), Function);
+			break;
+
+			default:
+			UE_LOG(LogAudio, Error, TEXT("%s error: Unhandled error code %d"), Function, ErrorCode);
+			break;
+		};
+
+			return false;
+	}
+
+		return true;
+}
+
 	/** Returns either a new IXAudio2SourceVoice or a recycled IXAudio2SourceVoice according to the sound format and max channel count in the voice's effect chain*/
 	void GetFreeSourceVoice(IXAudio2SourceVoice** Voice, const FPCMBufferInfo& BufferInfo, const XAUDIO2_EFFECT_CHAIN* EffectChain = nullptr, int32 MaxEffectChainChannels = 0)
 	{
+		bool bSuccess = false;
+
+#if XAUDIO2_SUPPORTS_VOICE_POOL
 		// First find the pool for the given format
 		FSourceVoicePoolEntry* VoicePoolEntry = nullptr;
 		for (int32 i = 0; i < VoicePool.Num(); ++i)
@@ -641,6 +700,8 @@ struct FXAudioDeviceProperties
 			if (VoicePool[i]->Format == BufferInfo.PCMFormat && VoicePool[i]->MaxEffectChainChannels == MaxEffectChainChannels)
 			{
 				VoicePoolEntry = VoicePool[i];
+				check(VoicePoolEntry);
+				bSuccess = true;
 				break;
 			}
 		}
@@ -650,26 +711,56 @@ struct FXAudioDeviceProperties
 		if (VoicePoolEntry && VoicePoolEntry->FreeVoices.Num() > 0)
 		{
 			*Voice = VoicePoolEntry->FreeVoices.Pop(false);
-			(*Voice)->SetEffectChain(EffectChain);
+			check(*Voice);
+
+			bSuccess = Validate(TEXT("GetFreeSourceVoice, XAudio2->CreateSourceVoice"),
+								(*Voice)->SetEffectChain(EffectChain));
 		}
 		else
 		{
 			// Create a brand new source voice with this format.
-			XAudio2->CreateSourceVoice(Voice, &BufferInfo.PCMFormat, XAUDIO2_VOICE_USEFILTER, MAX_PITCH, &SourceCallback, nullptr, EffectChain);
+			check(XAudio2 != nullptr);
+			bSuccess = Validate(TEXT("GetFreeSourceVoice, XAudio2->CreateSourceVoice"),
+								XAudio2->CreateSourceVoice(Voice, &BufferInfo.PCMFormat, XAUDIO2_VOICE_USEFILTER, MAX_PITCH, &SourceCallback, nullptr, EffectChain));
+		}
+#else // XAUDIO2_SUPPORTS_VOICE_POOL
+		check(XAudio2 != nullptr);
+		bSuccess = Validate(TEXT("GetFreeSourceVoice, XAudio2->CreateSourceVoice"),
+							XAudio2->CreateSourceVoice(Voice, &BufferInfo.PCMFormat, XAUDIO2_VOICE_USEFILTER, MAX_PITCH, &SourceCallback, nullptr, EffectChain));
+#endif // XAUDIO2_SUPPORTS_VOICE_POOL
+
+		if (bSuccess)
+		{
+			// Track the number of source voices out in the world
+			++NumActiveVoices;
+		}
+		else
+		{
+			// If something failed, make sure we null the voice ptr output
+			*Voice = nullptr;
 		}
 	}
 
 	/** Releases the voice into a pool of free voices according to the voice format and the max effect chain channels */
 	void ReleaseSourceVoice(IXAudio2SourceVoice* Voice, const FPCMBufferInfo& BufferInfo, const int32 MaxEffectChainChannels)
 	{
+		check(Voice != nullptr);
+
+#if XAUDIO2_SUPPORTS_VOICE_POOL
 		// Make sure the voice is stopped
-		Voice->Stop();
+		Validate(TEXT("ReleaseSourceVoice, Voice->Stop()"), Voice->Stop());
 
 		// And make sure there's no audio remaining the voice so when it's re-used it's fresh.
-		Voice->FlushSourceBuffers();
+		Validate(TEXT("ReleaseSourceVoice, Voice->FlushSourceBuffers()"), Voice->FlushSourceBuffers());
+
+#if XAUDIO2_SUPPORTS_SENDLIST
+		// Clear out the send effects (OutputVoices). When the voice gets reused, the old internal state might be invalid 
+		// when the new send effects are applied to the voice.
+		Validate(TEXT("ReleaseSourceVoice, Voice->SetOutputVoices(nullptr)"), Voice->SetOutputVoices(nullptr));
+#endif
 
 		// Release the effect chain
-		Voice->SetEffectChain(nullptr);
+		Validate(TEXT("ReleaseSourceVoice, Voice->SetEffectChain(nullptr);"), Voice->SetEffectChain(nullptr));
 
 		// See if there is an existing pool for this source voice
 		FSourceVoicePoolEntry* VoicePoolEntry = nullptr;
@@ -691,11 +782,24 @@ struct FXAudioDeviceProperties
 		{
 			// Otherwise We need to make a new voice pool entry with this format and max effect chain channels
 			VoicePoolEntry = new FSourceVoicePoolEntry();
-			VoicePoolEntry->Format = BufferInfo.PCMFormat;
-			VoicePoolEntry->FreeVoices.Add(Voice);
-			VoicePoolEntry->MaxEffectChainChannels = MaxEffectChainChannels;
-			VoicePool.Add(VoicePoolEntry);
+			if (VoicePoolEntry)
+			{
+				VoicePoolEntry->Format = BufferInfo.PCMFormat;
+				VoicePoolEntry->FreeVoices.Add(Voice);
+				VoicePoolEntry->MaxEffectChainChannels = MaxEffectChainChannels;
+				VoicePool.Add(VoicePoolEntry);
+	}
+			else
+			{
+				// If we failed to create a new voice pool entry, then destroy the voice
+				Voice->DestroyVoice();
+			}
 		}
+#else // XAUDIO2_SUPPORTS_VOICE_POOL
+		Voice->DestroyVoice();
+#endif // XAUDIO2_SUPPORTS_VOICE_POOL
+
+		--NumActiveVoices;
 	}
 };
 

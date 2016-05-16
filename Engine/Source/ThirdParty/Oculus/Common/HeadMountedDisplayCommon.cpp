@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "HMDPrivatePCH.h"
 #include "HeadMountedDisplayCommon.h"
@@ -30,6 +30,7 @@ FHMDSettings::FHMDSettings() :
 	Flags.bLowPersistenceMode = true;
 	Flags.bUpdateOnRT = true;
 	Flags.bMirrorToWindow = true;
+	Flags.bFullscreenAllowed = false;
 	Flags.bTimeWarp = true;
 	Flags.bHmdPosTracking = true;
 	Flags.bPlayerControllerFollowsHmd = true;
@@ -76,6 +77,8 @@ FHMDGameFrame::FHMDGameFrame() :
 	LastHmdPosition = FVector::ZeroVector;
 	CameraScale3D = FVector(1.0f, 1.0f, 1.0f);
 	ViewportSize = FIntPoint(0,0);
+	PlayerLocation = FVector::ZeroVector;
+	PlayerOrientation = FQuat::Identity;
 	Flags.Raw = 0;
 }
 
@@ -141,6 +144,8 @@ FHeadMountedDisplay::FHeadMountedDisplay()
 	NumberOfCubesInOneSide = 0;
 	CenterOffsetInMeters = FVector::ZeroVector; // offset from the center of 'sea of cubes'
 #endif
+
+	CurrentFrameNumber.Set(1);
 }
 
 bool FHeadMountedDisplay::IsInitialized() const
@@ -175,7 +180,7 @@ TSharedPtr<FHMDSettings, ESPMode::ThreadSafe> FHeadMountedDisplay::CreateNewSett
 
 FHMDGameFrame* FHeadMountedDisplay::GetCurrentFrame() const
 {
-	//UE_LOG(LogHMD, Log, TEXT("Getting current frame, frame number %d"), int(GFrameCounter));
+	//UE_LOG(LogHMD, Log, TEXT("Getting current frame, frame number %d"), int(CurrentFrameNumber.GetValue()));
 	if (!Frame.IsValid())
 	{
 		//UE_LOG(LogHMD, Log, TEXT("		----- frame is null!!!"));
@@ -192,7 +197,7 @@ FHMDGameFrame* FHeadMountedDisplay::GetCurrentFrame() const
 	// Technically speaking, we should return the frame only if frame counters are equal.
 	// However, there are some calls UE makes from outside of the frame (for example, when 
 	// switching to/from fullscreen), thus, returning the previous frame in this case.
-	if (Frame->FrameNumber == GFrameCounter || Frame->Flags.bOutOfFrame)
+	if (Frame->FrameNumber == CurrentFrameNumber.GetValue() || Frame->Flags.bOutOfFrame)
 	{
 		//UE_LOG(LogHMD, Log, TEXT("		+++++ game frame, %d"), Frame->FrameNumber);
 		return Frame.Get();
@@ -215,7 +220,17 @@ bool FHeadMountedDisplay::OnStartGameFrame(FWorldContext& WorldContext)
 	Flags.bFrameStarted = true;
 
 	bool bStereoEnabled = Settings->Flags.bStereoEnabled;
-	bool bStereoDesired = (Settings->Flags.bHMDEnabled && (bStereoEnabled || Flags.bNeedEnableStereo)) && (!Flags.bNeedDisableStereo && (!Settings->Flags.bStereoEnabled || IsHMDActive()));
+	bool bStereoDesired = Settings->Flags.bStereoEnforced ? bStereoEnabled : Settings->Flags.bStereoDesired;
+
+	if(Flags.bNeedEnableStereo)
+	{
+		Settings->Flags.bStereoDesired = bStereoDesired = true;
+	}
+
+	if(bStereoDesired && (Flags.bNeedDisableStereo || !Settings->Flags.bHMDEnabled || !(bStereoEnabled ? IsHMDActive() : IsHMDConnected())))
+	{
+		bStereoDesired = false;
+	}
 
 	Flags.bNeedEnableStereo = false;
 	Flags.bNeedDisableStereo = false;
@@ -256,7 +271,7 @@ bool FHeadMountedDisplay::OnStartGameFrame(FWorldContext& WorldContext)
 	auto CurrentFrame = CreateNewGameFrame();
 	Frame = CurrentFrame;
 
-	CurrentFrame->FrameNumber = GFrameCounter;
+	CurrentFrame->FrameNumber = (uint32)CurrentFrameNumber.Increment();
 	CurrentFrame->Flags.bOutOfFrame = false;
 
 	if (Settings->Flags.bWorldToMetersOverride)
@@ -305,9 +320,9 @@ bool FHeadMountedDisplay::OnEndGameFrame(FWorldContext& WorldContext)
 	//@todo hmd	check(CurrentRenderFrame->FrameNumber != CurrentGameFrame->FrameNumber);
 
 	// make sure end frame matches the start
-	check(GFrameCounter == CurrentGameFrame->FrameNumber);
+	check(CurrentFrameNumber.GetValue() == CurrentGameFrame->FrameNumber);
 
-	if (GFrameCounter == CurrentGameFrame->FrameNumber)
+	if (CurrentFrameNumber.GetValue() == CurrentGameFrame->FrameNumber)
 	{
 		RenderFrame = Frame;
 	}
@@ -353,8 +368,12 @@ void FHeadMountedDisplay::RebaseObjectOrientationAndPosition(FVector& OutPositio
 bool FHeadMountedDisplay::IsInLowPersistenceMode() const
 {
 	const auto frame = GetCurrentFrame();
-	const auto FrameSettings = frame->Settings;
-	return frame && FrameSettings->Flags.bLowPersistenceMode;
+	if (frame)
+	{
+		const auto FrameSettings = frame->Settings;
+		return FrameSettings->Flags.bLowPersistenceMode;
+	}
+	return false;
 }
 
 void FHeadMountedDisplay::EnableLowPersistenceMode(bool Enable)
@@ -409,6 +428,7 @@ bool FHeadMountedDisplay::EnablePositionalTracking(bool enable)
 
 bool FHeadMountedDisplay::EnableStereo(bool bStereo)
 {
+	Settings->Flags.bStereoDesired = bStereo;
 	Settings->Flags.bStereoEnforced = false;
 	return DoEnableStereo(bStereo, true);
 }
@@ -418,7 +438,7 @@ bool FHeadMountedDisplay::IsStereoEnabled() const
 	if (IsInGameThread())
 	{
 		const auto frame = GetCurrentFrame();
-		if (frame)
+		if (frame && frame->Settings.IsValid())
 		{
 			return (frame->Settings->IsStereoEnabled());
 		}
@@ -760,17 +780,17 @@ bool FHeadMountedDisplay::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice&
 		{
 			if (FParse::Command(&Cmd, TEXT("OFF")))
 			{
-				Settings->Flags.bDrawTrackingCameraFrustum = false;
+				Settings->Flags.bDrawSensorFrustum = false;
 				return true;
 			}
 			if (FParse::Command(&Cmd, TEXT("ON")))
 			{
-				Settings->Flags.bDrawTrackingCameraFrustum = true;
+				Settings->Flags.bDrawSensorFrustum = true;
 				return true;
 			}
 			else
 			{
-				Settings->Flags.bDrawTrackingCameraFrustum = !Settings->Flags.bDrawTrackingCameraFrustum;
+				Settings->Flags.bDrawSensorFrustum = !Settings->Flags.bDrawSensorFrustum;
 				return true;
 			}
 		}
@@ -815,6 +835,24 @@ bool FHeadMountedDisplay::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice&
 			}
 			Settings->Flags.bHeadTrackingEnforced = false;
 			ResetOrientationAndPosition(yaw);
+			return true;
+		}
+		else if (FParse::Command(&Cmd, TEXT("RESETPOS")))
+		{
+			Settings->Flags.bHeadTrackingEnforced = false;
+			ResetPosition();
+			return true;
+		}
+		else if (FParse::Command(&Cmd, TEXT("RESETROT")))
+		{
+			FString YawStr = FParse::Token(Cmd, 0);
+			float yaw = 0.f;
+			if (!YawStr.IsEmpty())
+			{
+				yaw = FCString::Atof(*YawStr);
+			}
+			Settings->Flags.bHeadTrackingEnforced = false;
+			ResetOrientation(yaw);
 			return true;
 		}
 		else if (FParse::Command(&Cmd, TEXT("ON")) || FParse::Command(&Cmd, TEXT("ENABLE")))
@@ -1040,12 +1078,12 @@ void FHeadMountedDisplay::ApplyHmdRotation(APlayerController* PC, FRotator& View
 	frame->Flags.bPositionChanged = true;
 }
 
-void FHeadMountedDisplay::UpdatePlayerCameraRotation(APlayerCameraManager* Camera, struct FMinimalViewInfo& POV)
+bool FHeadMountedDisplay::UpdatePlayerCamera(FQuat& CurrentOrientation, FVector& CurrentPosition)
 {
 	auto frame = GetCurrentFrame();
 	if (!frame)
 	{
-		return;
+		return false;
 	}
 
 #if !UE_BUILD_SHIPPING
@@ -1053,33 +1091,24 @@ void FHeadMountedDisplay::UpdatePlayerCameraRotation(APlayerCameraManager* Camer
 	{
 		frame->Flags.bOrientationChanged = frame->Settings->Flags.bPlayerCameraManagerFollowsHmdOrientation;// POV.bFollowHmdOrientation;
 		frame->Flags.bPositionChanged = frame->Settings->Flags.bPlayerCameraManagerFollowsHmdPosition;//POV.bFollowHmdPosition;
-		return;
+		return false;
 	}
 #endif
-	FQuat	CurHmdOrientation;
-	FVector CurHmdPosition;
-	GetCurrentPose(CurHmdOrientation, CurHmdPosition, frame->Settings->Flags.bPlayerCameraManagerFollowsHmdOrientation, frame->Settings->Flags.bPlayerCameraManagerFollowsHmdPosition);
-
-	const FQuat CurPOVOrientation = POV.Rotation.Quaternion();
+	GetCurrentPose(CurrentOrientation, CurrentPosition, frame->Settings->Flags.bPlayerCameraManagerFollowsHmdOrientation, frame->Settings->Flags.bPlayerCameraManagerFollowsHmdPosition);
 
 	if (frame->Settings->Flags.bPlayerCameraManagerFollowsHmdOrientation) //POV.bFollowHmdOrientation
 	{
-		// Apply HMD orientation to camera rotation.
-		POV.Rotation = FRotator(CurPOVOrientation * CurHmdOrientation);
-		frame->LastHmdOrientation = CurHmdOrientation;
+		frame->LastHmdOrientation = CurrentOrientation;
 		frame->Flags.bOrientationChanged = true;
 	}
 
 	if (frame->Settings->Flags.bPlayerCameraManagerFollowsHmdPosition) // POV.bFollowHmdPosition
 	{
-		const FVector vCamPosition = CurPOVOrientation.RotateVector(CurHmdPosition);
-		POV.Location += vCamPosition * frame->Settings->PositionScale3D;
-		frame->LastHmdPosition = CurHmdPosition;
+		frame->LastHmdPosition = CurrentPosition;
 		frame->Flags.bPositionChanged = true;
 	}
 
-	//UE_LOG(LogHMD, Log, TEXT("UPDCAM: Pos %.3f %.3f %.3f"), POV.Location.X, POV.Location.Y, POV.Location.Z);
-	//UE_LOG(LogHMD, Log, TEXT("UPDCAM: Yaw %.3f Pitch %.3f Roll %.3f"), POV.Rotation.Yaw, POV.Rotation.Pitch, POV.Rotation.Roll);
+	return true;
 }
 
 float FHeadMountedDisplay::GetActualScreenPercentage() const
@@ -1260,6 +1289,554 @@ void FHeadMountedDisplay::DrawSeaOfCubes(UWorld* World, FVector ViewLocation)
 	}
 }
 #endif // #if !UE_BUILD_SHIPPING
+
+uint32 FHeadMountedDisplay::CreateLayerEx(UTexture2D* InTexture, int32 InPrioirity, FHMDLayerManager::LayerOriginType InLayerOriginType)
+{
+	FHMDLayerManager* pLayerMgr = GetLayerManager();
+	if (pLayerMgr)
+	{
+		if (InTexture)
+		{
+			uint32 id;
+			TSharedPtr<FHMDLayerDesc> layer = pLayerMgr->AddLayer(FHMDLayerDesc::Quad, InPrioirity, InLayerOriginType, id);
+			layer->SetTexture(InTexture);
+			return id;
+		}
+		else
+		{
+			// non quad/texture layers are not supported yet
+			check(0);
+		}
+	}
+	return 0;
+}
+
+uint32 FHeadMountedDisplay::CreateLayer(UTexture2D* InTexture, int32 InPrioirity, bool bInHeadLocked)
+{
+	return CreateLayerEx(InTexture, InPrioirity, (bInHeadLocked) ? FHMDLayerManager::Layer_HeadLocked : FHMDLayerManager::Layer_WorldLocked);
+}
+
+void FHeadMountedDisplay::DestroyLayer(uint32 LayerId)
+{
+	if (LayerId > 0)
+	{
+		FHMDLayerManager* pLayerMgr = GetLayerManager();
+		if (pLayerMgr)
+		{
+			pLayerMgr->RemoveLayer(LayerId);
+		}
+	}
+}
+
+void FHeadMountedDisplay::SetTransform(uint32 LayerId, const FTransform& InTransform)
+{
+	if (LayerId > 0)
+	{
+		FHMDLayerManager* pLayerMgr = GetLayerManager();
+		if (pLayerMgr)
+		{
+			const FHMDLayerDesc* pLayer = pLayerMgr->GetLayerDesc(LayerId);
+			if (pLayer && pLayer->GetType() == FHMDLayerDesc::Quad)
+			{
+				FHMDLayerDesc Layer = *pLayer;
+				Layer.SetTransform(InTransform);
+				pLayerMgr->UpdateLayer(Layer);
+			}
+		}
+	}
+}
+
+void FHeadMountedDisplay::SetQuadSize(uint32 LayerId, const FVector2D& InSize)
+{
+	if (LayerId > 0)
+	{
+		FHMDLayerManager* pLayerMgr = GetLayerManager();
+		if (pLayerMgr)
+		{
+			const FHMDLayerDesc* pLayer = pLayerMgr->GetLayerDesc(LayerId);
+			if (pLayer && pLayer->GetType() == FHMDLayerDesc::Quad)
+			{
+				FHMDLayerDesc Layer = *pLayer;
+				Layer.SetQuadSize(InSize);
+				pLayerMgr->UpdateLayer(Layer);
+			}
+		}
+	}
+}
+
+void FHeadMountedDisplay::SetTextureViewport(uint32 LayerId, const FBox2D& UVRect)
+{
+	if (LayerId > 0)
+	{
+		FHMDLayerManager* pLayerMgr = GetLayerManager();
+		if (pLayerMgr)
+		{
+			const FHMDLayerDesc* pLayer = pLayerMgr->GetLayerDesc(LayerId);
+			if (pLayer && pLayer->GetType() == FHMDLayerDesc::Quad)
+			{
+				FHMDLayerDesc Layer = *pLayer;
+				Layer.SetTextureViewport(UVRect);
+				pLayerMgr->UpdateLayer(Layer);
+			}
+		}
+	}
+}
+
+void FHeadMountedDisplay::QuantizeBufferSize(int32& InOutBufferSizeX, int32& InOutBufferSizeY, uint32 DividableBy)
+{
+	const uint32 Mask = ~(DividableBy - 1);
+	InOutBufferSizeX = (InOutBufferSizeX + DividableBy - 1) & Mask;
+	InOutBufferSizeY = (InOutBufferSizeY + DividableBy - 1) & Mask;
+}
+
+/************************************************************************/
+/* Layers                                                               */
+/************************************************************************/
+FHMDLayerDesc::FHMDLayerDesc(class FHMDLayerManager& InLayerMgr, ELayerTypeMask InType, uint32 InPriority, uint32 InID) :
+	LayerManager(InLayerMgr)
+	, Id(InID | InType)
+	, Texture(nullptr)
+	, TextureUV(ForceInit)
+	, QuadSize(FVector2D::ZeroVector)
+	, Priority(InPriority & IdMask)
+	, bHighQuality(true)
+	, bHeadLocked(false)
+	, bTorsoLocked(false)
+	, bTextureHasChanged(true)
+	, bTransformHasChanged(true)
+	, bNewLayer(true)
+	, bAlreadyAdded(false)
+{
+	TextureUV.Min = FVector2D(0, 0);
+	TextureUV.Max = FVector2D(1, 1);
+}
+
+void FHMDLayerDesc::SetTransform(const FTransform& InTrn)
+{
+	Transform = InTrn;
+	bTransformHasChanged = true;
+	LayerManager.SetDirty();
+}
+
+void FHMDLayerDesc::SetQuadSize(const FVector2D& InSize)
+{
+	QuadSize = InSize;
+	bTransformHasChanged = true;
+	LayerManager.SetDirty();
+}
+
+void FHMDLayerDesc::SetTexture(UTexture* InTexture)
+{
+	Texture = InTexture;
+	bTextureHasChanged = true;
+	LayerManager.SetDirty();
+}
+
+void FHMDLayerDesc::SetTextureSet(FTextureSetProxyParamRef InTextureSet)
+{
+	TextureSet = InTextureSet;
+	bTextureHasChanged = true;
+	LayerManager.SetDirty();
+}
+
+void FHMDLayerDesc::SetTextureViewport(const FBox2D& InUVRect)
+{
+	TextureUV = InUVRect;
+	bTransformHasChanged = true;
+	LayerManager.SetDirty();
+}
+
+FHMDLayerDesc& FHMDLayerDesc::operator=(const FHMDLayerDesc& InSrc)
+{
+	check(&LayerManager == &InSrc.LayerManager);
+	
+	if (Id != InSrc.Id || Priority != InSrc.Priority || bHighQuality != InSrc.bHighQuality || bHeadLocked != InSrc.bHeadLocked || bTorsoLocked != InSrc.bTorsoLocked)
+	{
+		bNewLayer = true;
+		Id = InSrc.Id;
+		Priority = InSrc.Priority;
+		bHighQuality = InSrc.bHighQuality;
+		bHeadLocked = InSrc.bHeadLocked;
+		bTorsoLocked = InSrc.bTorsoLocked;
+	}
+	if (Texture != InSrc.Texture)
+	{
+		bTextureHasChanged = true;
+		Texture = InSrc.Texture;
+	}
+	if (TextureSet.Get() != InSrc.TextureSet.Get())
+	{
+		bTextureHasChanged = true;
+		TextureSet = InSrc.TextureSet;
+	}
+	if (!(TextureUV == InSrc.TextureUV) || QuadSize != InSrc.QuadSize || !Transform.Equals(InSrc.Transform))
+	{
+		bTransformHasChanged = true;
+		TextureUV = InSrc.TextureUV;
+		QuadSize = InSrc.QuadSize;
+		Transform = InSrc.Transform;
+	}
+	LayerManager.SetDirty();
+	return *this;
+}
+
+//////////////////////////////////////////////////////////////////////////
+FHMDRenderLayer::FHMDRenderLayer(FHMDLayerDesc& InLayerInfo) :
+	LayerInfo(InLayerInfo)
+	, bOwnsTextureSet(true)
+{
+	if (InLayerInfo.HasTextureSet())
+	{
+		TransferTextureSet(InLayerInfo);
+	}
+}
+
+TSharedPtr<FHMDRenderLayer> FHMDRenderLayer::Clone() const
+{
+	TSharedPtr<FHMDRenderLayer> NewLayer = MakeShareable(new FHMDRenderLayer(*this));
+	return NewLayer;
+}
+
+void FHMDRenderLayer::ReleaseResources()
+{
+	if (bOwnsTextureSet && TextureSet.IsValid())
+	{
+		TextureSet->ReleaseResources();
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////
+FHMDLayerManager::FHMDLayerManager() : 
+	CurrentId(0)
+	, bLayersChanged(false)
+{
+}
+
+FHMDLayerManager::~FHMDLayerManager()
+{
+}
+
+void FHMDLayerManager::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	//Collector.AddReferencedObject(WidgetVertexColorMaterial);
+	for (uint32 i = 0, n = EyeLayers.Num(); i < n; ++i)
+	{
+		if (EyeLayers[i].IsValid() && EyeLayers[i]->HasTexture())
+		{
+			Collector.AddReferencedObject(EyeLayers[i]->GetUTextureRef());
+		}
+	}
+	for (uint32 i = 0, n = QuadLayers.Num(); i < n; ++i)
+	{
+		if (QuadLayers[i].IsValid() && QuadLayers[i]->HasTexture())
+		{
+			Collector.AddReferencedObject(QuadLayers[i]->GetUTextureRef());
+		}
+	}
+	for (uint32 i = 0, n = DebugLayers.Num(); i < n; ++i)
+	{
+		if (DebugLayers[i].IsValid() && DebugLayers[i]->HasTexture())
+		{
+			Collector.AddReferencedObject(DebugLayers[i]->GetUTextureRef());
+		}
+	}
+}
+
+void FHMDLayerManager::Startup()
+{
+}
+
+void FHMDLayerManager::Shutdown()
+{
+	{
+		FScopeLock ScopeLock(&LayersLock);
+		RemoveAllLayers();
+
+		LayersToRender.SetNum(0);
+
+		CurrentId = 0;
+		bLayersChanged = false;
+	}
+}
+
+TSharedPtr<FHMDLayerDesc> 
+FHMDLayerManager::AddLayer(FHMDLayerDesc::ELayerTypeMask InType, uint32 InPriority, LayerOriginType InLayerOriginType, uint32& OutLayerId)
+{
+	TSharedPtr<FHMDLayerDesc> NewLayerDesc = MakeShareable(new FHMDLayerDesc(*this, InType, InPriority, CurrentId++));
+
+	switch (InLayerOriginType)
+	{
+	case Layer_HeadLocked:
+		NewLayerDesc->bHeadLocked = true;
+		break;
+
+	case Layer_TorsoLocked:
+		NewLayerDesc->bTorsoLocked = true;
+		break;
+
+	default: // default is WorldLocked
+		break;
+	}
+
+	OutLayerId = NewLayerDesc->GetId();
+
+	FScopeLock ScopeLock(&LayersLock);
+	TArray<TSharedPtr<FHMDLayerDesc> >& Layers = GetLayersArrayById(OutLayerId);
+	Layers.Add(NewLayerDesc);
+
+	bLayersChanged = true;
+	return NewLayerDesc;
+}
+
+void FHMDLayerManager::RemoveLayer(uint32 LayerId)
+{
+	FScopeLock ScopeLock(&LayersLock);
+	TArray<TSharedPtr<FHMDLayerDesc> >& Layers = GetLayersArrayById(LayerId);
+	uint32 idx = FindLayerIndex(Layers, LayerId);
+	if (idx != ~0u)
+	{
+		Layers.RemoveAt(idx);
+	}
+	bLayersChanged = true;
+}
+
+void FHMDLayerManager::RemoveAllLayers()
+{
+	FScopeLock ScopeLock(&LayersLock);
+	EyeLayers.SetNum(0);
+	QuadLayers.SetNum(0);
+	DebugLayers.SetNum(0);
+	bLayersChanged = true;
+}
+
+const FHMDLayerDesc* FHMDLayerManager::GetLayerDesc(uint32 LayerId) const
+{
+	FScopeLock ScopeLock(&LayersLock);
+	return FindLayer_NoLock(LayerId).Get();
+}
+
+const TArray<TSharedPtr<FHMDLayerDesc> >& FHMDLayerManager::GetLayersArrayById(uint32 LayerId) const
+{
+	switch (LayerId & FHMDLayerDesc::TypeMask)
+	{
+	case FHMDLayerDesc::Eye:
+		return EyeLayers;
+		break;
+	case FHMDLayerDesc::Quad:
+		return QuadLayers;
+		break;
+	case FHMDLayerDesc::Debug:
+		return DebugLayers;
+		break;
+	default:
+		check(0);
+	}
+	return EyeLayers;
+}
+
+TArray<TSharedPtr<FHMDLayerDesc> >& FHMDLayerManager::GetLayersArrayById(uint32 LayerId) 
+{
+	switch (LayerId & FHMDLayerDesc::TypeMask)
+	{
+	case FHMDLayerDesc::Eye:
+		return EyeLayers;
+		break;
+	case FHMDLayerDesc::Quad:
+		return QuadLayers;
+		break;
+	case FHMDLayerDesc::Debug:
+		return DebugLayers;
+		break;
+	default:
+		check(0);
+	}
+	return EyeLayers;
+}
+
+// returns ~0u if not found
+uint32 FHMDLayerManager::FindLayerIndex(const TArray<TSharedPtr<FHMDLayerDesc> >& Layers, uint32 LayerId)
+{
+	for (uint32 i = 0, n = Layers.Num(); i < n; ++i)
+	{
+		if (Layers[i].IsValid() && Layers[i]->GetId() == LayerId)
+		{
+			return i;
+		}
+	}
+	return ~0u;
+}
+
+TSharedPtr<FHMDLayerDesc> FHMDLayerManager::FindLayer_NoLock(uint32 LayerId) const
+{
+	const TArray<TSharedPtr<FHMDLayerDesc> >& Layers = GetLayersArrayById(LayerId);
+		uint32 idx = FindLayerIndex(Layers, LayerId);
+	if (idx != ~0u)
+	{
+		return Layers[idx];
+	}
+	return nullptr;
+}
+
+void FHMDLayerManager::UpdateLayer(const FHMDLayerDesc& InLayerDesc)
+{
+	FScopeLock ScopeLock(&LayersLock);
+	TArray<TSharedPtr<FHMDLayerDesc> >& Layers = GetLayersArrayById(InLayerDesc.GetId());
+	uint32 idx = FindLayerIndex(Layers, InLayerDesc.GetId());
+	if (idx != ~0u)
+	{
+		*Layers[idx].Get() = InLayerDesc;
+		SetDirty();
+	}
+}
+
+TSharedPtr<FHMDRenderLayer> FHMDLayerManager::CreateRenderLayer_RenderThread(FHMDLayerDesc& InDesc)
+{
+	TSharedPtr<FHMDRenderLayer> NewLayer = MakeShareable(new FHMDRenderLayer(InDesc));
+	return NewLayer;
+}
+
+FHMDRenderLayer* FHMDLayerManager::GetRenderLayer_RenderThread_NoLock(uint32 LayerId)
+{
+	for (uint32 i = 0, n = LayersToRender.Num(); i < n; ++i)
+	{
+		auto RenderLayer = LayersToRender[i];
+		if (RenderLayer->GetLayerDesc().GetId() == LayerId)
+		{
+			return RenderLayer.Get();
+		}
+	}
+	return nullptr;
+}
+
+void FHMDLayerManager::ReleaseTextureSetsInArray_RenderThread_NoLock(TArray<TSharedPtr<FHMDLayerDesc> >& Layers)
+{
+	for (int32 i = 0; i < Layers.Num(); ++i)
+	{
+		if (Layers[i].IsValid())
+		{
+			FTextureSetProxyRef TexSet = Layers[i]->GetTextureSet();
+			if (TexSet.IsValid())
+			{
+				TexSet->ReleaseResources();
+			}
+			Layers[i]->SetTextureSet(nullptr);
+		}
+	}
+}
+
+void FHMDLayerManager::ReleaseTextureSets_RenderThread_NoLock()
+{
+	ReleaseTextureSetsInArray_RenderThread_NoLock(EyeLayers);
+	ReleaseTextureSetsInArray_RenderThread_NoLock(QuadLayers);
+	ReleaseTextureSetsInArray_RenderThread_NoLock(DebugLayers);
+}
+
+void FHMDLayerManager::PreSubmitUpdate_RenderThread(FRHICommandListImmediate& RHICmdList, const FHMDGameFrame* CurrentFrame, bool ShowFlagsRendering)
+{
+	check(IsInRenderingThread());
+
+	if (bLayersChanged)
+	{
+		// If layers were changed then make a new snapshot of layers for rendering.
+		// Then sort the array by priority.
+		FScopeLock ScopeLock(&LayersLock);
+
+		// go through render layers and check whether the layer is modified or removed
+		uint32 NumOfAlreadyAdded = 0;
+		for (uint32 i = 0, n = LayersToRender.Num(); i < n; ++i)
+		{
+			auto RenderLayer = LayersToRender[i];
+			TSharedPtr<FHMDLayerDesc> LayerDesc = FindLayer_NoLock(RenderLayer->GetLayerDesc().GetId());
+			if (LayerDesc.IsValid() && !LayerDesc->IsNewLayer())
+			{
+				// the layer has changed. modify the render counterpart accordingly.
+				if (LayerDesc->IsTextureChanged())
+				{
+					RenderLayer->ReleaseResources();
+					if (LayerDesc->HasTextureSet())
+					{
+						check(!LayerDesc->HasTexture());
+						RenderLayer->TransferTextureSet(*LayerDesc.Get());
+					}
+					else if (LayerDesc->HasTexture())
+					{
+						check(!LayerDesc->HasTextureSet());
+					}
+				}
+				if (LayerDesc->IsTransformChanged())
+				{
+					RenderLayer->SetLayerDesc(*LayerDesc.Get());
+				}
+				LayerDesc->bAlreadyAdded = true;
+				++NumOfAlreadyAdded;
+			}
+			else
+			{
+				// layer desc is not found, deleted, or just added. Release resources, kill the renderlayer.
+				RenderLayer->ReleaseResources();
+				LayersToRender[i] = nullptr;
+			}
+		}
+
+ 		LayersToRender.SetNum(EyeLayers.Num() + QuadLayers.Num() + DebugLayers.Num() + LayersToRender.Num() - NumOfAlreadyAdded);
+
+		for (uint32 i = 0, n = EyeLayers.Num(); i < n; ++i)
+		{
+			TSharedPtr<FHMDLayerDesc> pLayer = EyeLayers[i];
+			check(pLayer.IsValid());
+			if (!pLayer->bAlreadyAdded) // add only new layers, not already added to the LayersToRender array
+			{
+				LayersToRender.Add(CreateRenderLayer_RenderThread(*pLayer.Get()));
+			}
+			pLayer->ResetChangedFlags();
+		}
+		for (uint32 i = 0, n = QuadLayers.Num(); i < n; ++i)
+		{
+			TSharedPtr<FHMDLayerDesc> pLayer = QuadLayers[i];
+			check(pLayer.IsValid());
+			if (!pLayer->bAlreadyAdded) // add only new layers, not already added to the LayersToRender array
+			{
+				LayersToRender.Add(CreateRenderLayer_RenderThread(*pLayer.Get()));
+			}
+			pLayer->ResetChangedFlags();
+		}
+		for (uint32 i = 0, n = DebugLayers.Num(); i < n; ++i)
+		{
+			TSharedPtr<FHMDLayerDesc> pLayer = DebugLayers[i];
+			check(pLayer.IsValid());
+			if (!pLayer->bAlreadyAdded) // add only new layers, not already added to the LayersToRender array
+			{
+				LayersToRender.Add(CreateRenderLayer_RenderThread(*pLayer.Get()));
+			}
+			pLayer->ResetChangedFlags();
+		}
+
+		struct Comparator
+		{
+			bool operator()(const TSharedPtr<FHMDRenderLayer>& l1,
+							const TSharedPtr<FHMDRenderLayer>& l2) const
+			{
+				if (!l1.IsValid())
+				{
+					return false;
+				}
+				if (!l2.IsValid())
+				{
+					return true;
+				}
+				auto LayerDesc1 = l1->GetLayerDesc();
+				auto LayerDesc2 = l2->GetLayerDesc();
+				return (LayerDesc1.GetPriority() | LayerDesc1.GetType()) < (LayerDesc2.GetPriority() | LayerDesc2.GetType());
+			}
+		};
+		LayersToRender.Sort(Comparator());
+		// all empty (nullptr) entries should be at the end of the array. 
+		// The total number of render layers should be equal to sum of all layers.
+		LayersToRender.SetNum(EyeLayers.Num() + QuadLayers.Num() + DebugLayers.Num());
+		bLayersChanged = false;
+	}
+}
+
 
 
 

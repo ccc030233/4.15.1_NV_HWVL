@@ -1,9 +1,11 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemUtilsPrivatePCH.h"
 #include "OnlineBeaconHost.h"
 #include "Net/UnrealNetwork.h"
 #include "Net/DataChannel.h"
+#include "OnlineBeaconClient.h"
+#include "OnlineBeaconHostObject.h"
 
 AOnlineBeaconHost::AOnlineBeaconHost(const FObjectInitializer& ObjectInitializer) :
 	Super(ObjectInitializer)
@@ -75,7 +77,7 @@ void AOnlineBeaconHost::NotifyControlMessage(UNetConnection* Connection, uint8 M
 
 		// We are the server.
 #if !(UE_BUILD_SHIPPING && WITH_EDITOR)
-		UE_LOG(LogBeacon, Verbose, TEXT("Host received: %s"), FNetControlMessageInfo::GetName(MessageType));
+		UE_LOG(LogBeacon, Verbose, TEXT("%s Host received: %s"), Connection ? *Connection->GetName() : TEXT("Invalid"), FNetControlMessageInfo::GetName(MessageType));
 #endif
 		switch (MessageType)
 		{
@@ -140,7 +142,7 @@ void AOnlineBeaconHost::NotifyControlMessage(UNetConnection* Connection, uint8 M
 							FNetworkGUID NetGUID = Connection->Driver->GuidCache->AssignNewNetGUID_Server( NewClientActor );
 							NewClientActor->SetNetConnection(Connection);
 							Connection->OwningActor = NewClientActor;
-							NewClientActor->Role = ROLE_None;
+							NewClientActor->Role = ROLE_Authority;
 							NewClientActor->SetReplicates(false);
 							check(NetDriverName == NetDriver->NetDriverName);
 							NewClientActor->NetDriverName = NetDriverName;
@@ -183,7 +185,6 @@ void AOnlineBeaconHost::NotifyControlMessage(UNetConnection* Connection, uint8 M
 					FOnBeaconConnected* OnBeaconConnectedDelegate = OnBeaconConnectedMapping.Find(BeaconType);
 					if (OnBeaconConnectedDelegate)
 					{
-						ClientActor->Role = ROLE_Authority;
 						ClientActor->SetReplicates(true);
 						ClientActor->SetAutonomousProxy(true);
 						ClientActor->SetConnectionState(EBeaconConnectionState::Open);

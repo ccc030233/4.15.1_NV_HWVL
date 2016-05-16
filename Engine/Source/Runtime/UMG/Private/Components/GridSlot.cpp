@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "UMGPrivatePCH.h"
 
@@ -23,10 +23,9 @@ void UGridSlot::ReleaseSlateResources(bool bReleaseChildren)
 	Slot = nullptr;
 }
 
-// COMPILE PLEASE
 void UGridSlot::BuildSlot(TSharedRef<SGridPanel> GridPanel)
 {
-	Slot = &GridPanel->AddSlot(Column, Row)
+	Slot = &GridPanel->AddSlot(Column, Row, SGridPanel::Layer(Layer))
 		.HAlign(HorizontalAlignment)
 		.VAlign(VerticalAlignment)
 		.RowSpan(RowSpan)
@@ -73,6 +72,15 @@ void UGridSlot::SetColumnSpan(int32 InColumnSpan)
 	}
 }
 
+void UGridSlot::SetLayer(int32 InLayer)
+{
+	Layer = InLayer;
+	if (Slot)
+	{
+		Slot->Layer(InLayer);
+	}
+}
+
 void UGridSlot::SetHorizontalAlignment(EHorizontalAlignment InHorizontalAlignment)
 {
 	HorizontalAlignment = InHorizontalAlignment;
@@ -99,4 +107,5 @@ void UGridSlot::SynchronizeProperties()
 	SetColumnSpan(ColumnSpan);
 	SetHorizontalAlignment(HorizontalAlignment);
 	SetVerticalAlignment(VerticalAlignment);
+	SetLayer(Layer);
 }

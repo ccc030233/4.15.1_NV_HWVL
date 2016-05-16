@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "SlateCorePrivatePCH.h"
 #include "HittestGrid.h"
@@ -199,6 +199,7 @@ FVector2D SWindow::GetWindowSizeFromClientSize(FVector2D InClientSize)
 void SWindow::Construct(const FArguments& InArgs)
 {
 	check(InArgs._Style);
+	this->Type = InArgs._Type;
 	this->Style = InArgs._Style;
 	this->WindowBackground = &InArgs._Style->BackgroundBrush;
 
@@ -225,10 +226,13 @@ void SWindow::Construct(const FArguments& InArgs)
 		.SetMaxHeight(InArgs._MaxHeight);
 	
 	// calculate window size from client size
-	bCreateTitleBar = InArgs._CreateTitleBar && !bIsPopupWindow && !bIsCursorDecoratorWindow && !bHasOSWindowBorder;
+	bCreateTitleBar = InArgs._CreateTitleBar && !bIsPopupWindow && Type != EWindowType::CursorDecorator && !bHasOSWindowBorder;
 	
 	// If the window has no OS border, simulate it ourselves, enlarging window by the size that OS border would have.
 	FVector2D WindowSize = GetWindowSizeFromClientSize(InArgs._ClientSize);
+
+	// Get change in size resulting from the above call
+	const FVector2D DeltaSize = WindowSize - InArgs._ClientSize;
 
 	// calculate initial window position
 	FVector2D WindowPosition = InArgs._ScreenPosition;
@@ -301,10 +305,13 @@ void SWindow::Construct(const FArguments& InArgs)
 			break;
 		}
 
-		// Clamp window size to be no greater than the work area size
-		WindowSize.X = FMath::Min(WindowSize.X, AutoCenterRect.GetSize().X);
-		WindowSize.Y = FMath::Min(WindowSize.Y, AutoCenterRect.GetSize().Y);
-
+		if (InArgs._SaneWindowPlacement)
+		{
+			// Clamp window size to be no greater than the work area size
+			WindowSize.X = FMath::Min(WindowSize.X, AutoCenterRect.GetSize().X);
+			WindowSize.Y = FMath::Min(WindowSize.Y, AutoCenterRect.GetSize().Y);
+		}
+		
 		// Setup a position and size for the main frame window that's centered in the desktop work area
 		const FVector2D DisplayTopLeft( AutoCenterRect.Left, AutoCenterRect.Top );
 		const FVector2D DisplaySize( AutoCenterRect.Right - AutoCenterRect.Left, AutoCenterRect.Bottom - AutoCenterRect.Top );
@@ -319,7 +326,8 @@ void SWindow::Construct(const FArguments& InArgs)
 	this->InitialDesiredScreenPosition = WindowPosition;
 	this->InitialDesiredSize = WindowSize;
 
-	Resize(WindowSize);
+	// Resize adds extra borders / title bar if necessary, but this is already taken into account in WindowSize, so subtract them again first
+	Resize(WindowSize - DeltaSize);
 
 	// Window visibility is currently driven by whether the window is interactive.
 	this->Visibility = TAttribute<EVisibility>::Create( TAttribute<EVisibility>::FGetter::CreateRaw(this, &SWindow::GetWindowVisibility) );
@@ -333,6 +341,7 @@ TSharedRef<SWindow> SWindow::MakeNotificationWindow()
 {
 	TSharedRef<SWindow> NewWindow =
 		SNew(SWindow)
+		.Type( EWindowType::Notification )
 		.SupportsMaximize( false )
 		.SupportsMinimize( false )
 		.IsPopupWindow( true )
@@ -355,12 +364,12 @@ TSharedRef<SWindow> SWindow::MakeNotificationWindow()
 TSharedRef<SWindow> SWindow::MakeToolTipWindow()
 {
 	TSharedRef<SWindow> NewWindow = SNew( SWindow )
+		.Type( EWindowType::ToolTip )
 		.IsPopupWindow( true )
 		.SizingRule( ESizingRule::Autosized )
 		.SupportsTransparency( EWindowTransparency::PerWindow )
 		.FocusWhenFirstShown( false )
 		.ActivateWhenFirstShown( false );
-	NewWindow->bIsToolTipWindow = true;
 	NewWindow->bIsTopmostWindow = true;
 	NewWindow->Opacity = 0.0f;
 
@@ -376,14 +385,13 @@ TSharedRef<SWindow> SWindow::MakeToolTipWindow()
 TSharedRef<SWindow> SWindow::MakeCursorDecorator()
 {
 	TSharedRef<SWindow> NewWindow = SNew( SWindow )
+		.Type( EWindowType::CursorDecorator )
 		.IsPopupWindow( true )
 		.SizingRule( ESizingRule::Autosized )
 		.SupportsTransparency( EWindowTransparency::PerWindow )
 		.FocusWhenFirstShown( false )
 		.ActivateWhenFirstShown( false );
-	NewWindow->bIsToolTipWindow = true;
 	NewWindow->bIsTopmostWindow = true;
-	NewWindow->bIsCursorDecoratorWindow = true;
 	NewWindow->Opacity = 1.0f;
 
 	return NewWindow;
@@ -404,7 +412,7 @@ void SWindow::ConstructWindowInternals()
 	// Setup widget that represents the main area of the window.  That is, everything inside the window's border.
 	TSharedRef< SVerticalBox > MainWindowArea = 
 		SNew( SVerticalBox )
-			.Visibility( EVisibility::SelfHitTestInvisible );
+		.Visibility( EVisibility::SelfHitTestInvisible );
 
 	if (bCreateTitleBar)
 	{
@@ -428,10 +436,10 @@ void SWindow::ConstructWindowInternals()
 		}
 
 		MainWindowArea->AddSlot()
-			.AutoHeight()
-			[
-				FSlateApplicationBase::Get().MakeWindowTitleBar(SharedThis(this), nullptr, TitleContentAlignment, TitleBar)
-			];
+		.AutoHeight()
+		[
+			FSlateApplicationBase::Get().MakeWindowTitleBar(SharedThis(this), nullptr, TitleContentAlignment, TitleBar)
+		];
 	}
 	else
 	{
@@ -447,7 +455,7 @@ void SWindow::ConstructWindowInternals()
 		];
 
 	// create window
-	if (!bIsToolTipWindow && !bIsPopupWindow && !bHasOSWindowBorder)
+	if (Type != EWindowType::ToolTip && Type != EWindowType::CursorDecorator && !bIsPopupWindow && !bHasOSWindowBorder)
 	{
 		TAttribute<EVisibility> WindowContentVisibility(this, &SWindow::GetWindowContentVisibility);
 		TAttribute<const FSlateBrush*> WindowBackgroundAttr(this, &SWindow::GetWindowBackground);
@@ -457,57 +465,56 @@ void SWindow::ConstructWindowInternals()
 		this->ChildSlot
 		[
 			SAssignNew(WindowOverlay, SOverlay)
-				.Visibility(EVisibility::SelfHitTestInvisible)
+			.Visibility(EVisibility::SelfHitTestInvisible)
 
 			// window background
 			+ SOverlay::Slot()
-				[
-					FSlateApplicationBase::Get().MakeImage(
-						WindowBackgroundAttr,
-						FLinearColor::White,
-						WindowContentVisibility
-					)
-				]
+			[
+				FSlateApplicationBase::Get().MakeImage(
+					WindowBackgroundAttr,
+					FLinearColor::White,
+					WindowContentVisibility
+				)
+			]
 
 			// window border
 			+ SOverlay::Slot()
-				[
-					FSlateApplicationBase::Get().MakeImage(
-						&Style->BorderBrush,
-						FLinearColor::White,
-						WindowContentVisibility
-					)
-				]
+			[
+				FSlateApplicationBase::Get().MakeImage(
+					&Style->BorderBrush,
+					FLinearColor::White,
+					WindowContentVisibility
+				)
+			]
 
 			// main area
 			+ SOverlay::Slot()
-				[
-					SNew(SVerticalBox)
-						.Visibility(WindowContentVisibility)
+			[
+				SNew(SVerticalBox)
+				.Visibility(WindowContentVisibility)
 
-					+ SVerticalBox::Slot()
-					
-						.Padding(TAttribute<FMargin>::Create(TAttribute<FMargin>::FGetter::CreateSP(this, &SWindow::GetWindowBorderSize, false)))
-						[
-							MainWindowArea
-						]
+				+ SVerticalBox::Slot()					
+				.Padding(TAttribute<FMargin>::Create(TAttribute<FMargin>::FGetter::CreateSP(this, &SWindow::GetWindowBorderSize, false)))
+				[
+					MainWindowArea
 				]
+			]
 
 			// pop-up layer
 			+ SOverlay::Slot()
-				[
-					SAssignNew(PopupLayer, SPopupLayer, SharedThis(this))
-				]
+			[
+				SAssignNew(PopupLayer, SPopupLayer, SharedThis(this))
+			]
 
 			// window outline
 			+ SOverlay::Slot()
-				[
-					FSlateApplicationBase::Get().MakeImage(
-						WindowOutlineAttr,
-						WindowOutlineColorAttr,
-						WindowContentVisibility
-					)
-				]
+			[
+				FSlateApplicationBase::Get().MakeImage(
+					WindowOutlineAttr,
+					WindowOutlineColorAttr,
+					WindowContentVisibility
+				)
+			]
 		];
 	}
 	else if( bHasOSWindowBorder )
@@ -517,7 +524,7 @@ void SWindow::ConstructWindowInternals()
 			SAssignNew(WindowOverlay, SOverlay)
 			+ SOverlay::Slot()
 			[
-					MainWindowArea
+				MainWindowArea
 			]
 			+ SOverlay::Slot()
 			[
@@ -991,7 +998,7 @@ void SWindow::SetNativeWindow( TSharedRef<FGenericWindow> InNativeWindow )
 
 void SWindow::SetContent( TSharedRef<SWidget> InContent )
 {
-	if ( bIsPopupWindow || bIsCursorDecoratorWindow )
+	if ( bIsPopupWindow || Type == EWindowType::CursorDecorator )
 	{
 		this->ChildSlot.operator[]( InContent );
 	}
@@ -1003,7 +1010,7 @@ void SWindow::SetContent( TSharedRef<SWidget> InContent )
 
 TSharedRef<const SWidget> SWindow::GetContent() const
 {
-	if ( bIsPopupWindow || bIsCursorDecoratorWindow )
+	if ( bIsPopupWindow || Type == EWindowType::CursorDecorator )
 	{
 		return this->ChildSlot.GetChildAt(0);
 	}
@@ -1053,7 +1060,7 @@ void SWindow::RemovePopupLayerSlot( const TSharedRef<SWidget>& WidgetToRemove )
 /** @return should this window show up in the taskbar */
 bool SWindow::AppearsInTaskbar() const
 {
-	return !bIsPopupWindow && !bIsToolTipWindow && !bIsCursorDecoratorWindow;
+	return !bIsPopupWindow && Type != EWindowType::ToolTip && Type != EWindowType::CursorDecorator;
 }
 
 void SWindow::SetOnWindowActivated( const FOnWindowActivated& InDelegate )
@@ -1242,7 +1249,7 @@ bool SWindow::ActivateWhenFirstShown() const
 /** @return true if the window accepts input; false if the window is non-interactive */
 bool SWindow::AcceptsInput() const
 {
-	return !bIsCursorDecoratorWindow && !bIsToolTipWindow;
+	return Type != EWindowType::CursorDecorator && Type != EWindowType::ToolTip;
 }
 
 /** @return true if the user decides the size of the window; false if the content determines the size of the window */
@@ -1264,7 +1271,7 @@ void SWindow::SetSizingRule( ESizingRule::Type InSizingRule )
 /** @return true if this is a vanilla window, or one being used for some special purpose: e.g. tooltip or menu */
 bool SWindow::IsRegularWindow() const
 {
-	return !bIsPopupWindow && !bIsToolTipWindow && !bIsCursorDecoratorWindow;
+	return !bIsPopupWindow && Type != EWindowType::ToolTip && Type != EWindowType::CursorDecorator;
 }
 
 /** @return true if the window should be on top of all other windows; false otherwise */
@@ -1306,8 +1313,13 @@ bool SWindow::HasMinimizeBox() const
 
 FCursorReply SWindow::OnCursorQuery( const FGeometry& MyGeometry, const FPointerEvent& CursorEvent ) const
 {
-#if !PLATFORM_MAC // On Mac we depend on system's window resizing
-	if (bHasSizingFrame)
+	bool bUseOSSizingCursor = this->HasOSWindowBorder() && bHasSizingFrame;
+
+#if PLATFORM_MAC // On Mac we depend on system's window resizing
+	bUseOSSizingCursor = true;
+#endif
+
+	if (!bUseOSSizingCursor && bHasSizingFrame)
 	{
 		if (WindowZone == EWindowZone::TopLeftBorder || WindowZone == EWindowZone::BottomRightBorder)
 		{
@@ -1326,56 +1338,51 @@ FCursorReply SWindow::OnCursorQuery( const FGeometry& MyGeometry, const FPointer
 			return FCursorReply::Cursor(EMouseCursor::ResizeLeftRight);
 		}
 	}
-#endif
 	return FCursorReply::Unhandled();
 }
 
 bool SWindow::OnIsActiveChanged( const FWindowActivateEvent& ActivateEvent )
 {
-	const bool bWasDeactivated = ( ActivateEvent.GetActivationType() == FWindowActivateEvent::EA_Deactivate );
-	if ( bWasDeactivated )
+	const bool bWasDeactivated = ActivateEvent.GetActivationType() == FWindowActivateEvent::EA_Deactivate;
+	if (bWasDeactivated)
 	{
 		OnWindowDeactivated.ExecuteIfBound();	// deprecated
 		WindowDeactivatedEvent.Broadcast();
 
 		const EWindowMode::Type WindowMode = GetWindowMode();
 		// If the window is not fullscreen, we do not want to automatically recapture the mouse unless an external UI such as Steam is open. Fullscreen windows we do.
-		if( WindowMode != EWindowMode::Fullscreen && WidgetToFocusOnActivate.IsValid() && WidgetToFocusOnActivate.Pin()->HasMouseCapture() && !FSlateApplicationBase::Get().IsExternalUIOpened())
+		if (WindowMode != EWindowMode::Fullscreen && WidgetToFocusOnActivate.IsValid() && WidgetToFocusOnActivate.Pin()->HasMouseCapture() && !FSlateApplicationBase::Get().IsExternalUIOpened())
 		{
-			//For a windowed application with an OS border, if the user is giving focus back to the application by clicking on the close/(X) button, then we must clear 
-			//the weak pointer to WidgetToFocus--so that the application's main viewport does not steal focus immediately (thus canceling the close attempt).
-			
-			//This change introduces a different bug where slate context is lost when closing popup menus.  However, this issue is negated by a 
-			//change to FMenuStack::PushMenu, where we ReleaseMouseCapture when immediately shifting focus.
 			WidgetToFocusOnActivate.Reset();
 		}
 	}
 	else
 	{
-		if (SupportsKeyboardFocus())
+		if (ActivateEvent.GetActivationType() == FWindowActivateEvent::EA_Activate)
 		{
 			TArray< TSharedRef<SWindow> > JustThisWindow;
-			JustThisWindow.Add( SharedThis(this) );
-			
+			JustThisWindow.Add(SharedThis(this));
+
 			// If we're becoming active and we were set to restore keyboard focus to a specific widget
 			// after reactivating, then do so now
-			TSharedPtr< SWidget > PinnedWidgetToFocus( WidgetToFocusOnActivate.Pin() );
-			
+			TSharedPtr< SWidget > PinnedWidgetToFocus(WidgetToFocusOnActivate.Pin());
 			if (PinnedWidgetToFocus.IsValid())
 			{
 				FWidgetPath WidgetToFocusPath;
-				if( FSlateWindowHelper::FindPathToWidget( JustThisWindow, PinnedWidgetToFocus.ToSharedRef(), WidgetToFocusPath ) )
+				if (FSlateWindowHelper::FindPathToWidget(JustThisWindow, PinnedWidgetToFocus.ToSharedRef(), WidgetToFocusPath))
 				{
-					FSlateApplicationBase::Get().SetAllUserFocus( WidgetToFocusPath, EFocusCause::SetDirectly );
+					FSlateApplicationBase::Get().SetAllUserFocus(WidgetToFocusPath, EFocusCause::SetDirectly);
 				}
 			}
-			else
+
+			// If we didn't have a specified widget to focus (above)
+			// We'll make sure all the users focus this window, however if they are already focusing something in the window we leave them be.
+			else if (SupportsKeyboardFocus())
 			{
 				FWidgetPath WindowWidgetPath;
-				if( FSlateWindowHelper::FindPathToWidget( JustThisWindow, AsShared(), WindowWidgetPath ) )
+				if (FSlateWindowHelper::FindPathToWidget(JustThisWindow, AsShared(), WindowWidgetPath))
 				{
-					FWeakWidgetPath WeakWindowPath(WindowWidgetPath);
-					FSlateApplicationBase::Get().SetAllUserFocus( WeakWindowPath.ToNextFocusedPath(EUINavigation::Next), EFocusCause::SetDirectly );
+					FSlateApplicationBase::Get().SetAllUserFocusAllowingDescendantFocus(WindowWidgetPath, EFocusCause::SetDirectly);
 				}
 			}
 		}
@@ -1419,7 +1426,7 @@ int32 SWindow::GetCornerRadius()
 
 bool SWindow::SupportsKeyboardFocus() const
 {
-	return !bIsToolTipWindow && !bIsCursorDecoratorWindow;
+	return Type != EWindowType::ToolTip && Type != EWindowType::CursorDecorator;
 }
 
 FReply SWindow::OnFocusReceived(const FGeometry& MyGeometry, const FFocusEvent& InFocusEvent)
@@ -1644,10 +1651,8 @@ SWindow::SWindow()
 	, SizingRule( ESizingRule::UserSized )
 	, TransparencySupport( EWindowTransparency::None )
 	, bIsPopupWindow( false )
-	, bIsToolTipWindow( false )
 	, bIsTopmostWindow( false )
 	, bSizeWillChangeOften( false )
-	, bIsCursorDecoratorWindow( false )
 	, bInitiallyMaximized( false )
 	, bHasEverBeenShown( false )
 	, bFocusWhenFirstShown(true)

@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 #include "AI/Navigation/NavAgentInterface.h"
@@ -38,6 +38,7 @@ public:
 	APawn(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void PreReplication( IRepChangedPropertyTracker & ChangedPropertyTracker ) override;
 
 	/** Return our PawnMovementComponent, if we have one. By default, returns the first PawnMovementComponent found. Native classes that create their own movement component should override this method for more efficiency. */
 	UFUNCTION(BlueprintCallable, meta=(Tooltip="Return our PawnMovementComponent, if we have one."), Category="Pawn")
@@ -192,9 +193,8 @@ public:
 	/** used to prevent re-entry of OutsideWorldBounds event. */
 	uint32 bProcessingOutsideWorldBounds:1;
 
-	// Begin AActor Interface.
+	//~ Begin AActor Interface.
 	virtual FVector GetVelocity() const override;
-	virtual void Tick(float DeltaSeconds) override;
 	virtual void Reset() override;
 	virtual FString GetHumanReadableName() const override;
 	virtual bool ShouldTickIfViewportsOnly() const override;
@@ -221,23 +221,23 @@ public:
 
 	/** Overridden to defer to the RootComponent's CanCharacterStepUpOn setting if it is explicitly Yes or No. If set to Owner, will return Super::CanBeBaseForCharacter(). */
 	virtual bool CanBeBaseForCharacter(APawn* APawn) const override;
-	// End AActor Interface
+	//~ End AActor Interface
 
 	/** Use SetCanAffectNavigationGeneration to change this value at runtime.
 	 *	Note that calling this function at runtime will result in any navigation change only if runtime navigation generation is enabled. */
-	UFUNCTION(BlueprintCallable, Category="AI|Navigation")
-	void SetCanAffectNavigationGeneration(bool bNewValue);
+	UFUNCTION(BlueprintCallable, Category="AI|Navigation", meta=(AdvancedDisplay="bForceUpdate"))
+	void SetCanAffectNavigationGeneration(bool bNewValue, bool bForceUpdate = false);
 
 	/** update all components relevant for navigation generators to match bCanAffectNavigationGeneration flag */
 	virtual void UpdateNavigationRelevance() {}
 
-	// Begin INavAgentInterface Interface
+	//~ Begin INavAgentInterface Interface
 	virtual const FNavAgentProperties& GetNavAgentPropertiesRef() const override;
 	/** Basically retrieved pawn's location on navmesh */
 	UFUNCTION(BlueprintCallable, Category="Pawn")
 	virtual FVector GetNavAgentLocation() const override { return GetActorLocation() - FVector(0.f, 0.f, BaseEyeHeight); }
 	virtual void GetMoveGoalReachTest(AActor* MovingActor, const FVector& MoveOffset, FVector& GoalOffset, float& GoalRadius, float& GoalHalfHeight) const override;
-	// End INavAgentInterface Interface
+	//~ End INavAgentInterface Interface
 
 	/** updates MovementComponent's parameters used by navigation system */
 	void UpdateNavAgent();
@@ -248,6 +248,7 @@ public:
 
 #if WITH_EDITOR
 	virtual void EditorApplyRotation(const FRotator& DeltaRotation, bool bAltDown, bool bShiftDown, bool bCtrlDown) override;
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
 	/** @return vector direction of gravity */
@@ -276,9 +277,13 @@ public:
 	void ReceiveUnpossessed(AController* OldController);
 
 	/** @return true if controlled by a local (not network) Controller.	 */
-	UFUNCTION(BlueprintCallable, Category="Pawn")
+	UFUNCTION(BlueprintPure, Category="Pawn")
 	virtual bool IsLocallyControlled() const;
-
+  
+	/** @return true if controlled by a human player (possessed by a PlayerController).	 */
+	UFUNCTION(BlueprintPure, Category="Pawn")
+	virtual bool IsPlayerControlled() const;
+	
 	/**
 	 * Get the view rotation of the Pawn (direction they are looking, normally Controller->ControlRotation).
 	 * @return The view rotation of the Pawn.
@@ -463,3 +468,11 @@ public:
 	FVector K2_GetMovementInputVector() const;	
 };
 
+
+//////////////////////////////////////////////////////////////////////////
+// Pawn inlines
+
+FORCEINLINE AController* APawn::GetController() const
+{
+	return Controller;
+}

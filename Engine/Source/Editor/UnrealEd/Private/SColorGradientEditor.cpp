@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "UnrealEd.h"
 #include "SColorGradientEditor.h"
@@ -198,8 +198,7 @@ int32 SColorGradientEditor::OnPaint( const FPaintArgs& Args, const FGeometry& Al
 				Stops,
 				Orient_Vertical,
 				MyClippingRect,
-				DrawEffects,
-				false
+				DrawEffects | ESlateDrawEffect::NoGamma
 			);	
 		}
 
@@ -604,7 +603,7 @@ void SColorGradientEditor::OnSelectedStopColorChanged( FLinearColor InNewColor )
 
 void SColorGradientEditor::OnCancelSelectedStopColorChange( FLinearColor PreviousColor )
 {
-	SelectedStop.SetColor( PreviousColor.HSVToLinearRGB(), *CurveOwner );
+	SelectedStop.SetColor( PreviousColor, *CurveOwner );
 	CurveOwner->ModifyOwner();
 }
 

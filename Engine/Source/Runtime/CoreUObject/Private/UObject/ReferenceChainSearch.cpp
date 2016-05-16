@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "CoreUObjectPrivate.h"
 
@@ -101,7 +101,7 @@ void FReferenceChainSearch::FFindReferencerCollector::HandleObjectReference(UObj
 }
 
 
-void FReferenceChainSearch::PrintReferencers( FReferenceChain& Referencer )
+void FReferenceChainSearch::PrintReferencers(FReferenceChain& Referencer)
 {
 	UE_LOG(LogReferenceChain, Log, TEXT("  "));
 
@@ -148,12 +148,12 @@ void FReferenceChainSearch::PrintReferencers( FReferenceChain& Referencer )
 		}
 		
 		CA_SUPPRESS(6011)
-		if( RefInfo.ReferencedBy->HasAnyFlags(RF_Native) )
+		if( RefInfo.ReferencedBy->IsNative() )
 		{
 			ObjectReachability += TEXT("(native) ");
 		}
 		
-		if( RefInfo.ReferencedBy->HasAnyFlags(RF_PendingKill) )
+		if( RefInfo.ReferencedBy->IsPendingKill() )
 		{
 			ObjectReachability += TEXT("(PendingKill) ");
 		}
@@ -163,9 +163,31 @@ void FReferenceChainSearch::PrintReferencers( FReferenceChain& Referencer )
 			ObjectReachability += TEXT("(standalone) ");
 		}
 
-		if (GetUObjectArray().IsDisregardForGC(RefInfo.ReferencedBy))
+		if (RefInfo.ReferencedBy->HasAnyInternalFlags(EInternalObjectFlags::Async))
+		{
+			ObjectReachability += TEXT("(async) ");
+		}
+
+		if (RefInfo.ReferencedBy->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+		{
+			ObjectReachability += TEXT("(asyncloading) ");
+		}
+
+		if (GUObjectArray.IsDisregardForGC(RefInfo.ReferencedBy))
 		{
 			ObjectReachability += TEXT("(NeverGCed) ");
+		}
+
+		FUObjectItem* ReferencedByObjectItem = GUObjectArray.ObjectToObjectItem(RefInfo.ReferencedBy);
+		bool bClusterRoot = false;
+		if (ReferencedByObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot))
+		{
+			ObjectReachability += TEXT("(ClusterRoot) ");
+			bClusterRoot = true;
+		}
+		if (ReferencedByObjectItem->GetOwnerIndex())
+		{
+			ObjectReachability += TEXT("(Clustered) ");
 		}
 
 		FString Indent; Indent = Indent.LeftPad(RefLevel*2);
@@ -220,29 +242,37 @@ static void LinkToParents(TMultiMap<UObject*, FRefGraphItem*>& InputGraphNodeLis
 	}
 }
 
-// Recursively creates reference chains from the internal reference graph relationship
-void CreateReferenceChain(FRefGraphItem* Node, FReferenceChainSearch::FReferenceChain& ThisChain, TArray<FReferenceChainSearch::FReferenceChain>& ChainArray, UObject* ObjectToFind, int32 Levels )
+// Returns true if the object can't be collected by GC
+static FORCEINLINE bool IsNonGCObject(UObject* Object)
+{
+	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(Object);
+	return (ObjectItem->IsRootSet() ||
+		ObjectItem->HasAnyFlags(EInternalObjectFlags::GarbageCollectionKeepFlags) ||
+		(GARBAGE_COLLECTION_KEEPFLAGS != RF_NoFlags && Object->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS)));
+}
+
+void FReferenceChainSearch::CreateReferenceChain(FRefGraphItem* Node, FReferenceChainSearch::FReferenceChain& ThisChain, TArray<FReferenceChainSearch::FReferenceChain>& ChainArray, UObject* InObjectToFind, int32 Levels)
 {
 	ThisChain.RefChain.Push(Node->Link);
 	if (Levels <= 0)
 	{
-
-		UE_LOG(LogReferenceChain, Log, TEXT("Chain is too long!"));
+		UE_CLOG(ShouldOutputToLog(), LogReferenceChain, Log, TEXT("Chain is too long!"));
 		for (int32 i=0; i < ThisChain.RefChain.Num(); ++i)
 		{
-			UE_LOG(LogReferenceChain, Log, TEXT("%s -> %s"), *ThisChain.RefChain[i].ReferencedBy->GetPathName(), *ThisChain.RefChain[i].ReferencedObj->GetPathName());
+			UE_CLOG(ShouldOutputToLog(), LogReferenceChain, Log, TEXT("%s -> %s"), *ThisChain.RefChain[i].ReferencedBy->GetPathName(), *ThisChain.RefChain[i].ReferencedObj->GetPathName());
 		}
 	}
 	check(Levels > 0);
 	Levels--;
 
 	// If we encounter the target object or another root-object, we stop here
-	if (Node->Link.ReferencedObj == ObjectToFind)
+	if (Node->Link.ReferencedObj == InObjectToFind)
 	{
 		ChainArray.Push(ThisChain);
 		return;
 	}
-	if (Node->Link.ReferencedObj->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS | RF_RootSet))
+
+	if (IsNonGCObject(Node->Link.ReferencedObj))
 	{
 		return;
 	}
@@ -263,13 +293,13 @@ void CreateReferenceChain(FRefGraphItem* Node, FReferenceChainSearch::FReference
 		if (bSkip) { continue; };
 
 		FReferenceChainSearch::FReferenceChain ChildChain = ThisChain;
-		CreateReferenceChain(Node->Children[i], ChildChain, ChainArray, ObjectToFind, Levels);
+		CreateReferenceChain(Node->Children[i], ChildChain, ChainArray, InObjectToFind, Levels);
 	}
 }
 
 void FReferenceChainSearch::BuildRefGraph()
 {
-	UE_LOG(LogReferenceChain, Log, TEXT("Generating reference graph ..."));
+	UE_CLOG(ShouldOutputToLog(), LogReferenceChain, Log, TEXT("Generating reference graph ..."));
 
 	bool bContinue = true;
 
@@ -278,9 +308,11 @@ void FReferenceChainSearch::BuildRefGraph()
 	// Create the first graph-nodes referencing the target object
 	for (FRawObjectIterator It;It;++It)
 	{
-		UObject* Obj = *It;
+		FUObjectItem* ObjItem = *It;
+		checkSlow(ObjItem);
+		UObject* Object = static_cast<UObject*>(ObjItem->Object);
 
-		TArray<FReferenceChainLink>& RefList = ReferenceMap.FindChecked(Obj);
+		TArray<FReferenceChainLink>& RefList = ReferenceMap.FindChecked(Object);
 
 		for (int32 i=0; i < RefList.Num(); ++i)
 		{
@@ -296,25 +328,24 @@ void FReferenceChainSearch::BuildRefGraph()
 	}
 
 	int32 Level = 0;
-	UE_LOG(LogReferenceChain, Log, TEXT("Level 0 has %d nodes ..."), GraphNodes.Num());
+	UE_CLOG(ShouldOutputToLog(), LogReferenceChain, Log, TEXT("Level 0 has %d nodes ..."), GraphNodes.Num());
 
 	while(bContinue)
 	{
 		int32 AddedNodes = 0;
-
 		TArray<FRefGraphItem*> NewGraphNodes;
-
 
 		for (FRawObjectIterator It;It;++It)
 		{
-			UObject* Obj = *It;
-
-			TArray<FReferenceChainLink>& RefList = ReferenceMap.FindChecked(Obj);
+			FUObjectItem* ObjItem = *It;
+			checkSlow(ObjItem->Object);
+			UObject* Object = (UObject*)ObjItem->Object;
+			TArray<FReferenceChainLink>& RefList = ReferenceMap.FindChecked(Object);
 
 			for (int32 i=0; i < RefList.Num(); ++i)
 			{
 				if (RefList[i].ReferenceType == EReferenceType::Invalid ||
-					RefList[i].ReferencedObj->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS | RF_RootSet)) // references to rooted objects are not important
+					IsNonGCObject(RefList[i].ReferencedObj)) // references to rooted objects are not important
 				{ 
 					continue; 
 				}
@@ -345,7 +376,7 @@ void FReferenceChainSearch::BuildRefGraph()
 			}
 		}
 		Level++;
-		UE_LOG(LogReferenceChain, Log, TEXT("Level %d added %d nodes ..."), Level, NewGraphNodes.Num());
+		UE_CLOG(ShouldOutputToLog(), LogReferenceChain, Log, TEXT("Level %d added %d nodes ..."), Level, NewGraphNodes.Num());
 
 		for (int32 i = 0; i < NewGraphNodes.Num(); ++i)
 		{
@@ -360,12 +391,12 @@ void FReferenceChainSearch::BuildRefGraph()
 
 	TArray<FReferenceChain> Chains;
 
-	UE_LOG(LogReferenceChain, Log, TEXT("Generating reference chains ..."));
+	UE_CLOG(ShouldOutputToLog(), LogReferenceChain, Log, TEXT("Generating reference chains ..."));
 	for (auto It = GraphNodes.CreateConstIterator(); It; ++It)
 	{
 		FRefGraphItem* Node = It.Value();
 
-		if (Node->Link.ReferencedBy->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS | RF_RootSet))
+		if (IsNonGCObject(Node->Link.ReferencedBy))
 		{
 			FReferenceChain CurChain;
 			CreateReferenceChain(Node, CurChain, Chains, ObjectToFind, Level);
@@ -380,13 +411,13 @@ void FReferenceChainSearch::BuildRefGraph()
 
 void FReferenceChainSearch::PerformSearch()
 {
-	UE_LOG(LogReferenceChain, Log, TEXT("Searching referencers for %s. This may take several minutes."), *ObjectToFind->GetName());
+	UE_CLOG(ShouldOutputToLog(), LogReferenceChain, Log, TEXT("Searching referencers for %s. This may take several minutes."), *ObjectToFind->GetName());
 	
 	for (FRawObjectIterator It;It;++It)
 	{
-		UObject* CurrentObject = *It;
-
-		ProcessObject(CurrentObject);
+		FUObjectItem* CurrentObject = *It;
+		UObject* Object = static_cast<UObject*>(CurrentObject->Object);
+		ProcessObject(Object);
 	}
 
 	BuildRefGraph();
@@ -649,7 +680,7 @@ bool FReferenceChainSearch::ProcessObject( UObject* CurrentObject )
 		}
 		else
 		{
-			UE_LOG(LogReferenceChain, Fatal,TEXT("Unknown token"));
+			UE_CLOG(ShouldOutputToLog(), LogReferenceChain, Fatal,TEXT("Unknown token"));
 		}
 	}
 	check(StackEntry == Stack.GetData());
@@ -659,49 +690,57 @@ bool FReferenceChainSearch::ProcessObject( UObject* CurrentObject )
 FReferenceChainSearch::FReferenceChainSearch( UObject* InObjectToFind, uint32 Mode ) 
 	:ObjectToFind(InObjectToFind), SearchMode(Mode)
 {
-	if (ObjectToFind == NULL) { return; }
+	if (ObjectToFind == NULL) 
+	{ 
+		return; 
+	}
 
 	PerformSearch();
 	
-	if ( !!(Mode & ESearchMode::PrintResults) )
+	if (ShouldOutputToLog())
 	{
-		bool bIsFirst = true;
-		
-		for (int32 i=0; i < Referencers.Num(); ++i)
+		PrintResults();
+	}
+}
+
+void FReferenceChainSearch::PrintResults()
+{
+	bool bIsFirst = true;
+
+	for (int32 i = 0; i < Referencers.Num(); ++i)
+	{
+		UObject* Obj = Referencers[i].RefChain[0].ReferencedBy;
+
+		if (!Obj->IsIn(ObjectToFind) && Obj != ObjectToFind)
 		{
-			UObject* Obj = Referencers[i].RefChain[0].ReferencedBy;
-
-			if (!Obj->IsIn(ObjectToFind) && Obj != ObjectToFind)
+			if (bIsFirst)
 			{
-				if (bIsFirst)
-				{
-					UE_LOG(LogReferenceChain, Log, TEXT("  "));
-					UE_LOG(LogReferenceChain, Log, TEXT("External Referencers:"));
-					bIsFirst = false;
-				}
-
-				PrintReferencers(Referencers[i]);
+				UE_LOG(LogReferenceChain, Log, TEXT("  "));
+				UE_LOG(LogReferenceChain, Log, TEXT("External Referencers:"));
+				bIsFirst = false;
 			}
+
+			PrintReferencers(Referencers[i]);
 		}
+	}
 
-		bIsFirst = true;
-		
-		for (int32 i=0; i < Referencers.Num(); ++i)
+	bIsFirst = true;
+
+	for (int32 i = 0; i < Referencers.Num(); ++i)
+	{
+		UObject* Obj = Referencers[i].RefChain[0].ReferencedBy;
+
+		CA_SUPPRESS(6011)
+		if (Obj->IsIn(ObjectToFind) || Obj == ObjectToFind)
 		{
-			UObject* Obj = Referencers[i].RefChain[0].ReferencedBy;
-
-			CA_SUPPRESS(6011)
-			if (Obj->IsIn(ObjectToFind) || Obj == ObjectToFind)
+			if (bIsFirst)
 			{
-				if (bIsFirst)
-				{
-					UE_LOG(LogReferenceChain, Log, TEXT("  "));
-					UE_LOG(LogReferenceChain, Log, TEXT("Internal Referencers:"));
-					bIsFirst = false;
-				}
-
-				PrintReferencers(Referencers[i]);
+				UE_LOG(LogReferenceChain, Log, TEXT("  "));
+				UE_LOG(LogReferenceChain, Log, TEXT("Internal Referencers:"));
+				bIsFirst = false;
 			}
+
+			PrintReferencers(Referencers[i]);
 		}
 	}
 }
@@ -820,12 +859,12 @@ FString FReferenceChainSearch::FReferenceChainLink::ToString() const
 		ObjectReachability += TEXT("(root) ");
 	}
 		
-	if( ReferencedBy->HasAnyFlags(RF_Native) )
+	if( ReferencedBy->IsNative() )
 	{
 		ObjectReachability += TEXT("(native) ");
 	}
 
-	if( ReferencedBy->HasAnyFlags(RF_PendingKill) )
+	if( ReferencedBy->IsPendingKill() )
 	{
 		ObjectReachability += TEXT("(PendingKill) ");
 	}
@@ -835,7 +874,7 @@ FString FReferenceChainSearch::FReferenceChainLink::ToString() const
 		ObjectReachability += TEXT("(standalone) ");
 	}
 
-	if (GetUObjectArray().IsDisregardForGC(ReferencedBy))
+	if (GUObjectArray.IsDisregardForGC(ReferencedBy))
 	{
 		ObjectReachability += TEXT("(NeverGCed) ");
 	}

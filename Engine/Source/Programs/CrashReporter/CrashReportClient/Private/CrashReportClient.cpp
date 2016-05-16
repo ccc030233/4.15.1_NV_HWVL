@@ -1,22 +1,25 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "CrashReportClientApp.h"
 #include "CrashReportUtil.h"
-
 #include "CrashDescription.h"
-
 #include "CrashReportClient.h"
 #include "UniquePtr.h"
-
 #include "TaskGraphInterfaces.h"
+#include "DesktopPlatformModule.h"
 
 #define LOCTEXT_NAMESPACE "CrashReportClient"
 
-FCrashDescription& GetCrashDescription()
+struct FCrashReportUtil
 {
-	static FCrashDescription Singleton;
-	return Singleton;
-}
+	/** Formats processed diagnostic text by adding additional information about machine and user. */
+	static FText FormatDiagnosticText( const FText& DiagnosticText )
+	{
+		const FString MachineId = FPrimaryCrashProperties::Get()->MachineId.AsString();
+		const FString EpicAccountId = FPrimaryCrashProperties::Get()->EpicAccountId.AsString();
+		return FText::Format( LOCTEXT( "CrashReportClientCallstackPattern", "MachineId:{0}\nEpicAccountId:{1}\n\n{2}" ), FText::FromString( MachineId ), FText::FromString( EpicAccountId ), DiagnosticText );
+	}
+};
 
 #if !CRASH_REPORT_UNATTENDED_ONLY
 
@@ -24,20 +27,39 @@ FCrashReportClient::FCrashReportClient(const FPlatformErrorReport& InErrorReport
 	: DiagnosticText( LOCTEXT("ProcessingReport", "Processing crash report ...") )
 	, DiagnoseReportTask(nullptr)
 	, ErrorReport( InErrorReport )
-	, Uploader( FCrashReportClientConfig::Get().GetReceiverAddress() )
-	, bBeginUploadCalled(false)
+	, ReceiverUploader(FCrashReportClientConfig::Get().GetReceiverAddress())
+	, DataRouterUploader(FCrashReportClientConfig::Get().GetDataRouterURL())
 	, bShouldWindowBeHidden(false)
 	, bSendData(false)
 {
-
-	if (!ErrorReport.TryReadDiagnosticsFile(DiagnosticText) && !FParse::Param(FCommandLine::Get(), TEXT("no-local-diagnosis")))
+	if (FPrimaryCrashProperties::Get()->IsValid())
 	{
-		DiagnoseReportTask = new FAsyncTask<FDiagnoseReportWorker>( this );
-		DiagnoseReportTask->StartBackgroundTask();
+	bool bUsePrimaryData = false;
+	if (FPrimaryCrashProperties::Get()->HasProcessedData())
+	{
+		bUsePrimaryData = true;
 	}
-	else if( !DiagnosticText.IsEmpty() )
+	else
 	{
-		FormattedDiagnosticText = FCrashReportUtil::FormatDiagnosticText( DiagnosticText, GetCrashDescription().MachineId, GetCrashDescription().EpicAccountId, GetCrashDescription().UserName );
+		if (!ErrorReport.TryReadDiagnosticsFile() && !FParse::Param( FCommandLine::Get(), TEXT( "no-local-diagnosis" ) ))
+		{
+			DiagnoseReportTask = new FAsyncTask<FDiagnoseReportWorker>( this );
+			DiagnoseReportTask->StartBackgroundTask();
+		}
+		else
+		{
+			bUsePrimaryData = true;
+		}
+	}
+
+	if (bUsePrimaryData)
+	{
+		const FString CallstackString = FPrimaryCrashProperties::Get()->CallStack.AsString();
+		const FString ReportString = FString::Printf( TEXT( "%s\n\n%s" ), *FPrimaryCrashProperties::Get()->ErrorMessage.AsString(), *CallstackString );
+		DiagnosticText = FText::FromString( ReportString );
+
+		FormattedDiagnosticText = FCrashReportUtil::FormatDiagnosticText( FText::FromString( ReportString ) );
+	}
 	}
 }
 
@@ -62,7 +84,7 @@ FReply FCrashReportClient::Submit()
 	if (ErrorReport.HasFilesToUpload())
 	{
 		// Send analytics.
-		GetCrashDescription().SendAnalytics();
+		FPrimaryCrashProperties::Get()->SendAnalytics();
 	}
 
 	bSendData = true;
@@ -75,11 +97,48 @@ FReply FCrashReportClient::SubmitAndRestart()
 {
 	Submit();
 
+	// Check for processes that were started from the Launcher using -EpicPortal on the command line
+	bool bRunFromLauncher = FParse::Param(*FPrimaryCrashProperties::Get()->RestartCommandLine, TEXT("EPICPORTAL"));
 	const FString CrashedAppPath = ErrorReport.FindCrashedAppPath();
-	const FCrashDescription& CrashDescription = GetCrashDescription();
-	const FString CommandLineArguments = CrashDescription.CommandLine;
 
-	FPlatformProcess::CreateProc(*CrashedAppPath, *CommandLineArguments, true, false, false, NULL, 0, NULL, NULL);
+	bool bLauncherRestarted = false;
+	if (bRunFromLauncher)
+	{
+		// We'll restart Launcher-run processes by having the installed Launcher handle it
+		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
+
+		if (DesktopPlatform != nullptr)
+		{
+			// Split the path so we can format it as a URI
+			TArray<FString> PathArray;
+			CrashedAppPath.Replace(TEXT("//"), TEXT("/")).ParseIntoArray(PathArray, TEXT("/"), false);	// WER saves this out on Windows with double slashes as the separator for some reason.
+			FString CrashedAppPathUri;
+
+			// Exclude the last item (the filename). The Launcher currently expects an installed application folder.
+			for (int32 ItemIndex = 0; ItemIndex < PathArray.Num() - 1; ItemIndex++)
+			{
+				FString& PathItem = PathArray[ItemIndex];
+				CrashedAppPathUri += FPlatformHttp::UrlEncode(PathItem);
+				CrashedAppPathUri += TEXT("/");
+			}
+			CrashedAppPathUri.RemoveAt(CrashedAppPathUri.Len() - 1);
+
+			// Re-run the application via the Launcher
+			FOpenLauncherOptions OpenOptions(FString::Printf(TEXT("apps/%s"), *CrashedAppPathUri));
+			OpenOptions.bSilent = true;
+			if (DesktopPlatform->OpenLauncher(OpenOptions))
+			{
+				bLauncherRestarted = true;
+			}
+		}
+	}
+
+	if (!bLauncherRestarted)
+	{
+		// Launcher didn't restart the process so start it ourselves
+		const FString CommandLineArguments = FPrimaryCrashProperties::Get()->RestartCommandLine;
+		FPlatformProcess::CreateProc(*CrashedAppPath, *CommandLineArguments, true, false, false, NULL, 0, NULL, NULL);
+	}
 
 	return FReply::Handled();
 }
@@ -131,10 +190,13 @@ void FCrashReportClient::AllowToBeContacted_OnCheckStateChanged( ECheckBoxState 
 	FCrashReportClientConfig::Get().SetAllowToBeContacted( NewRadioState == ECheckBoxState::Checked );
 
 	// Refresh PII based on the bAllowToBeContacted flag.
-	GetCrashDescription().UpdateIDs();
+	FPrimaryCrashProperties::Get()->UpdateIDs();
+
+	// Save updated properties.
+	FPrimaryCrashProperties::Get()->Save();
 
 	// Update diagnostics text.
-	FormattedDiagnosticText = FCrashReportUtil::FormatDiagnosticText( DiagnosticText, GetCrashDescription().MachineId, GetCrashDescription().EpicAccountId, GetCrashDescription().UserName );
+	FormattedDiagnosticText = FCrashReportUtil::FormatDiagnosticText( DiagnosticText );
 }
 
 void FCrashReportClient::SendLogFile_OnCheckStateChanged( ECheckBoxState NewRadioState )
@@ -150,7 +212,7 @@ void FCrashReportClient::StartTicker()
 void FCrashReportClient::StoreCommentAndUpload()
 {
 	// Write user's comment
-	ErrorReport.SetUserComment( UserComment, FCrashReportClientConfig::Get().GetAllowToBeContacted() );
+	ErrorReport.SetUserComment( UserComment );
 	StartTicker();
 }
 
@@ -164,29 +226,47 @@ bool FCrashReportClient::Tick(float UnusedDeltaTime)
 	
 	if( bSendData )
 	{
-		if( !bBeginUploadCalled )
+		if (!FCrashUploadBase::IsInitialized())
 		{
-			// Can be called only when we have all files.
-			Uploader.BeginUpload( ErrorReport );
-			bBeginUploadCalled = true;
+			FCrashUploadBase::StaticInitialize( ErrorReport );
 		}
 
-		// IsWorkDone will always return true here (since uploader can't finish until the diagnosis has been sent), but it
+		if( !ReceiverUploader.IsUploadCalled())
+		{
+			// Can be called only when we have all files.
+			ReceiverUploader.BeginUpload( ErrorReport );
+		}
+
+		// IsWorkDone will always return true here (since ReceiverUploader can't finish until the diagnosis has been sent), but it
 		//  has the side effect of joining the worker thread.
-		if( !Uploader.IsFinished() )
+		if( !ReceiverUploader.IsFinished() )
+		{
+			// More ticks, please
+			return true;
+		}
+
+		if (!DataRouterUploader.IsUploadCalled())
+		{
+			// Can be called only when we have all files.
+			DataRouterUploader.BeginUpload(ErrorReport);
+		}
+
+		// IsWorkDone will always return true here (since DataRouterUploader can't finish until the diagnosis has been sent), but it
+		//  has the side effect of joining the worker thread.
+		if (!DataRouterUploader.IsFinished())
 		{
 			// More ticks, please
 			return true;
 		}
 	}
 
+	if (FCrashUploadBase::IsInitialized())
+	{
+		FCrashUploadBase::StaticShutdown();
+	}
+
 	FPlatformMisc::RequestExit(false);
 	return false;
-}
-
-FString FCrashReportClient::GetCrashedAppName() const
-{
-	return GetCrashDescription().GameName;
 }
 
 FString FCrashReportClient::GetCrashDirectory() const
@@ -194,13 +274,23 @@ FString FCrashReportClient::GetCrashDirectory() const
 	return ErrorReport.GetReportDirectory();
 }
 
-void FCrashReportClient::FinalizeDiagnoseReportWorker( FText ReportText )
+void FCrashReportClient::FinalizeDiagnoseReportWorker()
 {
-	DiagnosticText = ReportText;
-	FormattedDiagnosticText = FCrashReportUtil::FormatDiagnosticText( ReportText, GetCrashDescription().MachineId, GetCrashDescription().EpicAccountId, GetCrashDescription().UserName );
+	// Update properties for the crash.
+	ErrorReport.SetPrimaryCrashProperties( *FPrimaryCrashProperties::Get() );
 
-	auto DiagnosticsFilePath = ErrorReport.GetReportDirectory() / FCrashReportClientConfig::Get().GetDiagnosticsFilename();
-	Uploader.LocalDiagnosisComplete(FPaths::FileExists(DiagnosticsFilePath) ? DiagnosticsFilePath : TEXT(""));
+	FString CallstackString = FPrimaryCrashProperties::Get()->CallStack.AsString();
+	if (CallstackString.IsEmpty())
+	{
+		DiagnosticText = LOCTEXT( "NoDebuggingSymbols", "You do not have any debugging symbols required to display the callstack for this crash." );
+	}
+	else
+	{
+		const FString ReportString = FString::Printf( TEXT( "%s\n\n%s" ), *FPrimaryCrashProperties::Get()->ErrorMessage.AsString(), *CallstackString );
+		DiagnosticText = FText::FromString( ReportString );
+	}
+
+	FormattedDiagnosticText = FCrashReportUtil::FormatDiagnosticText( DiagnosticText );
 }
 
 
@@ -215,20 +305,16 @@ FDiagnoseReportWorker::FDiagnoseReportWorker( FCrashReportClient* InCrashReportC
 
 void FDiagnoseReportWorker::DoWork()
 {
-	const FText ReportText = CrashReportClient->ErrorReport.DiagnoseReport();
+	CrashReportClient->ErrorReport.DiagnoseReport();
+
 	// Inform the game thread that we are done.
 	FSimpleDelegateGraphTask::CreateAndDispatchWhenReady
 	(
-		FSimpleDelegateGraphTask::FDelegate::CreateRaw( CrashReportClient, &FCrashReportClient::FinalizeDiagnoseReportWorker, ReportText ),
+		FSimpleDelegateGraphTask::FDelegate::CreateRaw( CrashReportClient, &FCrashReportClient::FinalizeDiagnoseReportWorker ),
 		TStatId(), nullptr, ENamedThreads::GameThread
 	);
 }
 
 #endif // !CRASH_REPORT_UNATTENDED_ONLY
-
-FText FCrashReportUtil::FormatDiagnosticText( const FText& DiagnosticText, const FString MachineId, const FString EpicAccountId, const FString UserNameNoDot )
-{
-	return FText::Format( LOCTEXT( "CrashReportClientCallstackPattern", "MachineId:{0}\nEpicAccountId:{1}\n\n{2}" ), FText::FromString( MachineId ), FText::FromString( EpicAccountId ), DiagnosticText );
-}
 
 #undef LOCTEXT_NAMESPACE

@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	AndroidOpenGLPrivate.h: Code shared betweeen AndroidOpenGL and AndroidGL4OpenGL
@@ -8,6 +8,9 @@
 #include "AndroidApplication.h"
 
 bool GAndroidGPUInfoReady = false;
+
+// call out to JNI to see if the application was packaged for GearVR
+extern bool AndroidThunkCpp_IsGearVRApplication();
 
 class FAndroidGPUInfo
 {
@@ -21,6 +24,7 @@ public:
 	FString GPUFamily;
 	FString GLVersion;
 	bool bSupportsFloatingPointRenderTargets;
+	bool bSupportsTextureHalfFloat;
 	bool bSupportsFrameBufferFetch;
 	TArray<FString> TargetPlatformNames;
 
@@ -32,6 +36,7 @@ private:
 		GPUFamily = "NVIDIA Tegra";
 		GLVersion = "4.4.0";
 		bSupportsFloatingPointRenderTargets = true;
+		bSupportsTextureHalfFloat = true;
 		TargetPlatformNames.Add(TEXT("Android_GL4"));
 #else
 		// this is only valid in the game thread, make sure we are initialized there before being called on other threads!
@@ -44,11 +49,14 @@ private:
 		{
 			FAndroidAppEntry::PlatformInit();
 #if PLATFORM_ANDROIDES31
-			EGL->InitSurface(true);
+			EGL->InitSurface(false, true);
 #endif
 		}
 #if !PLATFORM_ANDROIDES31
-		EGL->InitSurface(true);
+		// Do not create a window surface if the app is for GearVR (use small buffer)
+		bool bCreateSurface = !AndroidThunkCpp_IsGearVRApplication();
+		FPlatformMisc::LowLevelOutputDebugString(TEXT("FAndroidGPUInfo"));
+		EGL->InitSurface(bCreateSurface, bCreateSurface);
 #endif
 		EGL->SetCurrentSharedContext();
 
@@ -103,6 +111,7 @@ private:
 #endif
 
 		bSupportsFloatingPointRenderTargets = ExtensionsString.Contains(TEXT("GL_EXT_color_buffer_half_float"));
+		bSupportsTextureHalfFloat = ExtensionsString.Contains(TEXT("GL_OES_texture_half_float"));
 		bSupportsFrameBufferFetch = ExtensionsString.Contains(TEXT("GL_EXT_shader_framebuffer_fetch")) || ExtensionsString.Contains(TEXT("GL_NV_shader_framebuffer_fetch")) || ExtensionsString.Contains(TEXT("GL_ARM_shader_framebuffer_fetch"));
 #endif
 		GAndroidGPUInfoReady = true;

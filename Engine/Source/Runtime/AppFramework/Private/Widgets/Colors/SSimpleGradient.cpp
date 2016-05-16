@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "AppFrameworkPrivatePCH.h"
 #include "SSimpleGradient.h"
@@ -49,8 +49,7 @@ int32 SSimpleGradient::OnPaint( const FPaintArgs& Args, const FGeometry& Allotte
 		GradientStops,
 		Orientation,
 		MyClippingRect,
-		DrawEffects,
-		false
+		DrawEffects | ESlateDrawEffect::NoGamma
 	);
 
 	return LayerId + 1;

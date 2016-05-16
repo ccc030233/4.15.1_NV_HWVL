@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "IOSRuntimeSettingsPrivatePCH.h"
 
@@ -17,7 +17,7 @@ UIOSRuntimeSettings::UIOSRuntimeSettings(const FObjectInitializer& ObjectInitial
     FrameRateLock = EPowerUsageFrameRateLock::PUFRL_30;
 	bSupportsIPad = true;
 	bSupportsIPhone = true;
-	MinimumiOSVersion = EIOSVersion::IOS_61;
+	MinimumiOSVersion = EIOSVersion::IOS_7;
 	bDevForArmV7 = true;
 	bDevForArm64 = false;
 	bDevForArmV7S = false;
@@ -28,6 +28,10 @@ UIOSRuntimeSettings::UIOSRuntimeSettings(const FObjectInitializer& ObjectInitial
 	AdditionalPlistData = TEXT("");
 	AdditionalLinkerFlags = TEXT("");
 	AdditionalShippingLinkerFlags = TEXT("");
+	bTreatRemoteAsSeparateController = false;
+	bAllowRemoteRotation = true;
+	bUseRemoteAsVirtualJoystick = true;
+	bUseRemoteAbsoluteDpadValues = false;
 }
 
 #if WITH_EDITOR
@@ -96,6 +100,12 @@ void UIOSRuntimeSettings::PostInitProperties()
 				break;
 			}
 		}
+	}
+
+	// switch IOS_6.1 to IOS_7
+	if (MinimumiOSVersion == EIOSVersion::IOS_61)
+	{
+		MinimumiOSVersion = EIOSVersion::IOS_7;
 	}
 }
 #endif

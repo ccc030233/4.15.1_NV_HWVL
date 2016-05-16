@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "CorePrivatePCH.h"
 #include "WindowsApplication.h"
@@ -49,6 +49,7 @@ FWindowsApplication::FWindowsApplication( const HINSTANCE HInstance, const HICON
 	, InstanceHandle( HInstance )
 	, bUsingHighPrecisionMouseInput( false )
 	, bIsMouseAttached( false )
+	, bForceActivateByMouse( false )
 	, XInput( XInputInterface::Create( MessageHandler ) )
 	, bHasLoadedInputPlugins( false )
 	, bAllowedToDeferMessageProcessing(true)
@@ -352,31 +353,8 @@ void FWindowsApplication::SetHighPrecisionMouseMode( const bool Enable, const TS
 	::RegisterRawInputDevices( &RawInputDevice, 1, sizeof( RAWINPUTDEVICE ) );
 }
 
-typedef BOOL(*pWin32CalculatePopupWindowPosition)( const POINT* /*anchorPoint*/, const SIZE* /*windowSize*/, UINT /*flags*/, RECT* /*excludeRect*/, RECT* /*popupWindowPosition*/ );
-static pWin32CalculatePopupWindowPosition GetCalculatePopupWindowPosition()
-{
-	static pWin32CalculatePopupWindowPosition Function = (pWin32CalculatePopupWindowPosition)(void*)GetProcAddress(GetModuleHandle(TEXT("User32.dll")), "CalculatePopupWindowPosition");
-	return Function;
-}
-
 bool FWindowsApplication::TryCalculatePopupWindowPosition( const FPlatformRect& InAnchor, const FVector2D& InSize, const EPopUpOrientation::Type Orientation, /*OUT*/ FVector2D* const CalculatedPopUpPosition ) const
 {
-	if ( pWin32CalculatePopupWindowPosition LinkedCalculatePopupWindowPosition = GetCalculatePopupWindowPosition() )
-	{
-		SIZE WindowSize = { FMath::TruncToInt(InSize.X), FMath::TruncToInt(InSize.Y) };
-		RECT ExcludeRect  = { InAnchor.Left, InAnchor.Top, InAnchor.Right, InAnchor.Bottom };
-
-		POINT AnchorPoint = ( Orientation == EPopUpOrientation::Vertical ) ? POINT({ InAnchor.Left, InAnchor.Bottom }) : POINT({ InAnchor.Right, InAnchor.Top });
-
-		RECT WindowPos;
-		BOOL Success = LinkedCalculatePopupWindowPosition(&AnchorPoint, &WindowSize, TPM_LEFTALIGN | TPM_TOPALIGN, &ExcludeRect, &WindowPos);
-		if ( Success )
-		{
-			CalculatedPopUpPosition->Set(WindowPos.left, WindowPos.top);
-			return true;
-		}
-	}
-
 	return false;
 }
 
@@ -770,13 +748,27 @@ int32 FWindowsApplication::ProcessMessage( HWND hwnd, uint32 msg, WPARAM wParam,
 		case WM_NCMOUSEMOVE:
 		case WM_MOUSEMOVE:
 		case WM_MOUSEWHEEL:
-		case WM_SETCURSOR:
 			{
 				DeferMessage( CurrentNativeEventWindowPtr, hwnd, msg, wParam, lParam );
 				// Handled
 				return 0;
 			}
 			break;
+
+		case WM_SETCURSOR:
+		{
+			DeferMessage(CurrentNativeEventWindowPtr, hwnd, msg, wParam, lParam);
+
+			// If we're rendering our own window border, we'll "handle" this event so that Windows doesn't try to manage the cursor
+			// appearance for us in the non-client area.  However, for OS window borders we need to fall through to DefWindowProc to
+			// allow Windows to draw the resize cursor
+			if (!CurrentNativeEventWindow->GetDefinition().HasOSWindowBorder)
+			{
+				// Handled
+				return 0;
+			}
+		}
+		break;
 
 		// Mouse Movement
 		case WM_INPUT:
@@ -916,6 +908,13 @@ int32 FWindowsApplication::ProcessMessage( HWND hwnd, uint32 msg, WPARAM wParam,
 			}
 			break;
 #endif
+
+			// Window focus and activation
+		case WM_MOUSEACTIVATE:
+			{
+				DeferMessage(CurrentNativeEventWindowPtr, hwnd, msg, wParam, lParam);
+			}
+			break;
 
 			// Window focus and activation
 		case WM_ACTIVATE:
@@ -1480,7 +1479,18 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 			// Mouse Cursor
 		case WM_SETCURSOR:
 			{
-				return MessageHandler->OnCursorSet() ? 1 : 0;
+				return MessageHandler->OnCursorSet() ? 0 : 1;
+			}
+			break;
+
+			// Window focus and activation
+		case WM_MOUSEACTIVATE:
+			{
+				// If the mouse activate isn't in the client area we'll force the WM_ACTIVATE to be EWindowActivation::ActivateByMouse
+				// This ensures that clicking menu buttons on the header doesn't generate a WM_ACTIVATE with EWindowActivation::Activate
+				// which may cause mouse capture to be taken because is not differentiable from Alt-Tabbing back to the application.
+				bForceActivateByMouse = !(LOWORD(lParam) & HTCLIENT);
+				return 0;
 			}
 			break;
 
@@ -1491,7 +1501,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 
 				if (LOWORD(wParam) & WA_ACTIVE)
 				{
-					ActivationType = EWindowActivation::Activate;
+					ActivationType = bForceActivateByMouse ? EWindowActivation::ActivateByMouse : EWindowActivation::Activate;
 				}
 				else if (LOWORD(wParam) & WA_CLICKACTIVE)
 				{
@@ -1501,6 +1511,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 				{
 					ActivationType = EWindowActivation::Deactivate;
 				}
+				bForceActivateByMouse = false;
 
 				if ( CurrentNativeEventWindowPtr.IsValid() )
 				{
@@ -1794,6 +1805,11 @@ void FWindowsApplication::PollGameDeviceState( const float TimeDelta )
 		bHasLoadedInputPlugins = true;
 	}
 
+	if (FApp::UseVRFocus() && !FApp::HasVRFocus())
+	{
+		return; // do not proceed if the app uses VR focus but doesn't have it
+	}
+
 	// Poll game device states and send new events
 	XInput->SendControllerEvents();
 
@@ -1807,6 +1823,11 @@ void FWindowsApplication::PollGameDeviceState( const float TimeDelta )
 
 void FWindowsApplication::SetForceFeedbackChannelValue(int32 ControllerId, FForceFeedbackChannelType ChannelType, float Value)
 {
+	if (FApp::UseVRFocus() && !FApp::HasVRFocus())
+	{
+		return; // do not proceed if the app uses VR focus but doesn't have it
+	}
+
 	// send vibration to externally-implemented devices
 	for( auto DeviceIt = ExternalInputDevices.CreateIterator(); DeviceIt; ++DeviceIt )
 	{
@@ -1816,6 +1837,11 @@ void FWindowsApplication::SetForceFeedbackChannelValue(int32 ControllerId, FForc
 
 void FWindowsApplication::SetForceFeedbackChannelValues(int32 ControllerId, const FForceFeedbackValues &Values)
 {
+	if (FApp::UseVRFocus() && !FApp::HasVRFocus())
+	{
+		return; // do not proceed if the app uses VR focus but doesn't have it
+	}
+
 	const FForceFeedbackValues* InternalValues = &Values;
  
 	XInput->SetChannelValues( ControllerId, *InternalValues );
@@ -1829,6 +1855,11 @@ void FWindowsApplication::SetForceFeedbackChannelValues(int32 ControllerId, cons
 
 void FWindowsApplication::SetHapticFeedbackValues(int32 ControllerId, int32 Hand, const FHapticFeedbackValues& Values)
 {
+	if (FApp::UseVRFocus() && !FApp::HasVRFocus())
+	{
+		return; // do not proceed if the app uses VR focus but doesn't have it
+	}
+
 	for (auto DeviceIt = ExternalInputDevices.CreateIterator(); DeviceIt; ++DeviceIt)
 	{
 		IHapticDevice* HapticDevice = (*DeviceIt)->GetHapticDevice();

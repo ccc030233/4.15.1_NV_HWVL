@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #include "EnginePrivate.h"
 #include "ObjectEditorUtils.h"
@@ -75,13 +75,19 @@ void ANavLinkProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 		UNavigationSystem* NavSys = UNavigationSystem::GetCurrent(GetWorld());
 		if (NavSys)
 		{
-			NavSys->UpdateNavOctree(this);
+			NavSys->UpdateActorInNavOctree(*this);
 		}
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif // WITH_EDITOR
+
+void ANavLinkProxy::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	SmartLinkComp->SetNavigationRelevancy(bSmartLinkIsRelevant);
+}
 
 #if ENABLE_VISUAL_LOG
 void ANavLinkProxy::BeginPlay()
@@ -91,6 +97,8 @@ void ANavLinkProxy::BeginPlay()
 	{
 		REDIRECT_OBJECT_TO_VLOG(this, NavSys);
 	}
+
+	Super::BeginPlay();
 }
 #endif // ENABLE_VISUAL_LOG
 
@@ -107,7 +115,7 @@ FBox ANavLinkProxy::GetNavigationBounds() const
 
 bool ANavLinkProxy::IsNavigationRelevant() const
 {
-	return (PointLinks.Num() > 0) || (SegmentLinks.Num() > 0);
+	return (PointLinks.Num() > 0) || (SegmentLinks.Num() > 0) || bSmartLinkIsRelevant;
 }
 
 bool ANavLinkProxy::GetNavigationLinksClasses(TArray<TSubclassOf<UNavLinkDefinition> >& OutClasses) const

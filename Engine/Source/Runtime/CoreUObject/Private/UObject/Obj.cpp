@@ -1,4 +1,4 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	UnObj.cpp: Unreal object manager.
@@ -13,8 +13,9 @@
 #include "Serialization/ArchiveDescribeReference.h"
 #include "FindStronglyConnected.h"
 #include "HotReloadInterface.h"
-#include "UObject/TlsObjectInitializers.h"
 #include "UObject/UObjectThreadContext.h"
+#include "ExclusiveLoadPackageTimeTracker.h"
+#include "Serialization/DeferredMessageLog.h"
 
 DEFINE_LOG_CATEGORY(LogObj);
 
@@ -45,7 +46,7 @@ static UPackage*			GObjTransientPkg								= NULL;
 #endif
 
 UObject::UObject( EStaticConstructor, EObjectFlags InFlags )
-: UObjectBaseUtility(InFlags | RF_Native | RF_RootSet)
+: UObjectBaseUtility(InFlags | (!(InFlags & RF_Dynamic) ? (RF_MarkAsNative | RF_MarkAsRootSet) : RF_NoFlags))
 {
 #if WITH_HOT_RELOAD_CTORS
 	EnsureNotRetrievingVTablePtr();
@@ -79,7 +80,7 @@ void UObject::EnsureNotRetrievingVTablePtr() const
 
 UObject* UObject::CreateDefaultSubobject(FName SubobjectFName, UClass* ReturnType, UClass* ClassToCreateByDefault, bool bIsRequired, bool bAbstract, bool bIsTransient)
 {
-	auto CurrentInitializer = FTlsObjectInitializers::Top();
+	FObjectInitializer* CurrentInitializer = FUObjectThreadContext::Get().TopInitializer();
 	UE_CLOG(!CurrentInitializer, LogObj, Fatal, TEXT("No object initializer found during construction."));
 	UE_CLOG(CurrentInitializer->Obj != this, LogObj, Fatal, TEXT("Using incorrect object initializer."));
 	return CurrentInitializer->CreateDefaultSubobject(this, SubobjectFName, ReturnType, ClassToCreateByDefault, bIsRequired, bAbstract, bIsTransient);
@@ -87,7 +88,7 @@ UObject* UObject::CreateDefaultSubobject(FName SubobjectFName, UClass* ReturnTyp
 
 UObject* UObject::CreateEditorOnlyDefaultSubobjectImpl(FName SubobjectName, UClass* ReturnType, bool bTransient)
 {
-	auto CurrentInitializer = FTlsObjectInitializers::Top();
+	FObjectInitializer* CurrentInitializer = FUObjectThreadContext::Get().TopInitializer();
 	return CurrentInitializer->CreateEditorOnlyDefaultSubobject(this, SubobjectName, ReturnType, bTransient);
 }
 
@@ -292,8 +293,7 @@ void UObject::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent
 
 void UObject::PreEditChange( FEditPropertyChain& PropertyAboutToChange )
 {
-	const bool bIsEditingArchetypeProperty = HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject) && 
-		(PropertyAboutToChange.GetActiveMemberNode() == PropertyAboutToChange.GetHead()) && !FApp::IsGame();
+	const bool bIsEditingArchetypeProperty = HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject) && !FApp::IsGame();
 
 	if (bIsEditingArchetypeProperty)
 	{
@@ -506,7 +506,10 @@ void UObject::GetArchetypeInstances( TArray<UObject*>& Instances )
 	{
 		// we need to evaluate CDOs as well, but nothing pending kill
 		TArray<UObject*> IterObjects;
-		GetObjectsOfClass(GetClass(), IterObjects, true, RF_PendingKill);
+		{
+			const bool bIncludeNestedObjects = true;
+			GetObjectsOfClass(GetClass(), IterObjects, bIncludeNestedObjects, RF_NoFlags, EInternalObjectFlags::PendingKill);
+		}
 
 		// if this object is the class default object, any object of the same class (or derived classes) could potentially be affected
 		if ( !HasAnyFlags(RF_ArchetypeObject) )
@@ -596,20 +599,20 @@ FString UObject::GetDetailedInfo() const
 }
 
 #if WITH_ENGINE
-bool bGetWorldOverriden = false;
+bool bGetWorldOverridden = false;
 
 class UWorld* UObject::GetWorld() const
 {
-	bGetWorldOverriden = false;
+	bGetWorldOverridden = false;
 	return NULL;
 }
 
 class UWorld* UObject::GetWorldChecked(bool& bSupported) const
 {
-	bGetWorldOverriden = true;
+	bGetWorldOverridden = true;
 	UWorld* World = GetWorld();
 
-	if (!bGetWorldOverriden)
+	if (!bGetWorldOverridden)
 	{
 #if DO_CHECK
 		static TSet<UClass*> ReportedClasses;
@@ -632,15 +635,15 @@ class UWorld* UObject::GetWorldChecked(bool& bSupported) const
 #endif
 	}
 
-	bSupported = bGetWorldOverriden;
+	bSupported = bGetWorldOverridden;
 	return World;
 }
 
 bool UObject::ImplementsGetWorld() const
 {
-	bGetWorldOverriden = true;
+	bGetWorldOverridden = true;
 	GetWorld();
-	return bGetWorldOverriden;
+	return bGetWorldOverridden;
 }
 #endif
 
@@ -717,7 +720,11 @@ void UObject::ConditionalPostLoad()
 		}
 
 		ConditionalPostLoadSubobjects();
-		PostLoad();
+
+		{
+			FExclusiveLoadPackageTimeTracker::FScopedPostLoadTracker Tracker(this);
+			PostLoad();
+		}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		if (ThreadContext.DebugPostLoad.Contains(this))
@@ -931,11 +938,11 @@ void UObject::Serialize( FArchive& Ar )
 			Ar << WasKill;
 			if (WasKill)
 			{
-				SetFlags( RF_PendingKill );
+				MarkPendingKill();
 			}
 			else
 			{
-				ClearFlags( RF_PendingKill );
+				ClearPendingKill();
 			}
 		}
 		else if( Ar.IsSaving() )
@@ -978,6 +985,11 @@ void UObject::SerializeScriptProperties( FArchive& Ar ) const
 		const bool bBreakSerializationRecursion = BreakSerializationRecursion && Ar.IsLoading() && Ar.GetLinker();
 #else 
 		const bool bBreakSerializationRecursion = false;
+#endif
+#if WITH_EDITOR
+		static const FName NAME_SerializeScriptProperties = FName(TEXT("SerializeScriptProperties"));
+		FArchive::FScopeAddDebugData P(Ar, NAME_SerializeScriptProperties);
+		FArchive::FScopeAddDebugData S(Ar, ObjClass->GetFName());
 #endif
 		ObjClass->SerializeTaggedProperties(Ar, (uint8*)this, HasAnyFlags(RF_ClassDefaultObject) ? ObjClass->GetSuperClass() : ObjClass, (uint8*)DiffObject, bBreakSerializationRecursion ? this : NULL);
 	}
@@ -1098,7 +1110,7 @@ bool UObject::CanCheckDefaultSubObjects(bool bForceCheck, bool& bResult)
 		bResult = false; // these aren't in a suitable spot in their lifetime for testing
 		bCanCheck = false;
 	}
-	if (bCanCheck && (HasAnyFlags(RF_NeedLoad | RF_NeedPostLoad | RF_NeedPostLoadSubobjects | RF_Unreachable | RF_PendingKill) || GIsDuplicatingClassForReinstancing))
+	if (bCanCheck && (HasAnyFlags(RF_NeedLoad | RF_NeedPostLoad | RF_NeedPostLoadSubobjects) || IsPendingKillOrUnreachable() || GIsDuplicatingClassForReinstancing))
 	{
 		bResult = true; // these aren't in a suitable spot in their lifetime for testing
 		bCanCheck = false;
@@ -1187,6 +1199,8 @@ FString GetConfigFilename( UObject* SourceObject )
 {
 	checkSlow(SourceObject);
 
+#if 0 // If you find that you are sad this code is gone, please contact RobM or JoeG. We could not find a case for its existence
+	// and it broke/made cumbersome perobjectconfig file specification for files that were outside the transient package
 	if (UsesPerObjectConfig(SourceObject) && SourceObject->GetOutermost() != GetTransientPackage())
 	{
 		// if this is a PerObjectConfig object that is not contained by the transient package,
@@ -1196,6 +1210,7 @@ FString GetConfigFilename( UObject* SourceObject )
 		return PerObjectConfigName;
 	}
 	else
+#endif
 	{
 		// otherwise look at the class to get the config name
 		return SourceObject->GetClass()->GetConfigName();
@@ -1306,7 +1321,7 @@ bool UObject::IsSafeForRootSet() const
 	}
 
 	// Exclude linkers from root set if we're using seekfree loading		
-	if (!HasAnyFlags(RF_PendingKill))
+	if (!IsPendingKill())
 	{
 		return true;
 	}
@@ -1323,7 +1338,7 @@ void UObject::TagSubobjects(EObjectFlags NewFlags)
 	for( TArray<UObject*>::TIterator it(MemberReferences); it; ++it )
 	{
 		UObject* CurrentObject = *it;
-		if( CurrentObject && !CurrentObject->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS | RF_RootSet))
+		if( CurrentObject && !CurrentObject->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS) && !CurrentObject->IsRooted())
 		{
 			CurrentObject->SetFlags(NewFlags);
 			CurrentObject->TagSubobjects(NewFlags);
@@ -1600,16 +1615,16 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 					Key = FString::Printf(TEXT("%s[%i]"), *Property->GetName(), i);
 				}
 
-				FString Value;
+					FString Value;
 				bool bFoundValue = GConfig->GetString( *ClassSection, *Key, Value, *PropFileName );
-				if (bFoundValue)
-				{
-					if (Property->ImportText(*Value, Property->ContainerPtrToValuePtr<uint8>(this, i), PortFlags, this) == NULL)
+					if (bFoundValue)
 					{
-						// this should be an error as the properties from the .ini / .int file are not correctly being read in and probably are affecting things in subtle ways
-						UE_LOG(LogObj, Error, TEXT("LoadConfig (%s): import failed for %s in: %s"), *GetPathName(), *Property->GetName(), *Value);
+						if (Property->ImportText(*Value, Property->ContainerPtrToValuePtr<uint8>(this, i), PortFlags, this) == NULL)
+						{
+							// this should be an error as the properties from the .ini / .int file are not correctly being read in and probably are affecting things in subtle ways
+							UE_LOG(LogObj, Error, TEXT("LoadConfig (%s): import failed for %s in: %s"), *GetPathName(), *Property->GetName(), *Value);
+						}
 					}
-				}
 #if !UE_BUILD_SHIPPING
 				else if (!FPlatformProperties::RequiresCookedData())
 				{
@@ -1641,11 +1656,11 @@ void UObject::LoadConfig( UClass* ConfigClass/*=NULL*/, const TCHAR* InFilename/
 				{
 					ArrayHelper.EmptyAndAddValues(List.Num());
 
-					for( int32 i=List.Num()-1,c=0; i>=0; i--,c++ )
-					{
-						Array->Inner->ImportText( *List[i], ArrayHelper.GetRawPtr(c), PortFlags, this );
+						for( int32 i=List.Num()-1,c=0; i>=0; i--,c++ )
+						{
+							Array->Inner->ImportText( *List[i], ArrayHelper.GetRawPtr(c), PortFlags, this );
+						}
 					}
-				}
 				else
 				{
 					int32 Index = 0;
@@ -1797,13 +1812,13 @@ void UObject::SaveConfig( uint64 Flags, const TCHAR* InFilename, FConfigCacheIni
 					FString CompleteKey = FString::Printf(TEXT("%s%s"), bIsADefaultIniWrite ? TEXT("+") : TEXT(""), *Key);
 
 					FScriptArrayHelper_InContainer ArrayHelper(Array, this);
-					for( int32 i=0; i<ArrayHelper.Num(); i++ )
-					{
-						FString	Buffer;
-						Array->Inner->ExportTextItem( Buffer, ArrayHelper.GetRawPtr(i), ArrayHelper.GetRawPtr(i), this, PortFlags );
-						Sec->Add(*CompleteKey, *Buffer);
+						for( int32 i=0; i<ArrayHelper.Num(); i++ )
+						{
+							FString	Buffer;
+							Array->Inner->ExportTextItem( Buffer, ArrayHelper.GetRawPtr(i), ArrayHelper.GetRawPtr(i), this, PortFlags );
+							Sec->Add(*CompleteKey, *Buffer);
+						}
 					}
-				}
 				else if( Property->Identical_InContainer(this, SuperClassDefaultObject) )
 				{
 					// If we are not writing it to config above, we should make sure that this property isn't stagnant in the cache.
@@ -1828,10 +1843,10 @@ void UObject::SaveConfig( uint64 Flags, const TCHAR* InFilename, FConfigCacheIni
 							Key = TempKey;
 						}
 
-						FString	Value;
-						Property->ExportText_InContainer( Index, Value, this, this, this, PortFlags );
-						Config->SetString( *Section, *Key, *Value, *PropFileName );
-					}
+							FString	Value;
+							Property->ExportText_InContainer( Index, Value, this, this, this, PortFlags );
+							Config->SetString( *Section, *Key, *Value, *PropFileName );
+						}
 					else if( Property->Identical_InContainer(this, SuperClassDefaultObject, Index) )
 					{
 						// If we are not writing it to config above, we should make sure that this property isn't stagnant in the cache.
@@ -1984,7 +1999,7 @@ void UObject::ReinitializeProperties( UObject* SourceObject/*=NULL*/, FObjectIns
 	// the properties for this object ensures that any cleanup required when an object is reinitialized from defaults occurs properly
 	// for example, when re-initializing UPrimitiveComponents, the component must notify the rendering thread that its data structures are
 	// going to be re-initialized
-	StaticConstructObject_Internal( GetClass(), GetOuter(), GetFName(), GetFlags(), SourceObject, !HasAnyFlags(RF_ClassDefaultObject), InstanceGraph );
+	StaticConstructObject_Internal( GetClass(), GetOuter(), GetFName(), GetFlags(), GetInternalFlags(), SourceObject, !HasAnyFlags(RF_ClassDefaultObject), InstanceGraph );
 }
 
 
@@ -2011,7 +2026,8 @@ static void StaticShutdownAfterError()
 
 		for( FRawObjectIterator It; It; ++It )
 		{
-			It->ShutdownAfterError();
+			UObject* Object = static_cast<UObject*>(It->Object);
+			Object->ShutdownAfterError();
 		}
 	}
 }
@@ -2098,7 +2114,7 @@ void UObject::OutputReferencers( FOutputDevice& Ar, FReferencerInformationList* 
 					ObjectReachability += TEXT(" (root)");
 				}
 		
-				if( RefInfo.Referencer->HasAnyFlags(RF_Native) )
+				if( RefInfo.Referencer->IsNative() )
 				{
 					ObjectReachability += TEXT(" (native)");
 				}
@@ -2260,19 +2276,14 @@ static TArray<FObjectFlag> PrivateInitObjectFlagList()
 	DECLARE_OBJECT_FLAG( ClassDefaultObject )
 	DECLARE_OBJECT_FLAG( ArchetypeObject )
 	DECLARE_OBJECT_FLAG( Transactional )
-	DECLARE_OBJECT_FLAG( Unreachable )
 	DECLARE_OBJECT_FLAG( Public	)
 	DECLARE_OBJECT_FLAG( TagGarbageTemp )
 	DECLARE_OBJECT_FLAG( NeedLoad )
-	DECLARE_OBJECT_FLAG( AsyncLoading )
 	DECLARE_OBJECT_FLAG( Transient )
 	DECLARE_OBJECT_FLAG( Standalone )
-	DECLARE_OBJECT_FLAG( RootSet )
 	DECLARE_OBJECT_FLAG( BeginDestroyed )
 	DECLARE_OBJECT_FLAG( FinishDestroyed )
 	DECLARE_OBJECT_FLAG( NeedPostLoad )
-	DECLARE_OBJECT_FLAG( Native )
-	DECLARE_OBJECT_FLAG( PendingKill	)
 #undef DECLARE_OBJECT_FLAG
 #endif
 	return ObjectFlagList;
@@ -3031,7 +3042,7 @@ bool StaticExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 				// Skip objects that are trashed
 				if ((Target->GetOutermost() == GetTransientPackage())
 					|| Target->GetClass()->HasAnyClassFlags(CLASS_NewerVersionExists)
-					|| Target->HasAnyFlags(RF_PendingKill))
+					|| Target->IsPendingKill())
 				{
 					continue;
 				}
@@ -3584,7 +3595,10 @@ void PreInitUObject()
 void InitUObject()
 {
 	// Initialize redirects map
-	FLinkerLoad::CreateActiveRedirectsMap(GEngineIni);
+	for (const auto& It : *GConfig)
+	{
+		FLinkerLoad::CreateActiveRedirectsMap(It.Key);
+	}
 
 	FCoreDelegates::OnShutdownAfterError.AddStatic(StaticShutdownAfterError);
 	FCoreDelegates::OnExit.AddStatic(StaticExit);
@@ -3609,9 +3623,10 @@ void InitUObject()
 		FCoreUObjectDelegates::StringAssetReferenceSaving.BindRaw(&GRedirectCollector, &FRedirectCollector::OnStringAssetReferenceSaved);
 	}
 
-	// this is a hack to the cooker insight into the startup packages
+	// If the cooker is running or we want to fixup string referenced assets, hook up callbacks for string asset references
 	if (CommandLine.Contains(TEXT("cookcommandlet")) || 
-		  CommandLine.Contains(TEXT("run=cook")) )
+		  CommandLine.Contains(TEXT("run=cook")) ||
+		  CommandLine.Contains(TEXT("FixupStringAssetReferences")) )
 	{
 		FCoreUObjectDelegates::StringAssetReferenceLoaded.BindRaw(&GRedirectCollector, &FRedirectCollector::OnStringAssetReferenceLoaded);
 		FCoreUObjectDelegates::StringAssetReferenceSaving.BindRaw(&GRedirectCollector, &FRedirectCollector::OnStringAssetReferenceSaved);
@@ -3645,6 +3660,7 @@ void StaticUObjectInit()
 }
 
 // Internal cleanup functions
+void CleanupGCArrayPools();
 void CleanupLinkerAnnotations();
 
 //
@@ -3686,11 +3702,13 @@ void StaticExit()
 		// Valid object.
 		GObjectCountDuringLastMarkPhase++;
 
-		UObject* Obj = *It;
+		FUObjectItem* ObjItem = *It;
+		checkSlow(ObjItem);
+		UObject* Obj = static_cast<UObject*>(ObjItem->Object);
 		if (Obj && !Obj->IsA<UField>()) // Skip Structures, properties, etc.. They could be still necessary while GC.
 		{
 			// Mark as unreachable so purge phase will kill it.
-			It->SetFlags(RF_Unreachable);
+			ObjItem->SetUnreachable();
 		}
 	}
 
@@ -3703,11 +3721,13 @@ void StaticExit()
 	//
 	for ( FRawObjectIterator It; It; ++It )
 	{
-		UObject* Object = *It;
-		if( Object->HasAnyFlags( RF_Unreachable ) )
+		FUObjectItem* ObjItem = *It;
+		checkSlow(ObjItem);
+		if (ObjItem->IsUnreachable())
 		{
 			// Begin the object's asynchronous destruction.
-			Object->ConditionalBeginDestroy();
+			UObject* Obj = static_cast<UObject*>(ObjItem->Object);
+			Obj->ConditionalBeginDestroy();
 		}
 	}
 
@@ -3718,16 +3738,18 @@ void StaticExit()
 		for (FRawObjectIterator It; It; ++It)
 		{
 			// Mark as unreachable so purge phase will kill it.
-			It->SetFlags(RF_Unreachable);
+			It->SetUnreachable();
 		}
 
 		for (FRawObjectIterator It; It; ++It)
 		{
-			UObject* Object = *It;
-			if (Object->HasAnyFlags(RF_Unreachable))
+			FUObjectItem* ObjItem = *It;
+			checkSlow(ObjItem);
+			if (ObjItem->IsUnreachable())
 			{
 				// Begin the object's asynchronous destruction.
-				Object->ConditionalBeginDestroy();
+				UObject* Obj = static_cast<UObject*>(ObjItem->Object);
+				Obj->ConditionalBeginDestroy();
 			}
 		}
 
@@ -3737,54 +3759,12 @@ void StaticExit()
 	UObjectBaseShutdown();
 	// Empty arrays to prevent falsely-reported memory leaks.
 	FUObjectThreadContext::Get().ObjLoaded.Empty();
+	FDeferredMessageLog::Cleanup();
+	CleanupGCArrayPools();
 	CleanupLinkerAnnotations();
 
 	UE_LOG(LogExit, Log, TEXT("Object subsystem successfully closed.") );
 }
-
-void MarkObjectsToDisregardForGC()
-{
-	// Iterate over all class objects and force the default objects to be created. Additionally also
-	// assembles the token reference stream at this point. This is required for class objects that are
-	// not taken into account for garbage collection but have instances that are.
-	
-	// Workaround for Visual Studio 2013 analyzer bug. Using a temporary directly in the range-for
-	// errors if the analyzer is enabled.
-	TObjectRange<UClass> Range;
-	for( auto* Class : Range )
-	{
-		// Force the default object to be created.
-		Class->GetDefaultObject(); // Force the default object to be constructed if it isn't already
-		// Assemble reference token stream for garbage collection/ RTGC.
-		Class->AssembleReferenceTokenStream();
-	}
-
-	// Iterate over all objects and mark them to be part of root set.
-	int32 NumAlwaysLoadedObjects = 0;
-	int32 NumRootObjects = 0;
-	for( FObjectIterator It; It; ++It )
-	{
-		UObject* Object = *It;
-		if (Object->IsSafeForRootSet())
-		{
-			NumRootObjects++;
-			Object->AddToRoot();
-		}
-		else if (Object->HasAnyFlags(RF_RootSet))
-		{
-			Object->RemoveFromRoot();
-		}
-		NumAlwaysLoadedObjects++;
-	}
-
-	UE_LOG(LogObj, Log, TEXT("%i objects as part of root set at end of initial load."), NumAlwaysLoadedObjects);
-	if (GetUObjectArray().DisregardForGCEnabled())
-	{
-		UE_LOG(LogObj, Log, TEXT("%i objects are not in the root set, but can never be destroyed because they are in the DisregardForGC set."), NumAlwaysLoadedObjects - NumRootObjects);
-	}
-	GUObjectAllocator.BootMessage();
-}					
-
 
 
 /*-----------------------------------------------------------------------------
@@ -3830,7 +3810,7 @@ void UObject::PreDestroyFromReplication()
 /** IsNameStableForNetworking means an object can be referred to its path name (relative to outer) over the network */
 bool UObject::IsNameStableForNetworking() const
 {
-	return IsDefaultSubobject() || HasAnyFlags( RF_WasLoaded | RF_DefaultSubObject | RF_Native );
+	return HasAnyFlags(RF_WasLoaded | RF_DefaultSubObject) || IsNative() || IsDefaultSubobject();
 }
 
 /** IsFullNameStableForNetworking means an object can be referred to its full path name over the network */

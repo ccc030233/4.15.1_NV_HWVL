@@ -1,10 +1,14 @@
-// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 
 /**
  * Implements a message transport technology using an UDP network connection.
+ *
+ * On platforms that support multiple processes, the transport is using two sockets,
+ * one for per-process unicast sending/receiving, and one for multicast receiving.
+ * Console and mobile platforms use a single multicast socket for all sending and receiving.
  */
 class FUdpMessageTransport
 	: public IMessageTransport
@@ -18,9 +22,9 @@ public:
 	 * @param InMulticastEndpoint The multicast group endpoint to transport messages to.
 	 * @param InMulticastTtl The multicast time-to-live.
 	 */
-	FUdpMessageTransport( const FIPv4Endpoint& InLocalEndpoint, const FIPv4Endpoint& InMulticastEndpoint, uint8 InMulticastTtl );
+	FUdpMessageTransport(const FIPv4Endpoint& InLocalEndpoint, const FIPv4Endpoint& InMulticastEndpoint, uint8 InMulticastTtl);
 
-	/** Destructor. */
+	/** Virtual destructor. */
 	virtual ~FUdpMessageTransport();
 
 public:
@@ -49,21 +53,21 @@ public:
 
 	virtual bool StartTransport() override;
 	virtual void StopTransport() override;
-	virtual bool TransportMessage( const IMessageContextRef& Context, const TArray<FGuid>& Recipients ) override;
+	virtual bool TransportMessage(const IMessageContextRef& Context, const TArray<FGuid>& Recipients) override;
 
 private:
 
 	/** Handles received transport messages. */
-	void HandleProcessorMessageReassembled( const FUdpReassembledMessageRef& ReassembledMessage, const IMessageAttachmentPtr& Attachment, const FGuid& NodeId );
+	void HandleProcessorMessageReassembled(const FUdpReassembledMessageRef& ReassembledMessage, const IMessageAttachmentPtr& Attachment, const FGuid& NodeId);
 
 	/** Handles discovered transport endpoints. */
-	void HandleProcessorNodeDiscovered( const FGuid& DiscoveredNodeId )
+	void HandleProcessorNodeDiscovered(const FGuid& DiscoveredNodeId)
 	{
 		NodeDiscoveredDelegate.ExecuteIfBound(DiscoveredNodeId);
 	}
 
 	/** Handles lost transport endpoints. */
-	void HandleProcessorNodeLost( const FGuid& LostNodeId )
+	void HandleProcessorNodeLost(const FGuid& LostNodeId)
 	{
 		NodeLostDelegate.ExecuteIfBound(LostNodeId);
 	}
@@ -72,9 +76,6 @@ private:
 	void HandleSocketDataReceived(const FArrayReaderPtr& Data, const FIPv4Endpoint& Sender);
 
 private:
-
-	/** Holds the local endpoint to receive messages on. */
-	FIPv4Endpoint LocalEndpoint;
 
 	/** Holds the message processor. */
 	FUdpMessageProcessor* MessageProcessor;
@@ -97,11 +98,16 @@ private:
 	/** Holds a pointer to the socket sub-system. */
 	ISocketSubsystem* SocketSubsystem;
 
+	/** Holds the local endpoint to receive messages on. */
+	FIPv4Endpoint UnicastEndpoint;
+
+#if PLATFORM_DESKTOP
 	/** Holds the unicast socket receiver. */
 	FUdpSocketReceiver* UnicastReceiver;
 
 	/** Holds the unicast socket. */
 	FSocket* UnicastSocket;
+#endif
 
 private:
 
