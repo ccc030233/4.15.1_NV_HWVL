@@ -502,6 +502,11 @@ void* FD3D11DynamicRHI::RHIGetNativeDevice()
 }
 
 #if WITH_NVVOLUMETRICLIGHTING
+void FD3D11DynamicRHI::ClearStateCache()
+{
+	StateCache.ClearCache();
+}
+
 void FD3D11DynamicRHI::GetVolumeLightingPlatformDesc(NvVl::PlatformDesc& PlatformDesc)
 {
 	PlatformDesc.platform = NvVl::PlatformName::D3D11;

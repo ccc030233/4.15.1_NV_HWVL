@@ -494,6 +494,7 @@ public:
 	virtual void RHIGraphicsWaitOnAsyncComputeJob(uint32 FenceIndex);
 
 #if WITH_NVVOLUMETRICLIGHTING
+	virtual void ClearStateCache() final override;
 	virtual void GetVolumeLightingPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override;
 	virtual void GetVolumeLightingPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) final override;
 	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) final override;

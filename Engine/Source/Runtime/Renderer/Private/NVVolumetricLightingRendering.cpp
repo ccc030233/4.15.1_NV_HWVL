@@ -9,6 +9,25 @@
 
 #include "NVVolumetricLightingRHI.h"
 
+static TAutoConsoleVariable<int32> CVarNvVlDebugMode(
+	TEXT("r.NvVl.DebugMode"),
+	0,
+	TEXT("Debug Mode\n")
+	TEXT("  0: off\n")
+	TEXT("  1: wireframe\n")
+	TEXT("  2: no blend\n"),
+	ECVF_RenderThreadSafe);
+
+
+static TAutoConsoleVariable<int32> CVarNvVlEnable(
+	TEXT("r.NvVl.Enable"),
+	1,
+	TEXT("Enable Nvidia Volumetric Lighting\n")
+	TEXT("  0: off\n")
+	TEXT("  1: on\n"),
+	ECVF_RenderThreadSafe);
+
+
 FVector GetLightIntensity(uint8 LightType, uint8 LightPower)
 {
    const FVector LIGHT_POWER[] = {
@@ -33,11 +52,9 @@ FVector GetLightIntensity(uint8 LightType, uint8 LightPower)
 	}
 }
 
-bool NVVolumetricLightingEnabled = true;
-
 void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList)
 {
-	if (!NVVolumetricLightingEnabled)
+	if (!CVarNvVlEnable.GetValueOnRenderThread())
 	{
 		return;
 	}
@@ -47,7 +64,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	const FViewInfo& View = Views[0];
 
 	int32 MediumType = 0; //TODO;
-	NvVl::DebugFlags DebugMode = NvVl::DebugFlags::NONE;
 
 	NvVl::ViewerDesc ViewerDesc;
 	FMatrix ProjMatrix = View.ViewMatrices.ProjMatrix;
@@ -118,12 +134,14 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		break;
     }
 
-	GNVVolumetricLightingRHI->BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDesc, MediumDesc, DebugMode); //SceneContext.GetActualDepthTexture()?
+	int32 DebugMode = FMath::Clamp((int32)CVarNvVlDebugMode.GetValueOnRenderThread(), 0, 2);
+
+	GNVVolumetricLightingRHI->BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDesc, MediumDesc, (Nv::VolumetricLighting::DebugFlags)DebugMode); //SceneContext.GetActualDepthTexture()?
 }
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo)
 {
-	if (!NVVolumetricLightingEnabled)
+	if (!CVarNvVlEnable.GetValueOnRenderThread())
 	{
 		return;
 	}
@@ -242,7 +260,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHICommandListImmediate& RHICmdList)
 {
-	if (!NVVolumetricLightingEnabled)
+	if (!CVarNvVlEnable.GetValueOnRenderThread())
 	{
 		return;
 	}
@@ -252,7 +270,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHIComm
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHICommandListImmediate& RHICmdList)
 {
-	if (!NVVolumetricLightingEnabled)
+	if (!CVarNvVlEnable.GetValueOnRenderThread())
 	{
 		return;
 	}
@@ -271,6 +289,10 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
     PostprocessDesc.fMultiscatter = 0.000002f;
 
 	GNVVolumetricLightingRHI->ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
+
+	// clear the state cache
+	GDynamicRHI->ClearStateCache();
+	SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 }
 
 #endif

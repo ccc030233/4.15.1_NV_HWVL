@@ -890,6 +890,10 @@ public:
 	 */
 	virtual void ClearState();
 
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void ClearCache();
+#endif
+
 #if D3D11_ALLOW_STATE_CACHE && D3D11_STATE_CACHE_DEBUG
 protected:
 	// Debug helper methods to verify cached state integrity.

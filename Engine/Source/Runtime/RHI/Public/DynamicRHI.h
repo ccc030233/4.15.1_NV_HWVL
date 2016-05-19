@@ -1129,6 +1129,7 @@ public:
 	virtual FRenderQueryRHIRef RHICreateRenderQuery_RenderThread(class FRHICommandListImmediate& RHICmdList, ERenderQueryType QueryType);
 
 #if WITH_NVVOLUMETRICLIGHTING
+	virtual void ClearStateCache() = 0;
 	virtual void GetVolumeLightingPlatformDesc(NvVl::PlatformDesc& PlatformDesc) = 0;
 	virtual void GetVolumeLightingPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) = 0;
 	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) = 0;

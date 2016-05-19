@@ -3739,16 +3739,6 @@ bool FDeferredShadingSceneRenderer::RenderProjectedShadows(FRHICommandListImmedi
 			SceneContext.FinishRenderingShadowDepth(RHICmdList);
 		}
 
-#if WITH_NVVOLUMETRICLIGHTING
-		{
-			FProjectedShadowInfo* ProjectedShadowInfo = Shadows[0];
-			if (ProjectedShadowInfo->bAllocated)
-			{
-				NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo, ProjectedShadowInfo);
-			}
-		}
-#endif
-
 		// Render the shadow projections.
 		{
 			{

@@ -348,3 +348,72 @@ void FD3D11StateCacheBase::ClearState()
 
 #endif	// D3D11_ALLOW_STATE_CACHE
 }
+
+#if WITH_NVVOLUMETRICLIGHTING
+void FD3D11StateCacheBase::ClearCache()
+{
+#if D3D11_ALLOW_STATE_CACHE
+	// Shader Resource View State Cache
+	for (uint32 ShaderFrequency = 0; ShaderFrequency < SF_NumFrequencies; ShaderFrequency++)
+	{
+		for (uint32 Index = 0; Index < D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT; Index++)
+		{
+			if(CurrentShaderResourceViews[ShaderFrequency][Index])
+			{
+				CurrentShaderResourceViews[ShaderFrequency][Index]->Release();
+				CurrentShaderResourceViews[ShaderFrequency][Index] = NULL;
+			}
+		}
+	}
+
+	// Rasterizer State Cache
+	CurrentRasterizerState = nullptr;
+
+	// Depth Stencil State Cache
+	CurrentReferenceStencil = 0;
+	CurrentDepthStencilState = nullptr;
+
+	// Shader Cache
+	CurrentVertexShader = nullptr;
+	CurrentHullShader = nullptr;
+	CurrentDomainShader = nullptr;
+	CurrentGeometryShader = nullptr;
+	CurrentPixelShader = nullptr;
+	CurrentComputeShader = nullptr;
+
+	// Blend State Cache
+	CurrentBlendFactor[0] = 1.0f;
+	CurrentBlendFactor[1] = 1.0f;
+	CurrentBlendFactor[2] = 1.0f;
+	CurrentBlendFactor[3] = 1.0f;
+
+	FMemory::Memset( &CurrentViewport[0], 0, sizeof(D3D11_VIEWPORT) * D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE );
+	CurrentNumberOfViewports = 0;
+
+	CurrentBlendSampleMask = 0xffffffff;
+	CurrentBlendState = nullptr;
+
+	CurrentInputLayout = nullptr;
+
+	FMemory::Memzero(CurrentVertexBuffers, sizeof(CurrentVertexBuffers));
+	FMemory::Memzero(CurrentSamplerStates, sizeof(CurrentSamplerStates));
+
+	CurrentIndexBuffer = nullptr;
+	CurrentIndexFormat = DXGI_FORMAT_UNKNOWN;
+
+	CurrentIndexOffset = 0;
+	CurrentPrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+
+	for (uint32 Frequency = 0; Frequency < SF_NumFrequencies; Frequency++)
+	{
+		for (uint32 Index = 0; Index < D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT; Index++)
+		{
+			CurrentConstantBuffers[Frequency][Index].Buffer = nullptr;
+			CurrentConstantBuffers[Frequency][Index].FirstConstant = 0;
+			CurrentConstantBuffers[Frequency][Index].NumConstants = D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT;
+		}
+	}
+
+#endif	// D3D11_ALLOW_STATE_CACHE
+}
+#endif

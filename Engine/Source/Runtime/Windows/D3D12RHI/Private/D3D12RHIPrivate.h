@@ -1206,6 +1206,7 @@ public:
 	virtual class IRHICommandContextContainer* RHIGetCommandContextContainer() final override;
 
 #if WITH_NVVOLUMETRICLIGHTING
+	virtual void ClearStateCache() override {};
 	virtual void GetVolumeLightingPlatformDesc(NvVl::PlatformDesc& PlatformDesc) override {};
 	virtual void GetVolumeLightingPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) override {};
 	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) override {};
