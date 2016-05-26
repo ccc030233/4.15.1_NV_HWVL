@@ -326,6 +326,7 @@ struct ViewerDesc
 	NvcVec3 vEyePosition;	    //!< Camera position in world-space
 	uint32_t uViewportWidth;	//!< Viewport Width (may differ from framebuffer)
 	uint32_t uViewportHeight;	//!< Viewport Height (may differ from framebuffer)
+	bool bReversedZ;			//!< Reversed z projection transform (0 far, 1 near)
 };
 
 //! Describes one component of the phase function
