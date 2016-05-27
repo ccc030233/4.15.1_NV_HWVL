@@ -73,6 +73,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
     ViewerDesc.vEyePosition = *reinterpret_cast<const NvcVec3 *>(&View.ViewLocation);
     ViewerDesc.uViewportWidth = View.ViewRect.Width();
     ViewerDesc.uViewportHeight = View.ViewRect.Height();
+	ViewerDesc.bReversedZ = ((int32)ERHIZBuffer::IsInverted != 0);
 	
 	NvVl::MediumDesc MediumDesc;
     const float SCATTER_PARAM_SCALE = 0.0001f;
@@ -162,6 +163,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		ShadowmapHeight = Resolution.Y;
 	}
 
+	//FViewInfo* FoundView = ShadowInfo->FindViewForShadow(this);
+	//FMatrix ShadowViewProj = FTranslationMatrix(ShadowInfo->PreShadowTranslation - (FoundView ? FoundView->ViewMatrices.PreViewTranslation : FVector::ZeroVector)) * ShadowInfo->SubjectAndReceiverMatrix;
 	FMatrix LightViewProj = FTranslationMatrix(ShadowInfo->PreShadowTranslation) * ShadowInfo->SubjectAndReceiverMatrix;
 
     NvVl::ShadowMapDesc ShadowmapDesc;
@@ -189,14 +192,12 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
     }
 
     NvVl::LightDesc LightDesc;
-    const float LIGHT_RANGE = 50.0f;
 	const float SPOTLIGHT_FALLOFF_ANGLE = PI / 4.0f;
 	const float SPOTLIGHT_FALLOFF_POWER = 1.0f;
 
     FVector LightPosition = LightSceneInfo->Proxy->GetOrigin();
     FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
     LightDirection.Normalize();
-
 
 	FMatrix LightViewProjInv = LightViewProj.InverseFast();
 	uint32 LightPower = 0;
@@ -210,8 +211,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
         case LightType_Point:
         {
             LightDesc.eType = NvVl::LightType::OMNI;
-            LightDesc.Omni.fZNear = 0.5f;
-            LightDesc.Omni.fZFar = LIGHT_RANGE;
+            LightDesc.Omni.fZNear = ShadowInfo->MinSubjectZ;
+            LightDesc.Omni.fZFar = ShadowInfo->MaxSubjectZ;
             LightDesc.Omni.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
             LightDesc.Omni.eAttenuationMode = NvVl::AttenuationMode::INV_POLYNOMIAL;
             const float LIGHT_SOURCE_RADIUS = 0.5f; // virtual radius of a spheroid light source
@@ -224,8 +225,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
         case LightType_Spot:
         {
             LightDesc.eType = NvVl::LightType::SPOTLIGHT;
-            LightDesc.Spotlight.fZNear = 0.5f;
-            LightDesc.Spotlight.fZFar = LIGHT_RANGE;
+            LightDesc.Spotlight.fZNear = ShadowInfo->MinSubjectZ;
+            LightDesc.Spotlight.fZFar = ShadowInfo->MaxSubjectZ;
             LightDesc.Spotlight.eFalloffMode = NvVl::SpotlightFalloffMode::FIXED;
             LightDesc.Spotlight.fFalloff_Power = SPOTLIGHT_FALLOFF_POWER;
             LightDesc.Spotlight.fFalloff_CosTheta = FMath::Cos(SPOTLIGHT_FALLOFF_ANGLE);
@@ -277,7 +278,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
 	NvVl::PostprocessDesc PostprocessDesc;
-	PostprocessDesc.bDoFog = false; // Fog was not correct yet.
+	PostprocessDesc.bDoFog = true;
     PostprocessDesc.bIgnoreSkyFog = false;
     PostprocessDesc.eUpsampleQuality = NvVl::UpsampleQuality::BILINEAR;
     PostprocessDesc.fBlendfactor = 1.0f;
