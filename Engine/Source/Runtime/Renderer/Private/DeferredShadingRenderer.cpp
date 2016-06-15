@@ -1174,6 +1174,13 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		RHICmdList.TransitionResource(EResourceTransitionAccess::EReadable, SceneContext.GetSceneDepthSurface());
 	}
 
+#if WITH_NVVOLUMETRICLIGHTING
+	if (ViewFamily.EngineShowFlags.Game)
+	{
+		NVVolumetricLightingBeginAccumulation(RHICmdList);
+	}
+#endif
+
 	// Render lighting.
 	if (ViewFamily.EngineShowFlags.Lighting
 		&& FeatureLevel >= ERHIFeatureLevel::SM4
@@ -1244,32 +1251,6 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 #if WITH_NVVOLUMETRICLIGHTING
 	if (ViewFamily.EngineShowFlags.Game)
 	{
-		NVVolumetricLightingBeginAccumulation(RHICmdList);
-
-		for (TSparseArray<FLightSceneInfoCompact>::TConstIterator LightIt(Scene->Lights); LightIt; ++LightIt)
-		{
-			const FLightSceneInfoCompact& LightSceneInfoCompact = *LightIt;
-			const FLightSceneInfo* const LightSceneInfo = LightSceneInfoCompact.LightSceneInfo;
-
-			FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[LightSceneInfo->Id];
-			for (int32 ShadowIndex = 0; ShadowIndex < VisibleLightInfo.AllProjectedShadows.Num(); ShadowIndex++)
-			{
-				FProjectedShadowInfo* ProjectedShadowInfo = VisibleLightInfo.AllProjectedShadows[ShadowIndex];
-
-				if(ProjectedShadowInfo->bRendered
-				&& ProjectedShadowInfo->bWholeSceneShadow
-				&& (!LightSceneInfo->Proxy->HasStaticShadowing() || ProjectedShadowInfo->IsWholeSceneDirectionalShadow()))
-				{
-					NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo, ProjectedShadowInfo);
-
-					if (ProjectedShadowInfo->IsWholeSceneDirectionalShadow())
-					{
-						break;
-					}
-				}
-			}
-		}
-
 		NVVolumetricLightingEndAccumulation(RHICmdList);
 
 		NVVolumetricLightingApplyLighting(RHICmdList);

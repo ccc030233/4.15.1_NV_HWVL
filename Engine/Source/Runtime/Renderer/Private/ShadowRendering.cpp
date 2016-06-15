@@ -3739,6 +3739,28 @@ bool FDeferredShadingSceneRenderer::RenderProjectedShadows(FRHICommandListImmedi
 			SceneContext.FinishRenderingShadowDepth(RHICmdList);
 		}
 
+#if WITH_NVVOLUMETRICLIGHTING
+		if (ViewFamily.EngineShowFlags.Game)
+		{
+			for (int32 ShadowIndex = 0; ShadowIndex < Shadows.Num(); ShadowIndex++)
+			{
+				FProjectedShadowInfo* ProjectedShadowInfo = VisibleLightInfo.AllProjectedShadows[ShadowIndex];
+
+				if(ProjectedShadowInfo->bAllocated
+				&& ProjectedShadowInfo->bWholeSceneShadow
+				&& (!LightSceneInfo->Proxy->HasStaticShadowing() || ProjectedShadowInfo->IsWholeSceneDirectionalShadow()))
+				{
+					NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo, ProjectedShadowInfo);
+
+					if (ProjectedShadowInfo->IsWholeSceneDirectionalShadow())
+					{
+						break;
+					}
+				}
+			}
+		}
+#endif
+
 		// Render the shadow projections.
 		{
 			{
