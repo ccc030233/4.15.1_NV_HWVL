@@ -163,21 +163,27 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		ShadowmapHeight = Resolution.Y;
 	}
 
-	//FViewInfo* FoundView = ShadowInfo->FindViewForShadow(this);
-	//FMatrix ShadowViewProj = FTranslationMatrix(ShadowInfo->PreShadowTranslation - (FoundView ? FoundView->ViewMatrices.PreViewTranslation : FVector::ZeroVector)) * ShadowInfo->SubjectAndReceiverMatrix;
 	FMatrix LightViewProj = FTranslationMatrix(ShadowInfo->PreShadowTranslation) * ShadowInfo->SubjectAndReceiverMatrix;
+
+	FVector4 ShadowmapMinMaxValue;
+	FMatrix WorldToShadowMatrixValue = ShadowInfo->GetWorldToShadowMatrix(ShadowmapMinMaxValue);
 
     NvVl::ShadowMapDesc ShadowmapDesc;
     {
         ShadowmapDesc.eType = (LightSceneInfo->Proxy->GetLightType() == LightType_Point) ? NvVl::ShadowMapLayout::PARABOLOID : NvVl::ShadowMapLayout::SIMPLE;
         ShadowmapDesc.uWidth = ShadowmapWidth;
         ShadowmapDesc.uHeight = ShadowmapHeight;
+		ShadowmapDesc.bLinearizedDepth = true;
         ShadowmapDesc.uElementCount = 1;
+
+		ShadowmapDesc.fInvMaxSubjectDepth = ShadowInfo->InvMaxSubjectDepth;
+		ShadowmapDesc.vShadowmapMinMaxValue = *reinterpret_cast<const NvcVec4 *>(&ShadowmapMinMaxValue);
+
         ShadowmapDesc.Elements[0].uOffsetX = 0;
         ShadowmapDesc.Elements[0].uOffsetY = 0;
         ShadowmapDesc.Elements[0].uWidth = ShadowmapDesc.uWidth;
         ShadowmapDesc.Elements[0].uHeight = ShadowmapDesc.uHeight;
-        ShadowmapDesc.Elements[0].mViewProj = *reinterpret_cast<const NvcMat44*>(&LightViewProj.M[0][0]);
+        ShadowmapDesc.Elements[0].mViewProj = *reinterpret_cast<const NvcMat44*>(&WorldToShadowMatrixValue.M[0][0]);
         ShadowmapDesc.Elements[0].mArrayIndex = 0;
         if (LightSceneInfo->Proxy->GetLightType() == LightType_Point)
         {
@@ -186,7 +192,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
             ShadowmapDesc.Elements[1].uOffsetY = 0;
             ShadowmapDesc.Elements[1].uWidth = ShadowmapDesc.uWidth;
             ShadowmapDesc.Elements[1].uHeight = ShadowmapDesc.uHeight;
-            ShadowmapDesc.Elements[1].mViewProj = *reinterpret_cast<const NvcMat44*>(&LightViewProj.M[0][0]);
+            ShadowmapDesc.Elements[1].mViewProj = *reinterpret_cast<const NvcMat44*>(&WorldToShadowMatrixValue.M[0][0]);
             ShadowmapDesc.Elements[1].mArrayIndex = 1;
         }
     }

@@ -1246,11 +1246,6 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 	{
 		NVVolumetricLightingBeginAccumulation(RHICmdList);
 
-		// --- TO REMOVE ---
-		SceneContext.BeginRenderingShadowDepth(RHICmdList, true);
-		SceneContext.FinishRenderingShadowDepth(RHICmdList);
-		// --- TO REMOVE ---
-
 		for (TSparseArray<FLightSceneInfoCompact>::TConstIterator LightIt(Scene->Lights); LightIt; ++LightIt)
 		{
 			const FLightSceneInfoCompact& LightSceneInfoCompact = *LightIt;
