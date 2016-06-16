@@ -47,7 +47,7 @@ FVector GetLightIntensity(uint8 LightType, uint8 LightPower)
 			return 50000.0f * LIGHT_POWER[LightPower];
 			break;
 		default: //LightType_Directional
-			return 250.0f * LIGHT_POWER[LightPower];
+			return LIGHT_POWER[LightPower];
 			break;
 	}
 }
@@ -142,6 +142,12 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo)
 {
+	// Point light need to be supported by the cubemap shadowmap
+	if (LightSceneInfo->Proxy->GetLightType() == LightType_Point)
+	{
+		return;
+	}
+
 	if (!CVarNvVlEnable.GetValueOnRenderThread())
 	{
 		return;
@@ -173,13 +179,15 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
         ShadowmapDesc.eType = (LightSceneInfo->Proxy->GetLightType() == LightType_Point) ? NvVl::ShadowMapLayout::PARABOLOID : NvVl::ShadowMapLayout::SIMPLE;
         ShadowmapDesc.uWidth = ShadowmapWidth;
         ShadowmapDesc.uHeight = ShadowmapHeight;
-		ShadowmapDesc.bLinearizedDepth = true;
-        ShadowmapDesc.uElementCount = 1;
-
+		// Shadow depth type
+		ShadowmapDesc.bLinearizedDepth = LightSceneInfo->Proxy->GetLightType() == LightType_Directional ? false : true;
 		ShadowmapDesc.fInvMaxSubjectDepth = ShadowInfo->InvMaxSubjectDepth;
+		// shadow space
+		ShadowmapDesc.bShadowSpace = true;
 		ShadowmapDesc.vShadowmapMinMaxValue = *reinterpret_cast<const NvcVec4 *>(&ShadowmapMinMaxValue);
 
-        ShadowmapDesc.Elements[0].uOffsetX = 0;
+        ShadowmapDesc.uElementCount = 1;
+		ShadowmapDesc.Elements[0].uOffsetX = 0;
         ShadowmapDesc.Elements[0].uOffsetY = 0;
         ShadowmapDesc.Elements[0].uWidth = ShadowmapDesc.uWidth;
         ShadowmapDesc.Elements[0].uHeight = ShadowmapDesc.uHeight;

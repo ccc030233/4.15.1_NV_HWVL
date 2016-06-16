@@ -374,7 +374,8 @@ struct ShadowMapDesc
 	uint32_t uElementCount; //!< Number of sub-elements in the shadow map
 	bool bLinearizedDepth;	//!< Linearized Depth for shadow map
 	float fInvMaxSubjectDepth; //!< The inverse of the max depth (only with Linearized Depth)
-	NvcVec4 vShadowmapMinMaxValue; //!< Minimum(xy) and maximum(zw) uv of the shadow map (only with Linearized Depth)
+	bool bShadowSpace;		//!< Transform a world space position into the shadow space or clip space 
+	NvcVec4 vShadowmapMinMaxValue; //!< Minimum(xy) and maximum(zw) uv of the shadow map (only with Shadow Space)
 
     //! Individual cascade descriptions
 	ShadowMapElementDesc Elements[MAX_SHADOWMAP_ELEMENTS];
