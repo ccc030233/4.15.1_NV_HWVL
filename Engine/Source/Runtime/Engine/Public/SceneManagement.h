@@ -997,6 +997,16 @@ public:
 	 */
 	virtual void ApplyWorldOffset(FVector InOffset);
 
+#if WITH_NVVOLUMETRICLIGHTING
+	inline bool IsNVVolumetricLighting() const { return bEnableNVVL; }
+	inline int32 GetNvVlTessQuality() const { return TessQuality; }
+	inline float GetNvVlTargetRayResolution() const { return TargetRayResolution; }
+	inline float GetNvVlDepthBias() const { return DepthBias; }
+	inline int32 GetNvVlAttenuationMode() const { return AttenuationMode; }
+	inline FVector4 GetNvVlAttenuationFactors() const { return AttenuationFactors; }
+	inline int32 GetNvVlFalloffMode() const { return FalloffMode; }
+	inline FVector2D GetNvVlFalloffAngleAndPower() const { return FalloffAngleAndPower; }
+#endif
 protected:
 
 	friend class FScene;
@@ -1137,6 +1147,19 @@ protected:
 
 	/** Updates the light's color. */
 	void SetColor(const FLinearColor& InColor);
+
+#if WITH_NVVOLUMETRICLIGHTING
+	bool bEnableNVVL;
+	int32 TessQuality;
+	float TargetRayResolution;
+	float DepthBias;
+
+	int32 AttenuationMode;
+	FVector4 AttenuationFactors;
+
+	int32 FalloffMode;
+	FVector2D FalloffAngleAndPower;
+#endif
 };
 
 

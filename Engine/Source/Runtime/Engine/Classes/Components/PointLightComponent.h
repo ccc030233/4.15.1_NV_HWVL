@@ -5,6 +5,17 @@
 #include "LightComponent.h"
 #include "PointLightComponent.generated.h"
 
+UENUM()
+namespace EAttenuationMode
+{
+	enum Type
+	{
+		NONE,
+		POLYNOMIAL,
+		INV_POLYNOMIAL,
+	};
+}
+
 /**
  * A light component which emits light from a single point equally in all directions.
  */
@@ -53,6 +64,12 @@ class ENGINE_API UPointLightComponent : public ULightComponent
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Light)
 	float SourceLength;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	TEnumAsByte<EAttenuationMode::Type> AttenuationMode;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	FVector4 AttenuationFactors;
 
 	/** The Lightmass settings for this object. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Light, meta=(ShowOnlyInnerProperties))
@@ -107,6 +124,13 @@ public:
 	 */
 	virtual void PostInterpChange(UProperty* PropertyThatChanged) override;
 
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void GetNvVlAttenuation(int32& OutAttenuationMode, FVector4& OutAttenuationFactors) const override
+	{
+		OutAttenuationMode = AttenuationMode;
+		OutAttenuationFactors = AttenuationFactors;
+	}
+#endif
 private:
 
 	/** Pushes the value of radius to the rendering thread. */

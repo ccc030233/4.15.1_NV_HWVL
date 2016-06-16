@@ -242,6 +242,12 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	, StatId(InLightComponent->GetStatID(true))
 	, FarShadowDistance(0)
 	, FarShadowCascadeCount(0)
+#if WITH_NVVOLUMETRICLIGHTING
+	, bEnableNVVL(InLightComponent->bEnableVolumetricLighting)
+	, TessQuality(InLightComponent->TessQuality)
+	, TargetRayResolution(InLightComponent->TargetRayResolution)
+	, DepthBias(InLightComponent->DepthBias)
+#endif
 {
 	// Brightness in Lumens
 	float LightBrightness = InLightComponent->ComputeLightBrightness();
@@ -277,6 +283,11 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	LightFunctionDisabledBrightness = LightComponent->DisabledBrightness;
 
 	StaticShadowDepthMap = &LightComponent->StaticShadowDepthMap;
+
+#if WITH_NVVOLUMETRICLIGHTING
+	InLightComponent->GetNvVlAttenuation(AttenuationMode, AttenuationFactors);
+	InLightComponent->GetNvVlFalloff(FalloffMode, FalloffAngleAndPower);
+#endif
 }
 
 bool FLightSceneProxy::ShouldCreatePerObjectShadowsForDynamicObjects() const
@@ -356,6 +367,11 @@ ULightComponent::ULightComponent(const FObjectInitializer& ObjectInitializer)
 	BloomTint = FColor::White;
 
 	RayStartOffsetDepthScale = .003f;
+
+	bEnableVolumetricLighting = false;
+	TessQuality = ETessellationQuality::HIGH;
+	DepthBias = 0.0f;
+	TargetRayResolution = 12.0f;
 }
 
 

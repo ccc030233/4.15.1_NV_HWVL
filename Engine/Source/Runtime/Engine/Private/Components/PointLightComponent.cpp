@@ -117,6 +117,9 @@ UPointLightComponent::UPointLightComponent(const FObjectInitializer& ObjectIniti
 	SourceRadius = 0.0f;
 	SourceLength = 0.0f;
 	bUseInverseSquaredFalloff = true;
+
+	AttenuationMode = EAttenuationMode::INV_POLYNOMIAL;
+	AttenuationFactors = FVector4(1.0f, 2.0f, 1.0f, 0.0f);
 }
 
 FLightSceneProxy* UPointLightComponent::CreateSceneProxy() const

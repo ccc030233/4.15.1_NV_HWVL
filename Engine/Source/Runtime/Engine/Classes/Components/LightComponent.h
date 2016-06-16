@@ -7,6 +7,17 @@
 #include "EngineDefines.h"
 #include "LightComponent.generated.h"
 
+UENUM()
+namespace ETessellationQuality
+{
+	enum Type
+	{
+		LOW,
+		MEDIUM,
+		HIGH,
+	};
+}
+
 class FStaticShadowDepthMapData
 {
 public:
@@ -191,6 +202,21 @@ class ENGINE_API ULightComponent : public ULightComponentBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=DistanceFieldShadows, meta=(UIMin = "0", UIMax = ".1"), AdvancedDisplay)
 	float RayStartOffsetDepthScale;
 
+	/** If enable the nvidia volumetric lighting for this light */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	bool bEnableVolumetricLighting;
+
+	/** Target minimum ray width in pixels */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	float TargetRayResolution;
+
+	/** Amount to bias ray geometry depth */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	float DepthBias;
+
+	/** Quality level of tessellation to use */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	TEnumAsByte<ETessellationQuality::Type> TessQuality;
 public:
 	/** Set intensity of the light */
 	UFUNCTION(BlueprintCallable, Category="Rendering|Components|Light")
@@ -338,6 +364,19 @@ public:
 		return NULL;
 	}
 
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void GetNvVlAttenuation(int32& OutAttenuationMode, FVector4& OutAttenuationFactors) const
+	{
+		OutAttenuationMode = 0;
+		OutAttenuationFactors = FVector4(0);
+	}
+
+	virtual void GetNvVlFalloff(int32& OutFalloffMode, FVector2D& OutFalloffAngleAndPower) const
+	{
+		OutFalloffMode = 0;
+		OutFalloffAngleAndPower = FVector2D::ZeroVector;
+	}
+#endif
 protected:
 	//~ Begin UActorComponent Interface
 	virtual void OnRegister() override;
