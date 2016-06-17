@@ -558,10 +558,18 @@ bool ULightComponent::CanEditChange(const UProperty* InProperty) const
 			return bUseTemperature;
 		}
 
-		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UDirectionalLightComponent, VolumetricLightingIntensity)
-			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UDirectionalLightComponent, VolumetricLightingColor))
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, VolumetricLightingIntensity)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, VolumetricLightingColor))
 		{
-			return bUseVolumetricLightingColor;
+			return bEnableVolumetricLighting && bUseVolumetricLightingColor;
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, bUseVolumetricLightingColor)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, TargetRayResolution)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, DepthBias)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, TessQuality))
+		{
+			return bEnableVolumetricLighting;
 		}
 	}
 

@@ -1854,6 +1854,11 @@ public:
 
 	float GlobalDistanceFieldViewDistance;
 
+#if WITH_NVVOLUMETRICLIGHTING
+	bool bEnableVolumetricLightingSettings;
+	FNVVolumetricLightingPostprocessSettings PostprocessSettings;
+#endif
+
 #if WITH_EDITOR
 	/** Editor Pixel inspector */
 	FPixelInspectorData PixelInspectorData;
@@ -1985,6 +1990,10 @@ public:
 	}
 
 	virtual void UpdateSceneSettings(AWorldSettings* WorldSettings) override;
+
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings) override;
+#endif
 
 	/**
 	 * Sets the FX system associated with the scene.

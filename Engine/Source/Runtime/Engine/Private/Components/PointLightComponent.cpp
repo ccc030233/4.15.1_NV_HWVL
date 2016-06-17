@@ -262,6 +262,12 @@ bool UPointLightComponent::CanEditChange(const UProperty* InProperty) const
 		{
 			return !bUseInverseSquaredFalloff;
 		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UPointLightComponent, AttenuationMode)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UPointLightComponent, AttenuationFactors))
+		{
+			return bEnableVolumetricLighting;
+		}
 	}
 
 	return Super::CanEditChange(InProperty);

@@ -278,6 +278,64 @@ private:
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+UENUM()
+namespace EUpsampleQuality
+{
+	enum Type
+	{
+		POINT,
+		BILINEAR,
+		BILATERAL,
+	};
+}
+
+USTRUCT()
+struct FNVVolumetricLightingPostprocessSettings
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	bool bEnableFog;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	bool bIgnoreSkyFog;
+
+	UPROPERTY(BlueprintReadOnly, Category=PostprocessSettings, meta=(UIMin = "0.0", UIMax = "100000.0"))
+	float FogIntensity;
+
+	UPROPERTY(BlueprintReadOnly, Category=PostprocessSettings, meta=(HideAlphaChannel))
+	FColor FogColor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	TEnumAsByte<EUpsampleQuality::Type> UpsampleQuality;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	float Blendfactor;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	float TemporalFactor;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	float FilterThreshold;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	float Multiscatter;
+
+	FNVVolumetricLightingPostprocessSettings()
+		: bEnableFog(true)
+		, bIgnoreSkyFog(false)
+		, FogIntensity(5000.0f)
+		, FogColor(FColor::White)
+		, UpsampleQuality(EUpsampleQuality::BILINEAR)
+		, Blendfactor(1.0f)
+		, TemporalFactor(0.95f)
+		, FilterThreshold(0.2f)
+		, Multiscatter(0.000002f)
+	{
+
+	}
+};
+
 /**
  * Actor containing all script accessible world properties.
  */
@@ -526,6 +584,12 @@ class ENGINE_API AWorldSettings : public AInfo, public IInterface_AssetUserData
 	UPROPERTY()
 	TArray<struct FNetViewer> ReplicationViewers;
 
+	/** If enable the nvidia volumetric lighting. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	bool bEnableVolumetricLightingSettings;
+
+	UPROPERTY(EditAnywhere, Category=NVVolumetricLighting)
+	struct FNVVolumetricLightingPostprocessSettings PostprocessSettings;
 	// ************************************
 
 	/** Maximum number of bookmarks	*/

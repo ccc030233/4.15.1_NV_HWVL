@@ -367,6 +367,21 @@ void FScene::UpdateSceneSettings(AWorldSettings* WorldSettings)
 	});
 }
 
+#if WITH_NVVOLUMETRICLIGHTING
+void FScene::UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings)
+{
+	ENQUEUE_UNIQUE_RENDER_COMMAND_THREEPARAMETER(
+		UpdateVolumetricLightingSettings,
+		FScene*, Scene, this,
+		bool, bEnableVolumetricLightingSettings, WorldSettings->bEnableVolumetricLightingSettings,
+		FNVVolumetricLightingPostprocessSettings, PostprocessSettings, WorldSettings->PostprocessSettings,
+	{
+		Scene->bEnableVolumetricLightingSettings = bEnableVolumetricLightingSettings;
+		Scene->PostprocessSettings = PostprocessSettings;
+	});
+}
+#endif
+
 /**
  * Sets the FX system associated with the scene.
  */
@@ -526,6 +541,10 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 ,	GlobalDistanceFieldViewDistance(InWorld->GetWorldSettings()->GlobalDistanceFieldViewDistance)
 ,	NumVisibleLights_GameThread(0)
 ,	NumEnabledSkylights_GameThread(0)
+#if WITH_NVVOLUMETRICLIGHTING
+,	bEnableVolumetricLightingSettings(InWorld->GetWorldSettings()->bEnableVolumetricLightingSettings)
+,	PostprocessSettings(InWorld->GetWorldSettings()->PostprocessSettings)
+#endif
 {
 	check(World);
 	World->Scene = this;

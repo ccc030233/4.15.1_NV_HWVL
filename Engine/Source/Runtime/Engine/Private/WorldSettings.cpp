@@ -77,6 +77,8 @@ AWorldSettings::AWorldSettings(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITORONLY_DATA
 	bActorLabelEditable = false;
 #endif // WITH_EDITORONLY_DATA
+
+	bEnableVolumetricLightingSettings = false;
 }
 
 void AWorldSettings::PreInitializeComponents()
@@ -302,6 +304,23 @@ bool AWorldSettings::CanEditChange(const UProperty* InProperty) const
 				return LightmassSettings.EnvironmentIntensity > 0;
 			}
 		}
+
+		if (InProperty->GetOuter()
+			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingPostprocessSettings"))
+		{
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, bEnableFog)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, bIgnoreSkyFog)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, FogIntensity)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, FogColor)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, UpsampleQuality)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, Blendfactor)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, TemporalFactor)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, FilterThreshold)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, Multiscatter))
+			{
+				return bEnableVolumetricLightingSettings;
+			}
+		}
 	}
 
 	return Super::CanEditChange(InProperty);
@@ -369,6 +388,9 @@ void AWorldSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	if (PropertyThatChanged != nullptr && GetWorld() != nullptr && GetWorld()->Scene)
 	{
 		GetWorld()->Scene->UpdateSceneSettings(this);
+#if WITH_NVVOLUMETRICLIGHTING
+		GetWorld()->Scene->UpdateVolumetricLightingSettings(this);
+#endif
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);

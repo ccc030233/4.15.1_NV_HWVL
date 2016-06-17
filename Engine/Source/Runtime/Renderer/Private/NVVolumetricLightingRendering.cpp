@@ -34,6 +34,11 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		return;
 	}
 
+	if (!Scene->bEnableVolumetricLightingSettings)
+	{
+		return;
+	}
+
 	check(Views.Num());
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 	const FViewInfo& View = Views[0];
@@ -125,6 +130,11 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	}
 
 	if (!CVarNvVlEnable.GetValueOnRenderThread() || !LightSceneInfo->Proxy->IsNVVolumetricLighting())
+	{
+		return;
+	}
+
+	if (!Scene->bEnableVolumetricLightingSettings)
 	{
 		return;
 	}
@@ -259,6 +269,11 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHIComm
 		return;
 	}
 
+	if (!Scene->bEnableVolumetricLightingSettings)
+	{
+		return;
+	}
+
 	GNVVolumetricLightingRHI->EndAccumulation();
 }
 
@@ -268,19 +283,27 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 	{
 		return;
 	}
+
+	if (!Scene->bEnableVolumetricLightingSettings)
+	{
+		return;
+	}
+
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
-	NvVl::PostprocessDesc PostprocessDesc;
-	PostprocessDesc.bDoFog = true;
-    PostprocessDesc.bIgnoreSkyFog = false;
-    PostprocessDesc.eUpsampleQuality = NvVl::UpsampleQuality::BILINEAR;
-    PostprocessDesc.fBlendfactor = 1.0f;
-    PostprocessDesc.fTemporalFactor = 0.95f;
-    PostprocessDesc.fFilterThreshold = 0.20f;
+	FNVVolumetricLightingPostprocessSettings& PostprocessSettings = Scene->PostprocessSettings;
 
-	FVector FogLight = FVector(50000.0f, 50000.0f, 50000.0f);
+	NvVl::PostprocessDesc PostprocessDesc;
+	PostprocessDesc.bDoFog = PostprocessSettings.bEnableFog;
+    PostprocessDesc.bIgnoreSkyFog = PostprocessSettings.bIgnoreSkyFog;
+    PostprocessDesc.eUpsampleQuality = (NvVl::UpsampleQuality)PostprocessSettings.UpsampleQuality.GetValue();
+    PostprocessDesc.fBlendfactor = PostprocessSettings.Blendfactor;
+    PostprocessDesc.fTemporalFactor = PostprocessSettings.TemporalFactor;
+    PostprocessDesc.fFilterThreshold = PostprocessSettings.FilterThreshold;
+
+	FVector FogLight = FLinearColor(PostprocessSettings.FogColor) * PostprocessSettings.FogIntensity;
     PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
-    PostprocessDesc.fMultiscatter = 0.000002f;
+    PostprocessDesc.fMultiscatter = PostprocessSettings.Multiscatter;
 
 	GNVVolumetricLightingRHI->ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
 
