@@ -285,6 +285,7 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	StaticShadowDepthMap = &LightComponent->StaticShadowDepthMap;
 
 #if WITH_NVVOLUMETRICLIGHTING
+	Intensity = LightComponent->bUseVolumetricLightingColor ? FLinearColor(InLightComponent->VolumetricLightingColor) * InLightComponent->VolumetricLightingIntensity : Color;
 	InLightComponent->GetNvVlAttenuation(AttenuationMode, AttenuationFactors);
 	InLightComponent->GetNvVlFalloff(FalloffMode, FalloffAngleAndPower);
 #endif
@@ -372,6 +373,10 @@ ULightComponent::ULightComponent(const FObjectInitializer& ObjectInitializer)
 	TessQuality = ETessellationQuality::HIGH;
 	DepthBias = 0.0f;
 	TargetRayResolution = 12.0f;
+
+	bUseVolumetricLightingColor = false;
+	VolumetricLightingIntensity = 10.0f;
+	VolumetricLightingColor = FColor::White;
 }
 
 
@@ -551,6 +556,12 @@ bool ULightComponent::CanEditChange(const UProperty* InProperty) const
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, Temperature))
 		{
 			return bUseTemperature;
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UDirectionalLightComponent, VolumetricLightingIntensity)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UDirectionalLightComponent, VolumetricLightingColor))
+		{
+			return bUseVolumetricLightingColor;
 		}
 	}
 

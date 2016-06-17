@@ -206,6 +206,16 @@ class ENGINE_API ULightComponent : public ULightComponentBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
 	bool bEnableVolumetricLighting;
 
+	/** If true, use the custom volumetric lighting color/intensity, if false, use the light color/intensity. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	bool bUseVolumetricLightingColor;
+
+	UPROPERTY(BlueprintReadOnly, interp, Category=NVVolumetricLighting, meta=(UIMin = "0.0", UIMax = "20.0"))
+	float VolumetricLightingIntensity;
+
+	UPROPERTY(BlueprintReadOnly, interp, Category=NVVolumetricLighting, meta=(HideAlphaChannel))
+	FColor VolumetricLightingColor;
+
 	/** Target minimum ray width in pixels */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
 	float TargetRayResolution;

@@ -120,6 +120,7 @@ UPointLightComponent::UPointLightComponent(const FObjectInitializer& ObjectIniti
 
 	AttenuationMode = EAttenuationMode::INV_POLYNOMIAL;
 	AttenuationFactors = FVector4(1.0f, 2.0f, 1.0f, 0.0f);
+	VolumetricLightingIntensity = 5000.0f;
 }
 
 FLightSceneProxy* UPointLightComponent::CreateSceneProxy() const

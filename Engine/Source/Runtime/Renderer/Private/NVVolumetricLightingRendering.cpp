@@ -187,7 +187,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
     FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
     LightDirection.Normalize();
 
-	FVector Intensity = LightSceneInfo->Proxy->GetColor();
+	FVector Intensity = LightSceneInfo->Proxy->GetNvVlIntensity();
     LightDesc.vIntensity = *reinterpret_cast<const NvcVec3 *>(&Intensity);
 
 	FMatrix LightViewProjInv = LightViewProj.InverseFast();

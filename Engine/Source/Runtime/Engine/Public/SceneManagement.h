@@ -1006,6 +1006,7 @@ public:
 	inline FVector4 GetNvVlAttenuationFactors() const { return AttenuationFactors; }
 	inline int32 GetNvVlFalloffMode() const { return FalloffMode; }
 	inline FVector2D GetNvVlFalloffAngleAndPower() const { return FalloffAngleAndPower; }
+	inline const FLinearColor& GetNvVlIntensity() const { return Intensity; }
 #endif
 protected:
 
@@ -1159,6 +1160,7 @@ protected:
 
 	int32 FalloffMode;
 	FVector2D FalloffAngleAndPower;
+	FLinearColor Intensity;
 #endif
 };
 
