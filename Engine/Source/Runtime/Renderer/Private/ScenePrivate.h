@@ -1856,6 +1856,7 @@ public:
 
 #if WITH_NVVOLUMETRICLIGHTING
 	bool bEnableVolumetricLightingSettings;
+	FNVVolumetricLightingMediumSettings	MediumSettings;
 	FNVVolumetricLightingPostprocessSettings PostprocessSettings;
 #endif
 

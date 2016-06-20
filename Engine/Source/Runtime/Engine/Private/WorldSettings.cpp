@@ -79,6 +79,8 @@ AWorldSettings::AWorldSettings(const FObjectInitializer& ObjectInitializer)
 #endif // WITH_EDITORONLY_DATA
 
 	bEnableVolumetricLightingSettings = false;
+	FNVPhaseTerm PhaseTerm;
+	MediumSettings.PhaseTerms.Add(PhaseTerm);
 }
 
 void AWorldSettings::PreInitializeComponents()
@@ -317,6 +319,27 @@ bool AWorldSettings::CanEditChange(const UProperty* InProperty) const
 				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, TemporalFactor)
 				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, FilterThreshold)
 				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, Multiscatter))
+			{
+				return bEnableVolumetricLightingSettings;
+			}
+		}
+
+		if (InProperty->GetOuter()
+			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingMediumSettings"))
+		{
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingMediumSettings, Absorption)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingMediumSettings, PhaseTerms))
+			{
+				return bEnableVolumetricLightingSettings;
+			}
+		}
+
+		if (InProperty->GetOuter()
+			&& InProperty->GetOuter()->GetName() == TEXT("NVPhaseTerm"))
+		{
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVPhaseTerm, PhaseFunc)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVPhaseTerm, Density)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVPhaseTerm, Eccentricity))
 			{
 				return bEnableVolumetricLightingSettings;
 			}

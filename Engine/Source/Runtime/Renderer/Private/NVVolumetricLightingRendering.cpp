@@ -43,8 +43,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 	const FViewInfo& View = Views[0];
 
-	int32 MediumType = 0; //TODO;
-
 	NvVl::ViewerDesc ViewerDesc;
 	FMatrix ProjMatrix = View.ViewMatrices.ProjMatrix;
     ViewerDesc.mProj = *reinterpret_cast<const NvcMat44*>(&ProjMatrix.M[0][0]);
@@ -57,63 +55,25 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	
 	NvVl::MediumDesc MediumDesc;
     const float SCATTER_PARAM_SCALE = 0.0001f;
-    MediumDesc.uNumPhaseTerms = 2;
+    
+	FNVVolumetricLightingMediumSettings& MediumSettings = Scene->MediumSettings;
+	check(MediumSettings.PhaseTerms.Num() > 0);
 
+	uint32 NumPhaseTerms = MediumSettings.PhaseTerms.Num();
+	MediumDesc.uNumPhaseTerms = NumPhaseTerms > NvVl::MAX_PHASE_TERMS ? NvVl::MAX_PHASE_TERMS : NumPhaseTerms;
+
+	FVector Absorption = MediumSettings.Absorption * SCATTER_PARAM_SCALE;
+	MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
+
+	for(uint32 PhaseIndex = 0; PhaseIndex < MediumDesc.uNumPhaseTerms; PhaseIndex++)
 	{
-		MediumDesc.PhaseTerms[0].ePhaseFunc = NvVl::PhaseFunctionType::RAYLEIGH;
-		FVector Density = 10.00f * SCATTER_PARAM_SCALE * FVector(0.596f, 1.324f, 3.310f);
-		MediumDesc.PhaseTerms[0].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+		MediumDesc.PhaseTerms[PhaseIndex].ePhaseFunc = (NvVl::PhaseFunctionType)MediumSettings.PhaseTerms[PhaseIndex].PhaseFunc.GetValue();
+
+		FVector Density = MediumSettings.PhaseTerms[PhaseIndex].Density * SCATTER_PARAM_SCALE;
+		MediumDesc.PhaseTerms[PhaseIndex].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+
+		MediumDesc.PhaseTerms[PhaseIndex].fEccentricity = MediumSettings.PhaseTerms[PhaseIndex].Eccentricity;
 	}
-	
-    switch (MediumType)
-    {
-    default:
-    case 0:
-		{
-			FVector Density = 10.00f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
-			FVector Absorption = 5.0f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
-
-			MediumDesc.PhaseTerms[1].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
-			MediumDesc.PhaseTerms[1].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
-			MediumDesc.PhaseTerms[1].fEccentricity = 0.85f;
-			MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
-		}
-		break;
-
-    case 1:
-		{
-			FVector Density = 15.00f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
-			FVector Absorption = 25.0f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
-
-			MediumDesc.PhaseTerms[1].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
-			MediumDesc.PhaseTerms[1].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
-			MediumDesc.PhaseTerms[1].fEccentricity = 0.60f;
-			MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
-		}
-		break;
-
-    case 2:
-		{
-			FVector Density = 20.00f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
-			FVector Absorption = 25.0f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
-
-			MediumDesc.PhaseTerms[1].ePhaseFunc = NvVl::PhaseFunctionType::MIE_HAZY;
-			MediumDesc.PhaseTerms[1].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
-			MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
-		}
-		break;
-
-    case 3:
-		{
-			FVector Density = 30.00f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
-			FVector Absorption = 50.0f * SCATTER_PARAM_SCALE * FVector(1.00f, 1.00f, 1.00f);
-
-			MediumDesc.PhaseTerms[1].ePhaseFunc = NvVl::PhaseFunctionType::MIE_MURKY;
-			MediumDesc.PhaseTerms[1].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
-			MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
-		}
-		break;
-    }
 
 	int32 DebugMode = FMath::Clamp((int32)CVarNvVlDebugMode.GetValueOnRenderThread(), 0, 2);
 

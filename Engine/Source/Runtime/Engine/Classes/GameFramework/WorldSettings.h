@@ -336,6 +336,63 @@ struct FNVVolumetricLightingPostprocessSettings
 	}
 };
 
+UENUM()
+namespace EPhaseFunction
+{
+	enum Type
+	{
+		ISOTROPIC,	        // Isotropic scattering (equivalent to HG with 0 eccentricity, but more efficient)
+		RAYLEIGH,	        // Rayleigh scattering term (air/small molecules)
+		HENYEYGREENSTEIN,	// Scattering term with variable anisotropy
+		MIE_HAZY,	        // Slightly forward-scattering
+		MIE_MURKY,	        // Densely forward-scattering
+	};
+}
+
+USTRUCT()
+struct FNVPhaseTerm
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Phase function this term uses z*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumSettings)
+	TEnumAsByte<EPhaseFunction::Type> PhaseFunc;
+
+	/** Optical density in [R,G,B] */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumSettings)
+	FVector Density;
+
+	/** Degree/direction of anisotropy (-1, 1) (HG only) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumSettings, meta=(UIMin = "-1.0", UIMax = "1.0"))
+	float Eccentricity;
+
+	FNVPhaseTerm()
+		: PhaseFunc(EPhaseFunction::RAYLEIGH)
+		, Density(FVector(10.00f))
+		, Eccentricity(0.0f)
+	{
+	}
+};
+
+USTRUCT()
+struct FNVVolumetricLightingMediumSettings
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Absorpsive component of the medium. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumSettings)
+	FVector Absorption;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumSettings)
+	TArray<FNVPhaseTerm> PhaseTerms;
+
+	FNVVolumetricLightingMediumSettings()
+		: Absorption(FVector(5.0f))
+	{
+
+	}
+};
+
 /**
  * Actor containing all script accessible world properties.
  */
@@ -587,6 +644,9 @@ class ENGINE_API AWorldSettings : public AInfo, public IInterface_AssetUserData
 	/** If enable the nvidia volumetric lighting. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
 	bool bEnableVolumetricLightingSettings;
+
+	UPROPERTY(EditAnywhere, Category=NVVolumetricLighting)
+	struct FNVVolumetricLightingMediumSettings MediumSettings;
 
 	UPROPERTY(EditAnywhere, Category=NVVolumetricLighting)
 	struct FNVVolumetricLightingPostprocessSettings PostprocessSettings;
