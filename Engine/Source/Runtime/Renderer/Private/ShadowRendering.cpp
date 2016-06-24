@@ -3106,6 +3106,18 @@ bool FDeferredShadingSceneRenderer::RenderOnePassPointLightShadows(FRHICommandLi
 				SceneContext.FinishRenderingCubeShadowDepth(RHICmdList, ProjectedShadowInfo->ResolutionX);
 			}
 
+#if WITH_NVVOLUMETRICLIGHTING
+			if (ViewFamily.EngineShowFlags.Game)
+			{
+				if(ProjectedShadowInfo->bAllocated
+				&& ProjectedShadowInfo->bWholeSceneShadow
+				&& (!LightSceneInfo->Proxy->HasStaticShadowing()))
+				{
+					NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo, ProjectedShadowInfo);
+				}
+			}
+#endif
+
 			{
 				SceneContext.BeginRenderingLightAttenuation(RHICmdList);
 

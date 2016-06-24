@@ -227,6 +227,7 @@ enum class ShadowMapLayout
 	CASCADE_ATLAS,	//!< Multiple depth views combined into one texture
 	CASCADE_ARRAY,	//!< Multiple depth views as texture array slices
     PARABOLOID,     //!< Depth mapped using paraboloid warping
+	CUBE,			//!< Depth mapped using cube
 	COUNT
 };
 
@@ -376,6 +377,7 @@ struct ShadowMapDesc
 	float fInvMaxSubjectDepth; //!< The inverse of the max depth (only with Linearized Depth)
 	bool bShadowSpace;		//!< Transform a world space position into the shadow space or clip space 
 	NvcVec4 vShadowmapMinMaxValue; //!< Minimum(xy) and maximum(zw) uv of the shadow map (only with Shadow Space)
+	NvcMat44 mCubeViewProj[6]; //!< View-Proj transform for 6 faces of cube
 
     //! Individual cascade descriptions
 	ShadowMapElementDesc Elements[MAX_SHADOWMAP_ELEMENTS];

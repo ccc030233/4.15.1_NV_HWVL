@@ -78,17 +78,13 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	int32 DebugMode = FMath::Clamp((int32)CVarNvVlDebugMode.GetValueOnRenderThread(), 0, 2);
 
 	GNVVolumetricLightingRHI->BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDesc, MediumDesc, (Nv::VolumetricLighting::DebugFlags)DebugMode); //SceneContext.GetActualDepthTexture()?
+
+	// clear the state cache
+	GDynamicRHI->ClearStateCache();
 }
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo)
 {
-	// TODO
-	// Point light need to be supported by the cubemap shadowmap
-	if (LightSceneInfo->Proxy->GetLightType() == LightType_Point)
-	{
-		return;
-	}
-
 	if (!CVarNvVlEnable.GetValueOnRenderThread() || !LightSceneInfo->Proxy->IsNVVolumetricLighting())
 	{
 		return;
@@ -100,123 +96,162 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	}
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
-	const FTexture2DRHIRef& ShadowDepth = SceneContext.GetShadowDepthZTexture(false);
 
-	uint32 ShadowmapWidth, ShadowmapHeight;
-	if (ShadowDepth)
+	FVector LightPosition = LightSceneInfo->Proxy->GetOrigin();
+	FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
+	LightDirection.Normalize();
+
+	FMatrix LightViewProj;
+	if (LightSceneInfo->Proxy->GetLightType() == LightType_Point)
 	{
-		ShadowmapWidth = ShadowDepth->GetSizeX();
-		ShadowmapHeight = ShadowDepth->GetSizeY();
+		LightViewProj = FTranslationMatrix(-LightPosition);
 	}
 	else
 	{
-		FIntPoint Resolution = SceneContext.GetShadowDepthTextureResolution(); // Pre Cache?? GetPreShadowCacheTextureResolution()
-		ShadowmapWidth = Resolution.X;
-		ShadowmapHeight = Resolution.Y;
+		LightViewProj = FTranslationMatrix(ShadowInfo->PreShadowTranslation) * ShadowInfo->SubjectAndReceiverMatrix;
 	}
 
-	FMatrix LightViewProj = FTranslationMatrix(ShadowInfo->PreShadowTranslation) * ShadowInfo->SubjectAndReceiverMatrix;
 
-	FVector4 ShadowmapMinMaxValue;
-	FMatrix WorldToShadowMatrixValue = ShadowInfo->GetWorldToShadowMatrix(ShadowmapMinMaxValue);
+	NvVl::ShadowMapDesc ShadowmapDesc;
+	uint32 ShadowmapWidth = 0, ShadowmapHeight = 0;
 
-    NvVl::ShadowMapDesc ShadowmapDesc;
-    {
-        ShadowmapDesc.eType = (LightSceneInfo->Proxy->GetLightType() == LightType_Point) ? NvVl::ShadowMapLayout::PARABOLOID : NvVl::ShadowMapLayout::SIMPLE;
-        ShadowmapDesc.uWidth = ShadowmapWidth;
-        ShadowmapDesc.uHeight = ShadowmapHeight;
+	FTextureRHIParamRef DepthMap = nullptr;
+
+	if (LightSceneInfo->Proxy->GetLightType() == LightType_Point)
+	{
+		const FTextureCubeRHIRef& ShadowDepth = SceneContext.GetCubeShadowDepthZTexture(ShadowInfo->ResolutionX);
+
+		if (ShadowDepth)
+		{
+			ShadowmapWidth = ShadowDepth->GetSize();
+			ShadowmapHeight = ShadowDepth->GetSize();
+		}
+
+		ShadowmapDesc.eType = NvVl::ShadowMapLayout::CUBE;
+		ShadowmapDesc.uWidth = ShadowmapWidth;
+		ShadowmapDesc.uHeight = ShadowmapHeight;
 		// Shadow depth type
-		ShadowmapDesc.bLinearizedDepth = LightSceneInfo->Proxy->GetLightType() == LightType_Directional ? false : true;
+		ShadowmapDesc.bLinearizedDepth = false;
+		// shadow space
+		ShadowmapDesc.bShadowSpace = false;
+
+		for (int32 FaceIndex = 0; FaceIndex < 6; FaceIndex++)
+		{
+			ShadowmapDesc.mCubeViewProj[FaceIndex] = *reinterpret_cast<const NvcMat44*>(&(ShadowInfo->OnePassShadowViewProjectionMatrices[FaceIndex]).M[0][0]);
+		}
+
+		ShadowmapDesc.uElementCount = 1;
+		ShadowmapDesc.Elements[0].uOffsetX = 0;
+		ShadowmapDesc.Elements[0].uOffsetY = 0;
+		ShadowmapDesc.Elements[0].uWidth = ShadowmapDesc.uWidth;
+		ShadowmapDesc.Elements[0].uHeight = ShadowmapDesc.uHeight;
+		ShadowmapDesc.Elements[0].mArrayIndex = 0;
+
+		DepthMap = ShadowDepth;
+	}
+	else
+	{
+		const FTexture2DRHIRef& ShadowDepth = SceneContext.GetShadowDepthZTexture(false);
+
+		uint32 ShadowmapWidth, ShadowmapHeight;
+		if (ShadowDepth)
+		{
+			ShadowmapWidth = ShadowDepth->GetSizeX();
+			ShadowmapHeight = ShadowDepth->GetSizeY();
+		}
+		else
+		{
+			FIntPoint Resolution = SceneContext.GetShadowDepthTextureResolution(); // Pre Cache?? GetPreShadowCacheTextureResolution()
+			ShadowmapWidth = Resolution.X;
+			ShadowmapHeight = Resolution.Y;
+		}
+
+		FVector4 ShadowmapMinMaxValue;
+		FMatrix WorldToShadowMatrixValue = ShadowInfo->GetWorldToShadowMatrix(ShadowmapMinMaxValue);
+
+		ShadowmapDesc.eType = NvVl::ShadowMapLayout::SIMPLE;
+		ShadowmapDesc.uWidth = ShadowmapWidth;
+		ShadowmapDesc.uHeight = ShadowmapHeight;
+		// Shadow depth type
+		ShadowmapDesc.bLinearizedDepth = LightSceneInfo->Proxy->GetLightType() == LightType_Spot ? true : false;
 		ShadowmapDesc.fInvMaxSubjectDepth = ShadowInfo->InvMaxSubjectDepth;
 		// shadow space
 		ShadowmapDesc.bShadowSpace = true;
 		ShadowmapDesc.vShadowmapMinMaxValue = *reinterpret_cast<const NvcVec4 *>(&ShadowmapMinMaxValue);
 
-        ShadowmapDesc.uElementCount = 1;
+		ShadowmapDesc.uElementCount = 1;
 		ShadowmapDesc.Elements[0].uOffsetX = 0;
-        ShadowmapDesc.Elements[0].uOffsetY = 0;
-        ShadowmapDesc.Elements[0].uWidth = ShadowmapDesc.uWidth;
-        ShadowmapDesc.Elements[0].uHeight = ShadowmapDesc.uHeight;
-        ShadowmapDesc.Elements[0].mViewProj = *reinterpret_cast<const NvcMat44*>(&WorldToShadowMatrixValue.M[0][0]);
-        ShadowmapDesc.Elements[0].mArrayIndex = 0;
-        if (LightSceneInfo->Proxy->GetLightType() == LightType_Point)
-        {
-            ShadowmapDesc.uElementCount = 2;
-            ShadowmapDesc.Elements[1].uOffsetX = 0;
-            ShadowmapDesc.Elements[1].uOffsetY = 0;
-            ShadowmapDesc.Elements[1].uWidth = ShadowmapDesc.uWidth;
-            ShadowmapDesc.Elements[1].uHeight = ShadowmapDesc.uHeight;
-            ShadowmapDesc.Elements[1].mViewProj = *reinterpret_cast<const NvcMat44*>(&WorldToShadowMatrixValue.M[0][0]);
-            ShadowmapDesc.Elements[1].mArrayIndex = 1;
-        }
-    }
+		ShadowmapDesc.Elements[0].uOffsetY = 0;
+		ShadowmapDesc.Elements[0].uWidth = ShadowmapDesc.uWidth;
+		ShadowmapDesc.Elements[0].uHeight = ShadowmapDesc.uHeight;
+		ShadowmapDesc.Elements[0].mViewProj = *reinterpret_cast<const NvcMat44*>(&WorldToShadowMatrixValue.M[0][0]);
+		ShadowmapDesc.Elements[0].mArrayIndex = 0;
 
-    NvVl::LightDesc LightDesc;
+		DepthMap = ShadowDepth;
+	}
 
-    FVector LightPosition = LightSceneInfo->Proxy->GetOrigin();
-    FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
-    LightDirection.Normalize();
+	NvVl::LightDesc LightDesc;
 
 	FVector Intensity = LightSceneInfo->Proxy->GetNvVlIntensity();
-    LightDesc.vIntensity = *reinterpret_cast<const NvcVec3 *>(&Intensity);
+	LightDesc.vIntensity = *reinterpret_cast<const NvcVec3 *>(&Intensity);
 
 	FMatrix LightViewProjInv = LightViewProj.InverseFast();
-    LightDesc.mLightToWorld = *reinterpret_cast<const NvcMat44*>(&LightViewProjInv.M[0][0]);
+	LightDesc.mLightToWorld = *reinterpret_cast<const NvcMat44*>(&LightViewProjInv.M[0][0]);
 
-    switch (LightSceneInfo->Proxy->GetLightType())
-    {
-        case LightType_Point:
-        {
-            LightDesc.eType = NvVl::LightType::OMNI;
-            LightDesc.Omni.fZNear = ShadowInfo->MinSubjectZ;
-            LightDesc.Omni.fZFar = ShadowInfo->MaxSubjectZ;
-            LightDesc.Omni.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
-            LightDesc.Omni.eAttenuationMode = (NvVl::AttenuationMode)LightSceneInfo->Proxy->GetNvVlAttenuationMode();
+	switch (LightSceneInfo->Proxy->GetLightType())
+	{
+		case LightType_Point:
+		{
+			LightDesc.eType = NvVl::LightType::OMNI;
+			LightDesc.Omni.fZNear = ShadowInfo->MinSubjectZ;
+			LightDesc.Omni.fZFar = ShadowInfo->MaxSubjectZ;
+			LightDesc.Omni.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
+			LightDesc.Omni.eAttenuationMode = (NvVl::AttenuationMode)LightSceneInfo->Proxy->GetNvVlAttenuationMode();
 			const FVector4& AttenuationFactors = LightSceneInfo->Proxy->GetNvVlAttenuationFactors();
-            LightDesc.Omni.fAttenuationFactors[0] = AttenuationFactors.X;
-            LightDesc.Omni.fAttenuationFactors[1] = AttenuationFactors.Y;
-            LightDesc.Omni.fAttenuationFactors[2] = AttenuationFactors.Z;
-            LightDesc.Omni.fAttenuationFactors[3] = AttenuationFactors.W;
-        }
-        break;
-        case LightType_Spot:
-        {
-            LightDesc.eType = NvVl::LightType::SPOTLIGHT;
-            LightDesc.Spotlight.fZNear = ShadowInfo->MinSubjectZ;
-            LightDesc.Spotlight.fZFar = ShadowInfo->MaxSubjectZ;
+			LightDesc.Omni.fAttenuationFactors[0] = AttenuationFactors.X;
+			LightDesc.Omni.fAttenuationFactors[1] = AttenuationFactors.Y;
+			LightDesc.Omni.fAttenuationFactors[2] = AttenuationFactors.Z;
+			LightDesc.Omni.fAttenuationFactors[3] = AttenuationFactors.W;
+		}
+		break;
+		case LightType_Spot:
+		{
+			LightDesc.eType = NvVl::LightType::SPOTLIGHT;
+			LightDesc.Spotlight.fZNear = ShadowInfo->MinSubjectZ;
+			LightDesc.Spotlight.fZFar = ShadowInfo->MaxSubjectZ;
 
-            LightDesc.Spotlight.eFalloffMode = (NvVl::SpotlightFalloffMode)LightSceneInfo->Proxy->GetNvVlFalloffMode();
-            const FVector2D& AngleAndPower = LightSceneInfo->Proxy->GetNvVlFalloffAngleAndPower();
-            LightDesc.Spotlight.fFalloff_CosTheta = FMath::Cos(AngleAndPower.X);
+			LightDesc.Spotlight.eFalloffMode = (NvVl::SpotlightFalloffMode)LightSceneInfo->Proxy->GetNvVlFalloffMode();
+			const FVector2D& AngleAndPower = LightSceneInfo->Proxy->GetNvVlFalloffAngleAndPower();
+			LightDesc.Spotlight.fFalloff_CosTheta = FMath::Cos(AngleAndPower.X);
 			LightDesc.Spotlight.fFalloff_Power = AngleAndPower.Y;
             
 			LightDesc.Spotlight.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
-            LightDesc.Spotlight.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
-            LightDesc.Spotlight.eAttenuationMode = (NvVl::AttenuationMode)LightSceneInfo->Proxy->GetNvVlAttenuationMode();
-            const FVector4& AttenuationFactors = LightSceneInfo->Proxy->GetNvVlAttenuationFactors();
-            LightDesc.Spotlight.fAttenuationFactors[0] = AttenuationFactors.X;
-            LightDesc.Spotlight.fAttenuationFactors[1] = AttenuationFactors.Y;
-            LightDesc.Spotlight.fAttenuationFactors[2] = AttenuationFactors.Z;
-            LightDesc.Spotlight.fAttenuationFactors[3] = AttenuationFactors.W;
-        }
-        break;
-        default:
-        case LightType_Directional:
-        {
-            LightDesc.eType = NvVl::LightType::DIRECTIONAL;
-            LightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
-        }
-    }
+			LightDesc.Spotlight.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
+			LightDesc.Spotlight.eAttenuationMode = (NvVl::AttenuationMode)LightSceneInfo->Proxy->GetNvVlAttenuationMode();
+			const FVector4& AttenuationFactors = LightSceneInfo->Proxy->GetNvVlAttenuationFactors();
+			LightDesc.Spotlight.fAttenuationFactors[0] = AttenuationFactors.X;
+			LightDesc.Spotlight.fAttenuationFactors[1] = AttenuationFactors.Y;
+			LightDesc.Spotlight.fAttenuationFactors[2] = AttenuationFactors.Z;
+			LightDesc.Spotlight.fAttenuationFactors[3] = AttenuationFactors.W;
+		}
+		break;
+		default:
+		case LightType_Directional:
+		{
+			LightDesc.eType = NvVl::LightType::DIRECTIONAL;
+			LightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
+		}
+	}
 
-    NvVl::VolumeDesc VolumeDesc;
-    {
-        VolumeDesc.fTargetRayResolution = LightSceneInfo->Proxy->GetNvVlTargetRayResolution();
-        VolumeDesc.uMaxMeshResolution = ShadowmapDesc.uWidth;
-        VolumeDesc.fDepthBias = LightSceneInfo->Proxy->GetNvVlDepthBias();
-        VolumeDesc.eTessQuality = (NvVl::TessellationQuality)LightSceneInfo->Proxy->GetNvVlTessQuality();
-    }
+	NvVl::VolumeDesc VolumeDesc;
+	{
+		VolumeDesc.fTargetRayResolution = LightSceneInfo->Proxy->GetNvVlTargetRayResolution();
+		VolumeDesc.uMaxMeshResolution = ShadowmapDesc.uWidth;
+		VolumeDesc.fDepthBias = LightSceneInfo->Proxy->GetNvVlDepthBias();
+		VolumeDesc.eTessQuality = (NvVl::TessellationQuality)LightSceneInfo->Proxy->GetNvVlTessQuality();
+	}
 
-	GNVVolumetricLightingRHI->RenderVolume(ShadowDepth, ShadowmapDesc, LightDesc, VolumeDesc);
+	GNVVolumetricLightingRHI->RenderVolume(DepthMap, ShadowmapDesc, LightDesc, VolumeDesc);
 
 	// clear the state cache
 	GDynamicRHI->ClearStateCache();
