@@ -2110,6 +2110,16 @@ void FAnimBlueprintCompiler::FEvaluationHandlerRecord::RegisterPin(UEdGraphPin* 
 		}
 
 		CheckForMemberOnlyAccess(Handler, SourcePin);
+
+		// we cant copy non-POD structs, so zero-out the name here if we are trying to
+		if (AssociatedProperty && AssociatedProperty->IsA<UStructProperty>())
+		{
+			UStructProperty* SourceStructProperty = CastChecked<UStructProperty>(AssociatedProperty);
+			if (SourceStructProperty->Struct->GetCppStructOps() && !SourceStructProperty->Struct->GetCppStructOps()->IsPlainOldData())
+			{
+				Handler.SimpleCopyPropertyName = NAME_None;
+			}
+		}
 	}
 }
 
