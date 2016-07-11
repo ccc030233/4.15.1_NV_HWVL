@@ -83,6 +83,26 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	GDynamicRHI->ClearStateCache();
 }
 
+void FDeferredShadingSceneRenderer::NVVolumetricLightingRemapShadowDepth(FRHICommandListImmediate& RHICmdList)
+{
+	if (!CVarNvVlEnable.GetValueOnRenderThread())
+	{
+		return;
+	}
+
+	if (!Scene->bEnableVolumetricLightingSettings)
+	{
+		return;
+	}
+
+	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
+	const FTexture2DRHIRef& ShadowDepth = SceneContext.GetShadowDepthZTexture(false);
+	GNVVolumetricLightingRHI->RemapShadowDepth(ShadowDepth);
+
+	// clear the state cache
+	GDynamicRHI->ClearStateCache();
+}
+
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo)
 {
 	if (!CVarNvVlEnable.GetValueOnRenderThread() || !LightSceneInfo->Proxy->IsNVVolumetricLighting())
@@ -134,6 +154,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		ShadowmapDesc.bLinearizedDepth = false;
 		// shadow space
 		ShadowmapDesc.bShadowSpace = false;
+		ShadowmapDesc.bLowToHighCascadedShadow = true;
 
 		for (int32 FaceIndex = 0; FaceIndex < 6; FaceIndex++)
 		{
@@ -174,10 +195,9 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		ShadowmapDesc.uHeight = ShadowmapHeight;
 		// Shadow depth type
 		ShadowmapDesc.bLinearizedDepth = LightSceneInfo->Proxy->GetLightType() == LightType_Spot ? true : false;
-		ShadowmapDesc.fInvMaxSubjectDepth = ShadowInfo->InvMaxSubjectDepth;
 		// shadow space
 		ShadowmapDesc.bShadowSpace = true;
-		ShadowmapDesc.vShadowmapMinMaxValue = *reinterpret_cast<const NvcVec4 *>(&ShadowmapMinMaxValue);
+		ShadowmapDesc.bLowToHighCascadedShadow = true;
 
 		ShadowmapDesc.uElementCount = 1;
 		ShadowmapDesc.Elements[0].uOffsetX = 0;
@@ -186,6 +206,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		ShadowmapDesc.Elements[0].uHeight = ShadowmapDesc.uHeight;
 		ShadowmapDesc.Elements[0].mViewProj = *reinterpret_cast<const NvcMat44*>(&WorldToShadowMatrixValue.M[0][0]);
 		ShadowmapDesc.Elements[0].mArrayIndex = 0;
+		ShadowmapDesc.Elements[0].fInvMaxSubjectDepth = ShadowInfo->InvMaxSubjectDepth;
+		ShadowmapDesc.Elements[0].vShadowmapMinMaxValue = *reinterpret_cast<const NvcVec4 *>(&ShadowmapMinMaxValue);
 
 		DepthMap = ShadowDepth;
 	}
@@ -256,6 +278,94 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	// clear the state cache
 	GDynamicRHI->ClearStateCache();
 }
+
+// for cascaded shadow
+void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const TArray<FProjectedShadowInfo*, SceneRenderingAllocator>& ShadowInfos)
+{
+	if (!CVarNvVlEnable.GetValueOnRenderThread() || !LightSceneInfo->Proxy->IsNVVolumetricLighting())
+	{
+		return;
+	}
+
+	if (!Scene->bEnableVolumetricLightingSettings)
+	{
+		return;
+	}
+
+	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
+
+	FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
+	LightDirection.Normalize();
+
+	FMatrix LightViewProj;
+	uint32 Cascade = ShadowInfos.Num() - 2; // TODO: better LightToWorld
+	LightViewProj = FTranslationMatrix(ShadowInfos[Cascade]->PreShadowTranslation) * ShadowInfos[Cascade]->SubjectAndReceiverMatrix; // use the first cascade as the LightToWorld
+
+	NvVl::ShadowMapDesc ShadowmapDesc;
+	uint32 ShadowmapWidth = 0, ShadowmapHeight = 0;
+
+	const FTexture2DRHIRef& ShadowDepth = SceneContext.GetShadowDepthZTexture(false);
+
+	if (ShadowDepth)
+	{
+		ShadowmapWidth = ShadowDepth->GetSizeX();
+		ShadowmapHeight = ShadowDepth->GetSizeY();
+	}
+	else
+	{
+		FIntPoint Resolution = SceneContext.GetShadowDepthTextureResolution(); // Pre Cache?? GetPreShadowCacheTextureResolution()
+		ShadowmapWidth = Resolution.X;
+		ShadowmapHeight = Resolution.Y;
+	}
+
+	ShadowmapDesc.eType = NvVl::ShadowMapLayout::SIMPLE;
+	ShadowmapDesc.uWidth = ShadowmapWidth;
+	ShadowmapDesc.uHeight = ShadowmapHeight;
+	// Shadow depth type
+	ShadowmapDesc.bLinearizedDepth = false;
+	// shadow space
+	ShadowmapDesc.bShadowSpace = true;
+	ShadowmapDesc.bLowToHighCascadedShadow = true;
+
+	ShadowmapDesc.uElementCount = FMath::Min((uint32)ShadowInfos.Num(), NvVl::MAX_SHADOWMAP_ELEMENTS);
+	for (uint32 ElementIndex = 0; ElementIndex < ShadowmapDesc.uElementCount; ElementIndex++)
+	{
+		FVector4 ShadowmapMinMaxValue;
+		FMatrix WorldToShadowMatrixValue = ShadowInfos[ElementIndex]->GetWorldToShadowMatrix(ShadowmapMinMaxValue);
+		ShadowmapDesc.Elements[ElementIndex].uOffsetX = 0;
+		ShadowmapDesc.Elements[ElementIndex].uOffsetY = 0;
+		ShadowmapDesc.Elements[ElementIndex].uWidth = ShadowmapDesc.uWidth;
+		ShadowmapDesc.Elements[ElementIndex].uHeight = ShadowmapDesc.uHeight;
+		ShadowmapDesc.Elements[ElementIndex].mViewProj = *reinterpret_cast<const NvcMat44*>(&WorldToShadowMatrixValue.M[0][0]);
+		ShadowmapDesc.Elements[ElementIndex].mArrayIndex = ElementIndex;
+		ShadowmapDesc.Elements[ElementIndex].vShadowmapMinMaxValue = *reinterpret_cast<const NvcVec4 *>(&ShadowmapMinMaxValue);
+	}
+
+	NvVl::LightDesc LightDesc;
+
+	FVector Intensity = LightSceneInfo->Proxy->GetNvVlIntensity();
+	LightDesc.vIntensity = *reinterpret_cast<const NvcVec3 *>(&Intensity);
+
+	FMatrix LightViewProjInv = LightViewProj.InverseFast();
+	LightDesc.mLightToWorld = *reinterpret_cast<const NvcMat44*>(&LightViewProjInv.M[0][0]);
+
+	LightDesc.eType = NvVl::LightType::DIRECTIONAL;
+	LightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
+
+	NvVl::VolumeDesc VolumeDesc;
+	{
+		VolumeDesc.fTargetRayResolution = LightSceneInfo->Proxy->GetNvVlTargetRayResolution();
+		VolumeDesc.uMaxMeshResolution = ShadowmapDesc.uWidth;
+		VolumeDesc.fDepthBias = LightSceneInfo->Proxy->GetNvVlDepthBias();
+		VolumeDesc.eTessQuality = (NvVl::TessellationQuality)LightSceneInfo->Proxy->GetNvVlTessQuality();
+	}
+
+	GNVVolumetricLightingRHI->RenderVolume(ShadowDepth, ShadowmapDesc, LightDesc, VolumeDesc);
+
+	// clear the state cache
+	GDynamicRHI->ClearStateCache();
+}
+
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHICommandListImmediate& RHICmdList)
 {

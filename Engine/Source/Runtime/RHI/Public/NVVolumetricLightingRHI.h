@@ -24,13 +24,16 @@ public:
 	void UpdateContext();
 
 	void UpdateFrameBuffer(int32 InBufferSizeX, int32 InBufferSizeY, uint16 InNumSamples);
-
+	void UpdateCascadedShadow(int32 InBufferSizeX, int32 InBufferSizeY, uint32 InSlices);
 	void BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const NvVl::ViewerDesc& ViewerDesc, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags);
+	void RemapShadowDepth(FTextureRHIParamRef ShadowMapTextureRHI);
 	void RenderVolume(FTextureRHIParamRef ShadowMapTextureRHI, const NvVl::ShadowMapDesc& ShadowMapDesc, const NvVl::LightDesc& LightDesc, const NvVl::VolumeDesc& VolumeDesc);
 	void EndAccumulation();
 	void ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc PostprocessDesc);
 
 private:
+	void UpdateShadowBuffer();
+
 	HMODULE ModuleHandle;
 	bool bNeedUpdateContext;
 
@@ -41,6 +44,10 @@ private:
 	NvVl::PlatformRenderCtx	RenderCtx;
 
 	NvVl::PlatformShaderResource SceneDepthSRV;
+
+	uint32 MaxShadowBufferWidthPerFrame;
+	uint32 MaxShadowBufferHeightPerFrame;
+	uint32 MaxShadowBufferSlicesPerFrame;
 };
 
 /** A global pointer to Nvidia Volumetric Lighting RHI implementation. */

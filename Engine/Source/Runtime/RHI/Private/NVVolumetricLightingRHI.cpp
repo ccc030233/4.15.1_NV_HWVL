@@ -20,6 +20,9 @@ FNVVolumetricLightingRHI::FNVVolumetricLightingRHI()
 	, RenderCtx(NULL)
 	, SceneDepthSRV(NULL)
 	, bNeedUpdateContext(true)
+	, MaxShadowBufferWidthPerFrame(0)
+	, MaxShadowBufferHeightPerFrame(0)
+	, MaxShadowBufferSlicesPerFrame(0)
 {
 }
 
@@ -40,6 +43,9 @@ void FNVVolumetricLightingRHI::Init()
     ContextDesc.framebuffer.uWidth = 0;
     ContextDesc.framebuffer.uHeight = 0;
     ContextDesc.framebuffer.uSamples = 0;
+	ContextDesc.cascadedShadowBuffer.uWidth = 0;
+	ContextDesc.cascadedShadowBuffer.uHeight = 0;
+	ContextDesc.cascadedShadowBuffer.uSlices = 0;
     ContextDesc.eDownsampleMode = NvVl::DownsampleMode::FULL;
     ContextDesc.eInternalSampleMode = NvVl::MultisampleMode::SINGLE;
     ContextDesc.eFilterMode = NvVl::FilterMode::NONE;
@@ -86,18 +92,60 @@ void FNVVolumetricLightingRHI::UpdateContext()
 
 void FNVVolumetricLightingRHI::UpdateFrameBuffer(int32 InBufferSizeX, int32 InBufferSizeY, uint16 InNumSamples)
 {
-    ContextDesc.framebuffer.uWidth = InBufferSizeX;
-    ContextDesc.framebuffer.uHeight = InBufferSizeY;
-    ContextDesc.framebuffer.uSamples = InNumSamples;
+	if (ContextDesc.framebuffer.uWidth != InBufferSizeX
+	||  ContextDesc.framebuffer.uHeight != InBufferSizeY
+	||  ContextDesc.framebuffer.uSamples != InNumSamples)
+	{
+		ContextDesc.framebuffer.uWidth = InBufferSizeX;
+		ContextDesc.framebuffer.uHeight = InBufferSizeY;
+		ContextDesc.framebuffer.uSamples = InNumSamples;
 
-	bNeedUpdateContext = true;
+		bNeedUpdateContext = true;
+	}
+}
+
+void FNVVolumetricLightingRHI::UpdateCascadedShadow(int32 InBufferSizeX, int32 InBufferSizeY, uint32 InSlices)
+{
+	if ((uint32)InBufferSizeX > MaxShadowBufferWidthPerFrame) MaxShadowBufferWidthPerFrame = InBufferSizeX;
+	if ((uint32)InBufferSizeY > MaxShadowBufferHeightPerFrame) MaxShadowBufferHeightPerFrame = InBufferSizeY;
+	if ((uint32)InSlices > MaxShadowBufferSlicesPerFrame)
+	{
+		MaxShadowBufferSlicesPerFrame = FMath::Min(NvVl::MAX_SHADOWMAP_ELEMENTS, InSlices);
+	}
+}
+
+void FNVVolumetricLightingRHI::UpdateShadowBuffer()
+{
+	if (ContextDesc.cascadedShadowBuffer.uWidth != MaxShadowBufferWidthPerFrame
+	|| ContextDesc.cascadedShadowBuffer.uHeight != MaxShadowBufferHeightPerFrame
+	|| ContextDesc.cascadedShadowBuffer.uSlices != MaxShadowBufferSlicesPerFrame)
+	{
+		ContextDesc.cascadedShadowBuffer.uWidth = MaxShadowBufferWidthPerFrame;
+		ContextDesc.cascadedShadowBuffer.uHeight = MaxShadowBufferHeightPerFrame;
+		ContextDesc.cascadedShadowBuffer.uSlices = MaxShadowBufferSlicesPerFrame;
+
+		bNeedUpdateContext = true;
+	}
+
+	MaxShadowBufferWidthPerFrame = 0;
+	MaxShadowBufferHeightPerFrame = 0;
+	MaxShadowBufferSlicesPerFrame = 0;
 }
 
 void FNVVolumetricLightingRHI::BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const NvVl::ViewerDesc& ViewerDesc, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags)
 {
+	UpdateShadowBuffer();
 	UpdateContext();
 	GDynamicRHI->GetPlatformShaderResource(SceneDepthTextureRHI, SceneDepthSRV);
 	NvVl::Status Status = NvVl::BeginAccumulation(Context, RenderCtx, SceneDepthSRV, &ViewerDesc, &MediumDesc, DebugFlags);
+	check(Status == NvVl::Status::OK);
+}
+
+void FNVVolumetricLightingRHI::RemapShadowDepth(FTextureRHIParamRef ShadowMapTextureRHI)
+{
+	NvVl::PlatformShaderResource ShadowMapSRV(NULL);
+	GDynamicRHI->GetPlatformShaderResource(ShadowMapTextureRHI, ShadowMapSRV);
+	NvVl::Status Status = NvVl::RemapShadowDepth(Context, RenderCtx, ShadowMapSRV);
 	check(Status == NvVl::Status::OK);
 }
 

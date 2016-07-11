@@ -317,6 +317,13 @@ struct ContextDesc
 	DownsampleMode eDownsampleMode;			//!< Target resolution of internal buffer
 	MultisampleMode eInternalSampleMode;	//!< Target sample rate of internal buffer
 	FilterMode eFilterMode;					//!< Type of filtering to do on the output
+
+	struct
+	{
+		uint32_t uWidth;					//!< Width of cascaded shadow depth for mapping
+		uint32_t uHeight;					//!< Height of cascaded shadow depth for mapping
+		uint32_t uSlices;					//!< Slices of cascaded shadow map for mapping
+	} cascadedShadowBuffer;
 };
 
 //! Viewer Camera/Framebuffer Description
@@ -361,6 +368,8 @@ struct ShadowMapElementDesc
 	uint32_t uWidth;		//!< Footprint width within texture
 	uint32_t uHeight;		//!< Footprint height within texture
     uint32_t mArrayIndex;   //!< Texture array index for this element (if used)
+	float fInvMaxSubjectDepth; //!< The inverse of the max depth (only with Linearized Depth)
+	NvcVec4 vShadowmapMinMaxValue; //!< Minimum(xy) and maximum(zw) uv of the shadow map (only with Shadow Space)
 };
 
 //! Maximum number of sub-elements in a shadow map set
@@ -374,9 +383,8 @@ struct ShadowMapDesc
 	uint32_t uHeight;		//!< Shadow map texture height
 	uint32_t uElementCount; //!< Number of sub-elements in the shadow map
 	bool bLinearizedDepth;	//!< Linearized Depth for shadow map
-	float fInvMaxSubjectDepth; //!< The inverse of the max depth (only with Linearized Depth)
 	bool bShadowSpace;		//!< Transform a world space position into the shadow space or clip space 
-	NvcVec4 vShadowmapMinMaxValue; //!< Minimum(xy) and maximum(zw) uv of the shadow map (only with Shadow Space)
+	bool bLowToHighCascadedShadow; //!< Cascaded shadow quality is from low to high or on the contrary
 	NvcMat44 mCubeViewProj[6]; //!< View-Proj transform for 6 faces of cube
 
     //! Individual cascade descriptions
@@ -481,6 +489,13 @@ NV_VOLUMETRICLIGHTING_API(Status) BeginAccumulation(
     MediumDesc const* pMediumDesc,		        //!< Description of medium
     DebugFlags debugFlags = DebugFlags::NONE    //!< Debug flags to apply for this pass
     );
+
+//! Remap the shadow depth to texture array
+NV_VOLUMETRICLIGHTING_API(Status) RemapShadowDepth(
+    Context ctx,                                //!< Library context to operate on
+    PlatformRenderCtx renderCtx,		        //!< Context to use for rendering
+	PlatformShaderResource shadowMap			//!< Shadow map resource
+	);
 
 //! Add a lighting volume to the accumulated results
 NV_VOLUMETRICLIGHTING_API(Status) RenderVolume(

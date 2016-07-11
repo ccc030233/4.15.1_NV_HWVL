@@ -8,6 +8,9 @@
 #include "ScenePrivate.h"
 #include "LightPropagationVolume.h"
 #include "LightPropagationVolumeBlendable.h"
+#if WITH_NVVOLUMETRICLIGHTING
+#include "NVVolumetricLightingRHI.h"
+#endif
 
 static float GMinScreenRadiusForShadowCaster = 0.03f;
 static FAutoConsoleVariableRef CVarMinScreenRadiusForShadowCaster(
@@ -2369,6 +2372,11 @@ void FSceneRenderer::AddViewDependentWholeSceneShadowsForView(
 					}
 				}
 			}
+
+#if WITH_NVVOLUMETRICLIGHTING
+			const FIntPoint ShadowBufferResolution = SceneContext_ConstantsOnly.GetShadowDepthTextureResolution();
+			GNVVolumetricLightingRHI->UpdateCascadedShadow(ShadowBufferResolution.X, ShadowBufferResolution.Y, ProjectionCount);
+#endif
 
 			FSceneViewState* ViewState = (FSceneViewState*)View.State;
 			if (ViewState)
