@@ -3111,7 +3111,8 @@ bool FDeferredShadingSceneRenderer::RenderOnePassPointLightShadows(FRHICommandLi
 			{
 				if(ProjectedShadowInfo->bAllocated
 				&& ProjectedShadowInfo->bWholeSceneShadow
-				&& (!LightSceneInfo->Proxy->HasStaticShadowing()))
+				&& (!LightSceneInfo->Proxy->HasStaticShadowing())
+				&& LightSceneInfo->Proxy->IsNVVolumetricLighting())
 				{
 					NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo, ProjectedShadowInfo);
 				}
@@ -3752,18 +3753,20 @@ bool FDeferredShadingSceneRenderer::RenderProjectedShadows(FRHICommandListImmedi
 #if WITH_NVVOLUMETRICLIGHTING
 		if (ViewFamily.EngineShowFlags.Game && Shadows.Num() > 0)
 		{
-			for (int32 ShadowIndex = 0; ShadowIndex < Shadows.Num(); ShadowIndex++)
+			int32 NumShadows = FMath::Min((int32)NvVl::MAX_SHADOWMAP_ELEMENTS, Shadows.Num());
+			for (int32 ShadowIndex = 0; ShadowIndex < NumShadows; ShadowIndex++)
 			{
-				FProjectedShadowInfo* ProjectedShadowInfo = Shadows[ShadowIndex];
+				FProjectedShadowInfo* ProjectedShadowInfo = Shadows[Shadows.Num() - NumShadows + ShadowIndex];
 
 				if(ProjectedShadowInfo->bAllocated
-				&& ProjectedShadowInfo->bWholeSceneShadow)
+				&& ProjectedShadowInfo->bWholeSceneShadow
+				&& LightSceneInfo->Proxy->IsNVVolumetricLighting())
 				{
-					if (ProjectedShadowInfo->IsWholeSceneDirectionalShadow() && Shadows.Num() > 1)
+					if (ProjectedShadowInfo->IsWholeSceneDirectionalShadow() && NumShadows > 1)
 					{
 						NVVolumetricLightingRemapShadowDepth(RHICmdList);
 
-						if (ShadowIndex == (Shadows.Num()-1)) // Last cascade
+						if (ShadowIndex == (NumShadows-1)) // Last cascade
 						{
 							NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo, Shadows);
 						}

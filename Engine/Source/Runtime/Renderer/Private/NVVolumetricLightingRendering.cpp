@@ -298,7 +298,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	LightDirection.Normalize();
 
 	FMatrix LightViewProj;
-	uint32 Cascade = ShadowInfos.Num() - 2; // TODO: better LightToWorld
+	uint32 Cascade = ShadowInfos.Num() - 1; // TODO: better LightToWorld
 	LightViewProj = FTranslationMatrix(ShadowInfos[Cascade]->PreShadowTranslation) * ShadowInfos[Cascade]->SubjectAndReceiverMatrix; // use the first cascade as the LightToWorld
 
 	NvVl::ShadowMapDesc ShadowmapDesc;
@@ -331,7 +331,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	for (uint32 ElementIndex = 0; ElementIndex < ShadowmapDesc.uElementCount; ElementIndex++)
 	{
 		FVector4 ShadowmapMinMaxValue;
-		FMatrix WorldToShadowMatrixValue = ShadowInfos[ElementIndex]->GetWorldToShadowMatrix(ShadowmapMinMaxValue);
+		FMatrix WorldToShadowMatrixValue = ShadowInfos[ShadowInfos.Num() - ShadowmapDesc.uElementCount + ElementIndex]->GetWorldToShadowMatrix(ShadowmapMinMaxValue);
 		ShadowmapDesc.Elements[ElementIndex].uOffsetX = 0;
 		ShadowmapDesc.Elements[ElementIndex].uOffsetY = 0;
 		ShadowmapDesc.Elements[ElementIndex].uWidth = ShadowmapDesc.uWidth;
