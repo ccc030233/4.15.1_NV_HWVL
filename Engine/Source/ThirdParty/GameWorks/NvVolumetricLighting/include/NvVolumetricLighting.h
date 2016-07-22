@@ -332,6 +332,8 @@ struct ViewerDesc
 	NvcMat44 mProj;		        //!< Camera projection transform
 	NvcMat44 mViewProj;	        //!< Camera view-proj transform
 	NvcVec3 vEyePosition;	    //!< Camera position in world-space
+	uint32_t uViewportTopLeftX;	//!< Viewport Top left X position
+	uint32_t uViewportTopLeftY;	//!< Viewport Top left Y position
 	uint32_t uViewportWidth;	//!< Viewport Width (may differ from framebuffer)
 	uint32_t uViewportHeight;	//!< Viewport Height (may differ from framebuffer)
 	bool bReversedZ;			//!< Reversed z projection transform (0 far, 1 near)

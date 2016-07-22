@@ -49,6 +49,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	FMatrix ViewProjMatrix = View.ViewMatrices.GetViewProjMatrix();
     ViewerDesc.mViewProj = *reinterpret_cast<const NvcMat44*>(&ViewProjMatrix.M[0][0]);
     ViewerDesc.vEyePosition = *reinterpret_cast<const NvcVec3 *>(&View.ViewLocation);
+	ViewerDesc.uViewportTopLeftX = View.ViewRect.Min.X;
+	ViewerDesc.uViewportTopLeftY = View.ViewRect.Min.Y;
     ViewerDesc.uViewportWidth = View.ViewRect.Width();
     ViewerDesc.uViewportHeight = View.ViewRect.Height();
 	ViewerDesc.bReversedZ = ((int32)ERHIZBuffer::IsInverted != 0);
@@ -298,7 +300,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	LightDirection.Normalize();
 
 	FMatrix LightViewProj;
-	uint32 Cascade = ShadowInfos.Num() - 1; // TODO: better LightToWorld
+	uint32 Cascade = ShadowInfos.Num() - 2; // TODO: better LightToWorld
 	LightViewProj = FTranslationMatrix(ShadowInfos[Cascade]->PreShadowTranslation) * ShadowInfos[Cascade]->SubjectAndReceiverMatrix; // use the first cascade as the LightToWorld
 
 	NvVl::ShadowMapDesc ShadowmapDesc;
