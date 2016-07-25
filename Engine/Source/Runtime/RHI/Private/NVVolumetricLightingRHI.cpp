@@ -20,6 +20,7 @@ FNVVolumetricLightingRHI::FNVVolumetricLightingRHI()
 	, RenderCtx(NULL)
 	, SceneDepthSRV(NULL)
 	, bNeedUpdateContext(true)
+	, bEnableSeparateTranslucencyPostprocess(false)
 	, MaxShadowBufferWidthPerFrame(0)
 	, MaxShadowBufferHeightPerFrame(0)
 	, MaxShadowBufferSlicesPerFrame(0)
@@ -163,11 +164,29 @@ void FNVVolumetricLightingRHI::EndAccumulation()
 	check(Status == NvVl::Status::OK);
 }
 
-void FNVVolumetricLightingRHI::ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc PostprocessDesc)
+void FNVVolumetricLightingRHI::ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc InPostprocessDesc)
 {
 	NvVl::PlatformRenderTarget SceneRTV(NULL);
 	GDynamicRHI->GetPlatformRenderTarget(SceneColorSurfaceRHI, SceneRTV);
-	NvVl::Status Status = NvVl::ApplyLighting(Context, RenderCtx, SceneRTV, SceneDepthSRV, &PostprocessDesc);
+	NvVl::Status Status = NvVl::ApplyLighting(Context, RenderCtx, SceneRTV, SceneDepthSRV, &InPostprocessDesc);
 	check(Status == NvVl::Status::OK);
 }
+
+void FNVVolumetricLightingRHI::SetSeparateTranslucencyPostprocess(bool bEnable, const NvVl::PostprocessDesc InPostprocessDesc)
+{
+	bEnableSeparateTranslucencyPostprocess = bEnable;
+	SeparateTranslucencyPostprocessDesc = InPostprocessDesc;
+}
+
+void FNVVolumetricLightingRHI::SeparateTranslucencyApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI)
+{
+	if (bEnableSeparateTranslucencyPostprocess)
+	{
+		NvVl::PlatformRenderTarget SceneRTV(NULL);
+		GDynamicRHI->GetPlatformRenderTarget(SceneColorSurfaceRHI, SceneRTV);
+		NvVl::Status Status = NvVl::ApplyLighting(Context, RenderCtx, SceneRTV, SceneDepthSRV, &SeparateTranslucencyPostprocessDesc);
+		check(Status == NvVl::Status::OK);
+	}
+}
+
 #endif

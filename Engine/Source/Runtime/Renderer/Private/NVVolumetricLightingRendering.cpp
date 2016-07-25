@@ -412,11 +412,19 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
     PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
     PostprocessDesc.fMultiscatter = PostprocessSettings.Multiscatter;
 
-	GNVVolumetricLightingRHI->ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
+	check(Views.Num());
+	if (!SceneContext.IsSeparateTranslucencyActive(Views[0]))
+	{
+		GNVVolumetricLightingRHI->ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
 
-	// clear the state cache
-	GDynamicRHI->ClearStateCache();
-	SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+		// clear the state cache
+		GDynamicRHI->ClearStateCache();
+		SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+	}
+	else
+	{
+		GNVVolumetricLightingRHI->SetSeparateTranslucencyPostprocess(CVarNvVlEnable.GetValueOnRenderThread() && Scene->bEnableVolumetricLightingSettings, PostprocessDesc);
+	}
 }
 
 #endif

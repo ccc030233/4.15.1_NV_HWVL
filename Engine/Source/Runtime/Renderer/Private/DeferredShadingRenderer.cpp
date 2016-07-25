@@ -1341,8 +1341,6 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 	if (ViewFamily.EngineShowFlags.Game)
 	{
 		NVVolumetricLightingEndAccumulation(RHICmdList);
-
-		NVVolumetricLightingApplyLighting(RHICmdList);
 	}
 #endif
 
@@ -1469,6 +1467,13 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		RenderMeshDistanceFieldVisualization(RHICmdList, FDistanceFieldAOParameters(Scene->DefaultMaxDistanceFieldOcclusionDistance));
 		ServiceLocalQueue();
 	}
+
+#if WITH_NVVOLUMETRICLIGHTING
+	if (ViewFamily.EngineShowFlags.Game)
+	{
+		NVVolumetricLightingApplyLighting(RHICmdList);
+	}
+#endif
 
 	// Resolve the scene color for post processing.
 	SceneContext.ResolveSceneColor(RHICmdList, FResolveRect(0, 0, ViewFamily.FamilySizeX, ViewFamily.FamilySizeY));
