@@ -254,11 +254,12 @@ void FRCPassPostProcessBokehDOFRecombine::Process(FRenderingCompositePassContext
 #if WITH_NVVOLUMETRICLIGHTING
 	if (View.Family->EngineShowFlags.Game && (Method == 2 || Method == 3))
 	{
-		GNVVolumetricLightingRHI->SeparateTranslucencyApplyLighting(DestRenderTarget.TargetableTexture);
-
-		// clear the state cache
-		GDynamicRHI->ClearStateCache();
-		SetRenderTarget(Context.RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+		if (GNVVolumetricLightingRHI->SeparateTranslucencyApplyLighting(DestRenderTarget.TargetableTexture))
+		{
+			// clear the state cache
+			GDynamicRHI->ClearStateCache();
+			SetRenderTarget(Context.RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+		}
 	}
 #endif
 

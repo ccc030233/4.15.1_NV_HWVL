@@ -31,7 +31,7 @@ public:
 	void EndAccumulation();
 	void ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc InPostprocessDesc);
 	void SetSeparateTranslucencyPostprocess(bool bEnable, const NvVl::PostprocessDesc InPostprocessDesc);
-	void SeparateTranslucencyApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI);
+	bool SeparateTranslucencyApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI);
 private:
 	void UpdateShadowBuffer();
 

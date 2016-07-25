@@ -477,11 +477,12 @@ void FRCPassPostProcessDOFRecombine::Process(FRenderingCompositePassContext& Con
 #if WITH_NVVOLUMETRICLIGHTING
 	if (View.Family->EngineShowFlags.Game && bSeparateTranslucency)
 	{
-		GNVVolumetricLightingRHI->SeparateTranslucencyApplyLighting(DestRenderTarget.TargetableTexture);
-
-		// clear the state cache
-		GDynamicRHI->ClearStateCache();
-		SetRenderTarget(Context.RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+		if (GNVVolumetricLightingRHI->SeparateTranslucencyApplyLighting(DestRenderTarget.TargetableTexture))
+		{
+			// clear the state cache
+			GDynamicRHI->ClearStateCache();
+			SetRenderTarget(Context.RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+		}
 	}
 #endif
 

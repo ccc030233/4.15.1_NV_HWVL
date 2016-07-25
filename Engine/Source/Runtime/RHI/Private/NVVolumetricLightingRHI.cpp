@@ -135,6 +135,7 @@ void FNVVolumetricLightingRHI::UpdateShadowBuffer()
 
 void FNVVolumetricLightingRHI::BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const NvVl::ViewerDesc& ViewerDesc, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags)
 {
+	bEnableSeparateTranslucencyPostprocess = false;
 	UpdateShadowBuffer();
 	UpdateContext();
 	GDynamicRHI->GetPlatformShaderResource(SceneDepthTextureRHI, SceneDepthSRV);
@@ -178,7 +179,7 @@ void FNVVolumetricLightingRHI::SetSeparateTranslucencyPostprocess(bool bEnable, 
 	SeparateTranslucencyPostprocessDesc = InPostprocessDesc;
 }
 
-void FNVVolumetricLightingRHI::SeparateTranslucencyApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI)
+bool FNVVolumetricLightingRHI::SeparateTranslucencyApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI)
 {
 	if (bEnableSeparateTranslucencyPostprocess)
 	{
@@ -187,6 +188,8 @@ void FNVVolumetricLightingRHI::SeparateTranslucencyApplyLighting(FTextureRHIPara
 		NvVl::Status Status = NvVl::ApplyLighting(Context, RenderCtx, SceneRTV, SceneDepthSRV, &SeparateTranslucencyPostprocessDesc);
 		check(Status == NvVl::Status::OK);
 	}
+
+	return bEnableSeparateTranslucencyPostprocess;
 }
 
 #endif
