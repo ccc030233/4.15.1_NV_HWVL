@@ -3617,6 +3617,9 @@ bool FDeferredShadingSceneRenderer::RenderProjectedShadows(FRHICommandListImmedi
 	FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[LightSceneInfo->Id];
 	TArray<FProjectedShadowInfo*, SceneRenderingAllocator> Shadows;
 	TArray<FProjectedShadowInfo*, SceneRenderingAllocator> CapsuleShadows;
+#if WITH_NVVOLUMETRICLIGHTING
+	TArray<FProjectedShadowInfo*, SceneRenderingAllocator> VolumetricShadows;
+#endif
 
 	for (int32 ShadowIndex = 0; ShadowIndex < VisibleLightInfo.AllProjectedShadows.Num(); ShadowIndex++)
 	{
@@ -3685,6 +3688,12 @@ bool FDeferredShadingSceneRenderer::RenderProjectedShadows(FRHICommandListImmedi
 		FProjectedShadowInfo* ProjectedShadowInfo = Shadows[ShadowIndex];
 		check(!ProjectedShadowInfo->bTranslucentShadow);
 		ProjectedShadowInfo->bRendered = false;
+#if WITH_NVVOLUMETRICLIGHTING
+		if (ProjectedShadowInfo->bWholeSceneShadow)
+		{
+			VolumetricShadows.Add(ProjectedShadowInfo);
+		}
+#endif
 	}
 
 	int32 NumShadowsRendered = 0;
@@ -3751,12 +3760,12 @@ bool FDeferredShadingSceneRenderer::RenderProjectedShadows(FRHICommandListImmedi
 		}
 
 #if WITH_NVVOLUMETRICLIGHTING
-		if (ViewFamily.EngineShowFlags.Game && Shadows.Num() > 0)
+		if (ViewFamily.EngineShowFlags.Game)
 		{
-			int32 NumShadows = FMath::Min((int32)NvVl::MAX_SHADOWMAP_ELEMENTS, Shadows.Num());
+			int32 NumShadows = FMath::Min((int32)NvVl::MAX_SHADOWMAP_ELEMENTS, VolumetricShadows.Num());
 			for (int32 ShadowIndex = 0; ShadowIndex < NumShadows; ShadowIndex++)
 			{
-				FProjectedShadowInfo* ProjectedShadowInfo = Shadows[Shadows.Num() - NumShadows + ShadowIndex];
+				FProjectedShadowInfo* ProjectedShadowInfo = VolumetricShadows[VolumetricShadows.Num() - NumShadows + ShadowIndex];
 
 				if(ProjectedShadowInfo->bAllocated
 				&& ProjectedShadowInfo->bWholeSceneShadow
@@ -3768,7 +3777,7 @@ bool FDeferredShadingSceneRenderer::RenderProjectedShadows(FRHICommandListImmedi
 
 						if (ShadowIndex == (NumShadows-1)) // Last cascade
 						{
-							NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo, Shadows);
+							NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo, VolumetricShadows);
 						}
 					}
 					else if (!LightSceneInfo->Proxy->HasStaticShadowing())
