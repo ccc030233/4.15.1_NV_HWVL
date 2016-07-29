@@ -27,6 +27,20 @@ static TAutoConsoleVariable<int32> CVarNvVlEnable(
 	TEXT("  1: on\n"),
 	ECVF_RenderThreadSafe);
 
+const float SCATTER_PARAM_SCALE = 0.0001f;
+const float MIN_TRANSMITTANCE = 0.000001f;
+const float MAX_TRANSMITTANCE = 1.0f;
+
+static FORCEINLINE float GetOpticalDepth(float InValue)
+{
+	return -FMath::Loge(FMath::Clamp(InValue, MIN_TRANSMITTANCE, MAX_TRANSMITTANCE)) * SCATTER_PARAM_SCALE;
+}
+
+static FORCEINLINE FVector GetOpticalDepth(const FVector& InTransmittance)
+{
+	return FVector(GetOpticalDepth(InTransmittance.X), GetOpticalDepth(InTransmittance.Y), GetOpticalDepth(InTransmittance.Z));
+}
+
 void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList)
 {
 	if (!CVarNvVlEnable.GetValueOnRenderThread())
@@ -34,7 +48,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		return;
 	}
 
-	if (!Scene->bEnableVolumetricLightingSettings)
+	if (!Scene->bEnableProperties)
 	{
 		return;
 	}
@@ -56,29 +70,51 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	ViewerDesc.bReversedZ = ((int32)ERHIZBuffer::IsInverted != 0);
 	
 	NvVl::MediumDesc MediumDesc;
-    const float SCATTER_PARAM_SCALE = 0.0001f;
     
-	FNVVolumetricLightingMediumSettings& MediumSettings = Scene->MediumSettings;
-	check(MediumSettings.PhaseTerms.Num() > 0);
+	FNVVolumetricLightingScatteringProperties& ScatteringProperties = Scene->ScatteringProperties;
+	
 
-	uint32 NumPhaseTerms = MediumSettings.PhaseTerms.Num();
-	MediumDesc.uNumPhaseTerms = NumPhaseTerms > NvVl::MAX_PHASE_TERMS ? NvVl::MAX_PHASE_TERMS : NumPhaseTerms;
-
-	FVector Absorption = MediumSettings.Absorption * SCATTER_PARAM_SCALE;
+	FVector Absorption = GetOpticalDepth(FVector(FLinearColor(ScatteringProperties.AbsorptionColor) * ScatteringProperties.AbsorptionTransmittance));
 	MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
-
-	for(uint32 PhaseIndex = 0; PhaseIndex < MediumDesc.uNumPhaseTerms; PhaseIndex++)
+	MediumDesc.uNumPhaseTerms = 0;
+	// Rayleigh
+	if (ScatteringProperties.bEnableRayleigh)
 	{
-		MediumDesc.PhaseTerms[PhaseIndex].ePhaseFunc = (NvVl::PhaseFunctionType)MediumSettings.PhaseTerms[PhaseIndex].PhaseFunc.GetValue();
-
-		FVector Density = MediumSettings.PhaseTerms[PhaseIndex].Density * SCATTER_PARAM_SCALE;
-		MediumDesc.PhaseTerms[PhaseIndex].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
-
-		MediumDesc.PhaseTerms[PhaseIndex].fEccentricity = MediumSettings.PhaseTerms[PhaseIndex].Eccentricity;
+		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::RAYLEIGH;
+		FVector Density = ScatteringProperties.RayleighScatter * SCATTER_PARAM_SCALE * FVector(5.96f, 13.24f, 33.1f);
+		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+		MediumDesc.uNumPhaseTerms++;
 	}
 
-	int32 DebugMode = FMath::Clamp((int32)CVarNvVlDebugMode.GetValueOnRenderThread(), 0, 2);
+	// Mie
+	if(ScatteringProperties.MiePhase != EMiePhase::MIE_OFF)
+	{
+		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms].ePhaseFunc = ScatteringProperties.MiePhase == EMiePhase::MIE_HAZY ? NvVl::PhaseFunctionType::MIE_HAZY : NvVl::PhaseFunctionType::MIE_MURKY;
+		FVector Density = GetOpticalDepth(FVector(FLinearColor(ScatteringProperties.MieColor) * ScatteringProperties.MieTransmittance));
+		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+		MediumDesc.uNumPhaseTerms++;
+	}
 
+	// HG
+	for(int32 PhaseIndex = 0; PhaseIndex < ScatteringProperties.HGScatteringPhases.Num(); PhaseIndex++)
+	{
+		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms + PhaseIndex].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
+		FVector Density = GetOpticalDepth(FVector(FLinearColor(ScatteringProperties.HGScatteringPhases[PhaseIndex].HGColor) * ScatteringProperties.HGScatteringPhases[PhaseIndex].HGTransmittance));
+		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms + PhaseIndex].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms + PhaseIndex].fEccentricity = ScatteringProperties.HGScatteringPhases[PhaseIndex].HGEccentricity;
+		MediumDesc.uNumPhaseTerms++;
+
+		if (MediumDesc.uNumPhaseTerms >= NvVl::MAX_PHASE_TERMS)
+		{
+			break;
+		}
+	}
+
+	GNVVolumetricLightingRHI->UpdateDownsampleMode(Scene->ContextProperties.DownsampleMode);
+	GNVVolumetricLightingRHI->UpdateMsaaMode(Scene->ContextProperties.MsaaMode);
+	GNVVolumetricLightingRHI->UpdateFilterMode(Scene->ContextProperties.FilterMode);
+
+	int32 DebugMode = FMath::Clamp((int32)CVarNvVlDebugMode.GetValueOnRenderThread(), 0, 2);
 	GNVVolumetricLightingRHI->BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDesc, MediumDesc, (Nv::VolumetricLighting::DebugFlags)DebugMode); //SceneContext.GetActualDepthTexture()?
 
 	// clear the state cache
@@ -92,7 +128,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRemapShadowDepth(FRHICom
 		return;
 	}
 
-	if (!Scene->bEnableVolumetricLightingSettings)
+	if (!Scene->bEnableProperties)
 	{
 		return;
 	}
@@ -112,7 +148,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		return;
 	}
 
-	if (!Scene->bEnableVolumetricLightingSettings)
+	if (!Scene->bEnableProperties)
 	{
 		return;
 	}
@@ -289,7 +325,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		return;
 	}
 
-	if (!Scene->bEnableVolumetricLightingSettings)
+	if (!Scene->bEnableProperties)
 	{
 		return;
 	}
@@ -376,7 +412,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHIComm
 		return;
 	}
 
-	if (!Scene->bEnableVolumetricLightingSettings)
+	if (!Scene->bEnableProperties)
 	{
 		return;
 	}
@@ -391,26 +427,26 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 		return;
 	}
 
-	if (!Scene->bEnableVolumetricLightingSettings)
+	if (!Scene->bEnableProperties)
 	{
 		return;
 	}
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
-	FNVVolumetricLightingPostprocessSettings& PostprocessSettings = Scene->PostprocessSettings;
+	FNVVolumetricLightingPostprocessProperties& PostprocessProperties = Scene->PostprocessProperties;
 
 	NvVl::PostprocessDesc PostprocessDesc;
-	PostprocessDesc.bDoFog = PostprocessSettings.bEnableFog;
-    PostprocessDesc.bIgnoreSkyFog = PostprocessSettings.bIgnoreSkyFog;
-    PostprocessDesc.eUpsampleQuality = (NvVl::UpsampleQuality)PostprocessSettings.UpsampleQuality.GetValue();
-    PostprocessDesc.fBlendfactor = PostprocessSettings.Blendfactor;
-    PostprocessDesc.fTemporalFactor = PostprocessSettings.TemporalFactor;
-    PostprocessDesc.fFilterThreshold = PostprocessSettings.FilterThreshold;
+	PostprocessDesc.bDoFog = PostprocessProperties.bEnableFog;
+    PostprocessDesc.bIgnoreSkyFog = false;
+    PostprocessDesc.eUpsampleQuality = (NvVl::UpsampleQuality)PostprocessProperties.UpsampleQuality.GetValue();
+    PostprocessDesc.fBlendfactor = PostprocessProperties.Blendfactor;
+    PostprocessDesc.fTemporalFactor = PostprocessProperties.TemporalFactor;
+    PostprocessDesc.fFilterThreshold = PostprocessProperties.FilterThreshold;
 
-	FVector FogLight = FLinearColor(PostprocessSettings.FogColor) * PostprocessSettings.FogIntensity;
+	FVector FogLight = FLinearColor(PostprocessProperties.FogColor) * PostprocessProperties.FogIntensity;
     PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
-    PostprocessDesc.fMultiscatter = PostprocessSettings.Multiscatter;
+    PostprocessDesc.fMultiscatter = PostprocessProperties.MultiScatter * SCATTER_PARAM_SCALE;
 
 	check(Views.Num());
 	if (!SceneContext.IsSeparateTranslucencyActive(Views[0]))
@@ -423,7 +459,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 	}
 	else
 	{
-		GNVVolumetricLightingRHI->SetSeparateTranslucencyPostprocess(CVarNvVlEnable.GetValueOnRenderThread() && Scene->bEnableVolumetricLightingSettings, PostprocessDesc);
+		GNVVolumetricLightingRHI->SetSeparateTranslucencyPostprocess(CVarNvVlEnable.GetValueOnRenderThread() && Scene->bEnableProperties, PostprocessDesc);
 	}
 }
 

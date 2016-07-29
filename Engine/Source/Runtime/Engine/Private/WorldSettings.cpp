@@ -78,9 +78,7 @@ AWorldSettings::AWorldSettings(const FObjectInitializer& ObjectInitializer)
 	bActorLabelEditable = false;
 #endif // WITH_EDITORONLY_DATA
 
-	bEnableVolumetricLightingSettings = false;
-	FNVPhaseTerm PhaseTerm;
-	MediumSettings.PhaseTerms.Add(PhaseTerm);
+	bEnableProperties = false;
 }
 
 void AWorldSettings::PreInitializeComponents()
@@ -308,40 +306,72 @@ bool AWorldSettings::CanEditChange(const UProperty* InProperty) const
 		}
 
 		if (InProperty->GetOuter()
-			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingPostprocessSettings"))
+			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingContextProperties"))
 		{
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, bEnableFog)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, bIgnoreSkyFog)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, FogIntensity)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, FogColor)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, UpsampleQuality)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, Blendfactor)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, TemporalFactor)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, FilterThreshold)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessSettings, Multiscatter))
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingContextProperties, DownsampleMode)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingContextProperties, MsaaMode)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingContextProperties, FilterMode))
 			{
-				return bEnableVolumetricLightingSettings;
+				return bEnableProperties;
 			}
 		}
 
 		if (InProperty->GetOuter()
-			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingMediumSettings"))
+			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingPostprocessProperties"))
 		{
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingMediumSettings, Absorption)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingMediumSettings, PhaseTerms))
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, FogIntensity)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, FogColor)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, MultiScatter))
 			{
-				return bEnableVolumetricLightingSettings;
+				return bEnableProperties && PostprocessProperties.bEnableFog;
+			}
+
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, TemporalFactor)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, FilterThreshold))
+			{
+				return bEnableProperties && ContextProperties.FilterMode == EFilterMode::TEMPORAL;
+			}
+
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, bEnableFog)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, UpsampleQuality)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, Blendfactor))
+			{
+				return bEnableProperties;
 			}
 		}
 
 		if (InProperty->GetOuter()
-			&& InProperty->GetOuter()->GetName() == TEXT("NVPhaseTerm"))
+			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingScatteringProperties"))
 		{
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVPhaseTerm, PhaseFunc)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVPhaseTerm, Density)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVPhaseTerm, Eccentricity))
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, MieColor)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, MieTransmittance))
 			{
-				return bEnableVolumetricLightingSettings;
+				return bEnableProperties && ScatteringProperties.MiePhase != EMiePhase::MIE_OFF;
+			}
+
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, RayleighScatter))
+			{
+				return bEnableProperties && ScatteringProperties.bEnableRayleigh;
+			}
+
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, bEnableRayleigh)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, MiePhase)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, HGScatteringPhases)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, AbsorptionColor)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, AbsorptionTransmittance))
+			{
+				return bEnableProperties;
+			}
+		}
+
+		if (InProperty->GetOuter()
+			&& InProperty->GetOuter()->GetName() == TEXT("HGScatteringPhase"))
+		{
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FHGScatteringPhase, HGColor)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FHGScatteringPhase, HGTransmittance)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FHGScatteringPhase, HGEccentricity))
+			{
+				return bEnableProperties;
 			}
 		}
 	}

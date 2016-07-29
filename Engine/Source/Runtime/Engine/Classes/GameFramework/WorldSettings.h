@@ -279,6 +279,64 @@ private:
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 UENUM()
+namespace EDownsampleMode
+{
+	enum Type
+	{
+		FULL,
+		HALF,
+		QUARTER,
+	};
+}
+
+UENUM()
+namespace EFilterMode
+{
+	enum Type
+	{
+		NONE,
+		TEMPORAL,
+	};
+}
+
+UENUM()
+namespace MultisampleMode
+{
+	enum Type
+	{
+		SINGLE,
+		MSAA_2x,
+		MSAA_4x,
+	};
+}
+
+USTRUCT()
+struct FNVVolumetricLightingContextProperties
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Target resolution of internal buffer. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ContextProperties)
+	TEnumAsByte<EDownsampleMode::Type> DownsampleMode;
+
+	/** Target sample rate of internal buffer. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ContextProperties)
+	TEnumAsByte<MultisampleMode::Type> MsaaMode;
+
+	/** Type of filtering to do on the output. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ContextProperties)
+	TEnumAsByte<EFilterMode::Type> FilterMode;
+
+	FNVVolumetricLightingContextProperties()
+		: DownsampleMode(EDownsampleMode::FULL)
+		, MsaaMode(MultisampleMode::SINGLE)
+		, FilterMode(EFilterMode::NONE)
+	{
+
+	}
+};
+
+UENUM()
 namespace EUpsampleQuality
 {
 	enum Type
@@ -290,104 +348,137 @@ namespace EUpsampleQuality
 }
 
 USTRUCT()
-struct FNVVolumetricLightingPostprocessSettings
+struct FNVVolumetricLightingPostprocessProperties
 {
 	GENERATED_USTRUCT_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
-	bool bEnableFog;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
-	bool bIgnoreSkyFog;
-
-	UPROPERTY(BlueprintReadOnly, Category=PostprocessSettings, meta=(UIMin = "0.0", UIMax = "100000.0"))
-	float FogIntensity;
-
-	UPROPERTY(BlueprintReadOnly, Category=PostprocessSettings, meta=(HideAlphaChannel))
-	FColor FogColor;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	/** Quality of upsampling to use */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties)
 	TEnumAsByte<EUpsampleQuality::Type> UpsampleQuality;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	/** Blend factor to use for compositing */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties)
 	float Blendfactor;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	/** Weight of pixel history smoothing (0.0 for off) for Temporal AA mode */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties)
 	float TemporalFactor;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
+	/** Threshold of frame movement to use temporal history for Temporal AA mode */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties)
 	float FilterThreshold;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessSettings)
-	float Multiscatter;
+	/** Apply fogging based on scattering. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties)
+	bool bEnableFog;
 
-	FNVVolumetricLightingPostprocessSettings()
-		: bEnableFog(true)
-		, bIgnoreSkyFog(false)
-		, FogIntensity(5000.0f)
-		, FogColor(FColor::White)
-		, UpsampleQuality(EUpsampleQuality::BILINEAR)
+	/** Brightness multiplier of the fog. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties, meta=(UIMin = "0.0", UIMax = "100000.0"))
+	float FogIntensity;
+
+	/** Filter color of the fog. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties, meta=(HideAlphaChannel))
+	FColor FogColor;
+
+	/** Strength of faked multiscatter effect for the fog. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties)
+	float MultiScatter;
+
+	FNVVolumetricLightingPostprocessProperties()
+		: UpsampleQuality(EUpsampleQuality::BILINEAR)
 		, Blendfactor(1.0f)
 		, TemporalFactor(0.95f)
 		, FilterThreshold(0.2f)
-		, Multiscatter(0.000002f)
+		, bEnableFog(true)
+		, FogIntensity(5000.0f)
+		, FogColor(FColor::White)	
+		, MultiScatter(2.f)
 	{
 
 	}
 };
 
 UENUM()
-namespace EPhaseFunction
+namespace EMiePhase
 {
 	enum Type
 	{
-		ISOTROPIC,	        // Isotropic scattering (equivalent to HG with 0 eccentricity, but more efficient)
-		RAYLEIGH,	        // Rayleigh scattering term (air/small molecules)
-		HENYEYGREENSTEIN,	// Scattering term with variable anisotropy
-		MIE_HAZY,	        // Slightly forward-scattering
-		MIE_MURKY,	        // Densely forward-scattering
+		MIE_OFF,
+		MIE_HAZY,
+		MIE_MURKY,
 	};
 }
 
 USTRUCT()
-struct FNVPhaseTerm
+struct FHGScatteringPhase
 {
 	GENERATED_USTRUCT_BODY()
 
-	/** Phase function this term uses z*/
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumSettings)
-	TEnumAsByte<EPhaseFunction::Type> PhaseFunc;
+	/** Color distribution for Henyey-Greenstein scattering. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties, meta=(HideAlphaChannel))
+	FColor HGColor;
 
-	/** Optical density in [R,G,B] */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumSettings)
-	FVector Density;
+	/** Transmittance for Henyey-Greenstein scattering. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties, meta=(UIMin = "0.0", UIMax = "1.0"))
+	float HGTransmittance;
 
-	/** Degree/direction of anisotropy (-1, 1) (HG only) */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumSettings, meta=(UIMin = "-1.0", UIMax = "1.0"))
-	float Eccentricity;
+	/** Eccentricity for Henyey-Greenstein scattering. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties, meta=(UIMin = "-1.0", UIMax = "1.0"))
+	float HGEccentricity;
 
-	FNVPhaseTerm()
-		: PhaseFunc(EPhaseFunction::RAYLEIGH)
-		, Density(FVector(10.00f))
-		, Eccentricity(0.0f)
+	FHGScatteringPhase()
+		: HGColor(FColor::White)
+		, HGTransmittance(0.0f)
+		, HGEccentricity(0.0f)
 	{
+
 	}
 };
 
 USTRUCT()
-struct FNVVolumetricLightingMediumSettings
+struct FNVVolumetricLightingScatteringProperties
 {
 	GENERATED_USTRUCT_BODY()
 
+	/** if enabled Rayleigh scattering. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties)
+	bool bEnableRayleigh;
+
+	/** Scatter scale for Rayleigh scattering. Optical depth is [5.96x10^-6, 1.324x10^-5, 3.31x10^-5] * 100 unit/m. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties)
+	float RayleighScatter;
+
+	/** Mie phase type: OFF, HAZY and MURKY. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties)
+	TEnumAsByte<EMiePhase::Type> MiePhase;
+
+	/** Color distribution for Mie scattering. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties, meta=(HideAlphaChannel))
+	FColor MieColor;
+
+	/** Transmittance for Mie scattering. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties, meta=(UIMin = "0.0", UIMax = "1.0"))
+	float MieTransmittance;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties)
+	TArray<FHGScatteringPhase>	HGScatteringPhases;
+
 	/** Absorpsive component of the medium. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumSettings)
-	FVector Absorption;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties, meta=(HideAlphaChannel))
+	FColor AbsorptionColor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumSettings)
-	TArray<FNVPhaseTerm> PhaseTerms;
+	/** Transmittance for absorpsive component. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties, meta=(UIMin = "0.0", UIMax = "1.0"))
+	float AbsorptionTransmittance;
 
-	FNVVolumetricLightingMediumSettings()
-		: Absorption(FVector(5.0f))
+	FNVVolumetricLightingScatteringProperties()
+		: bEnableRayleigh(true)
+		, RayleighScatter(1.0f)
+		, MiePhase(EMiePhase::MIE_OFF)
+		, MieColor(FColor::White)
+		, MieTransmittance(0.0f)
+		, AbsorptionColor(FColor::White)
+		, AbsorptionTransmittance(0.0f)
 	{
 
 	}
@@ -643,13 +734,16 @@ class ENGINE_API AWorldSettings : public AInfo, public IInterface_AssetUserData
 
 	/** If enable the nvidia volumetric lighting. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
-	bool bEnableVolumetricLightingSettings;
+	bool bEnableProperties;
 
 	UPROPERTY(EditAnywhere, Category=NVVolumetricLighting)
-	struct FNVVolumetricLightingMediumSettings MediumSettings;
+	struct FNVVolumetricLightingContextProperties ContextProperties;
 
 	UPROPERTY(EditAnywhere, Category=NVVolumetricLighting)
-	struct FNVVolumetricLightingPostprocessSettings PostprocessSettings;
+	struct FNVVolumetricLightingScatteringProperties ScatteringProperties;
+
+	UPROPERTY(EditAnywhere, Category=NVVolumetricLighting)
+	struct FNVVolumetricLightingPostprocessProperties PostprocessProperties;
 	// ************************************
 
 	/** Maximum number of bookmarks	*/

@@ -133,6 +133,33 @@ void FNVVolumetricLightingRHI::UpdateShadowBuffer()
 	MaxShadowBufferSlicesPerFrame = 0;
 }
 
+void FNVVolumetricLightingRHI::UpdateDownsampleMode(uint32 InMode)
+{
+	if (ContextDesc.eDownsampleMode != (NvVl::DownsampleMode)InMode)
+	{
+		ContextDesc.eDownsampleMode = (NvVl::DownsampleMode)InMode;
+		bNeedUpdateContext = true;
+	}
+}
+
+void FNVVolumetricLightingRHI::UpdateMsaaMode(uint32 InMode)
+{
+	if (ContextDesc.eInternalSampleMode != (NvVl::MultisampleMode)InMode)
+	{
+		ContextDesc.eInternalSampleMode = (NvVl::MultisampleMode)InMode;
+		bNeedUpdateContext = true;
+	}
+}
+
+void FNVVolumetricLightingRHI::UpdateFilterMode(uint32 InMode)
+{
+	if (ContextDesc.eFilterMode != (NvVl::FilterMode)InMode)
+	{
+		ContextDesc.eFilterMode = (NvVl::FilterMode)InMode;
+		bNeedUpdateContext = true;
+	}
+}
+
 void FNVVolumetricLightingRHI::BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const NvVl::ViewerDesc& ViewerDesc, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags)
 {
 	bEnableSeparateTranslucencyPostprocess = false;

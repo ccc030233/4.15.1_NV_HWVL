@@ -370,16 +370,18 @@ void FScene::UpdateSceneSettings(AWorldSettings* WorldSettings)
 #if WITH_NVVOLUMETRICLIGHTING
 void FScene::UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings)
 {
-	ENQUEUE_UNIQUE_RENDER_COMMAND_FOURPARAMETER(
+	ENQUEUE_UNIQUE_RENDER_COMMAND_FIVEPARAMETER(
 		UpdateVolumetricLightingSettings,
 		FScene*, Scene, this,
-		bool, bEnableVolumetricLightingSettings, WorldSettings->bEnableVolumetricLightingSettings,
-		FNVVolumetricLightingMediumSettings, MediumSettings, WorldSettings->MediumSettings,
-		FNVVolumetricLightingPostprocessSettings, PostprocessSettings, WorldSettings->PostprocessSettings,
+		bool, bEnableProperties, WorldSettings->bEnableProperties,
+		FNVVolumetricLightingContextProperties, ContextProperties, WorldSettings->ContextProperties,
+		FNVVolumetricLightingScatteringProperties, ScatteringProperties, WorldSettings->ScatteringProperties,
+		FNVVolumetricLightingPostprocessProperties, PostprocessProperties, WorldSettings->PostprocessProperties,
 	{
-		Scene->bEnableVolumetricLightingSettings = bEnableVolumetricLightingSettings;
-		Scene->MediumSettings = MediumSettings;
-		Scene->PostprocessSettings = PostprocessSettings;
+		Scene->bEnableProperties = bEnableProperties;
+		Scene->ContextProperties = ContextProperties;
+		Scene->ScatteringProperties = ScatteringProperties;
+		Scene->PostprocessProperties = PostprocessProperties;
 	});
 }
 #endif
@@ -544,9 +546,10 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 ,	NumVisibleLights_GameThread(0)
 ,	NumEnabledSkylights_GameThread(0)
 #if WITH_NVVOLUMETRICLIGHTING
-,	bEnableVolumetricLightingSettings(InWorld->GetWorldSettings()->bEnableVolumetricLightingSettings)
-,	MediumSettings(InWorld->GetWorldSettings()->MediumSettings)
-,	PostprocessSettings(InWorld->GetWorldSettings()->PostprocessSettings)
+,	bEnableProperties(InWorld->GetWorldSettings()->bEnableProperties)
+,	ContextProperties(InWorld->GetWorldSettings()->ContextProperties)
+,	ScatteringProperties(InWorld->GetWorldSettings()->ScatteringProperties)
+,	PostprocessProperties(InWorld->GetWorldSettings()->PostprocessProperties)
 #endif
 {
 	check(World);

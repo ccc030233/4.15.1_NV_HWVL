@@ -25,6 +25,10 @@ public:
 
 	void UpdateFrameBuffer(int32 InBufferSizeX, int32 InBufferSizeY, uint16 InNumSamples);
 	void UpdateCascadedShadow(int32 InBufferSizeX, int32 InBufferSizeY, uint32 InSlices);
+	void UpdateDownsampleMode(uint32 InMode);
+	void UpdateMsaaMode(uint32 InMode);
+	void UpdateFilterMode(uint32 InMode);
+	
 	void BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const NvVl::ViewerDesc& ViewerDesc, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags);
 	void RemapShadowDepth(FTextureRHIParamRef ShadowMapTextureRHI);
 	void RenderVolume(FTextureRHIParamRef ShadowMapTextureRHI, const NvVl::ShadowMapDesc& ShadowMapDesc, const NvVl::LightDesc& LightDesc, const NvVl::VolumeDesc& VolumeDesc);

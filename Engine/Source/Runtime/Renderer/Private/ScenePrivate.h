@@ -1855,9 +1855,10 @@ public:
 	float GlobalDistanceFieldViewDistance;
 
 #if WITH_NVVOLUMETRICLIGHTING
-	bool bEnableVolumetricLightingSettings;
-	FNVVolumetricLightingMediumSettings	MediumSettings;
-	FNVVolumetricLightingPostprocessSettings PostprocessSettings;
+	bool bEnableProperties;
+	FNVVolumetricLightingContextProperties		ContextProperties;
+	FNVVolumetricLightingScatteringProperties	ScatteringProperties;
+	FNVVolumetricLightingPostprocessProperties PostprocessProperties;
 #endif
 
 #if WITH_EDITOR
