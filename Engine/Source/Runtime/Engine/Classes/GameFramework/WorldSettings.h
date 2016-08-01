@@ -428,7 +428,7 @@ struct FHGScatteringPhase
 
 	FHGScatteringPhase()
 		: HGColor(FColor::White)
-		, HGTransmittance(0.0f)
+		, HGTransmittance(0.99f)
 		, HGEccentricity(0.0f)
 	{
 
@@ -440,13 +440,17 @@ struct FNVVolumetricLightingScatteringProperties
 {
 	GENERATED_USTRUCT_BODY()
 
+	/** Range of the transmittance, the transmittance will be remapped to [1.0 - Range, 1). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties, meta=(UIMin = "0.0", UIMax = "1.0"))
+	float TransmittanceRange;
+
 	/** if enabled Rayleigh scattering. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties)
 	bool bEnableRayleigh;
 
-	/** Scatter scale for Rayleigh scattering. Optical depth is [5.96x10^-6, 1.324x10^-5, 3.31x10^-5] * 100 unit/m. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties)
-	float RayleighScatter;
+	/** Transmittance for Rayleigh scattering. Default optical depth is [5.96x10^-6, 1.324x10^-5, 3.31x10^-5] * 100 unit/m. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties, meta=(UIMin = "0.0", UIMax = "1.0"))
+	float RayleighTransmittance;
 
 	/** Mie phase type: OFF, HAZY and MURKY. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ScatteringProperties)
@@ -472,13 +476,14 @@ struct FNVVolumetricLightingScatteringProperties
 	float AbsorptionTransmittance;
 
 	FNVVolumetricLightingScatteringProperties()
-		: bEnableRayleigh(true)
-		, RayleighScatter(1.0f)
+		: TransmittanceRange(0.0001f)
+		, bEnableRayleigh(true)
+		, RayleighTransmittance(0.99f)
 		, MiePhase(EMiePhase::MIE_OFF)
 		, MieColor(FColor::White)
-		, MieTransmittance(0.0f)
+		, MieTransmittance(0.97f)
 		, AbsorptionColor(FColor::White)
-		, AbsorptionTransmittance(0.0f)
+		, AbsorptionTransmittance(0.95f)
 	{
 
 	}

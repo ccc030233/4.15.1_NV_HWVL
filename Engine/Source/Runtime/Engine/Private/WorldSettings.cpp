@@ -349,12 +349,13 @@ bool AWorldSettings::CanEditChange(const UProperty* InProperty) const
 				return bEnableProperties && ScatteringProperties.MiePhase != EMiePhase::MIE_OFF;
 			}
 
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, RayleighScatter))
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, RayleighTransmittance))
 			{
 				return bEnableProperties && ScatteringProperties.bEnableRayleigh;
 			}
 
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, bEnableRayleigh)
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, TransmittanceRange)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, bEnableRayleigh)
 				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, MiePhase)
 				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, HGScatteringPhases)
 				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, AbsorptionColor)

@@ -27,18 +27,26 @@ static TAutoConsoleVariable<int32> CVarNvVlEnable(
 	TEXT("  1: on\n"),
 	ECVF_RenderThreadSafe);
 
-const float SCATTER_PARAM_SCALE = 0.0001f;
-const float MIN_TRANSMITTANCE = 0.000001f;
-const float MAX_TRANSMITTANCE = 1.0f;
+const float SCATTER_PARAM_SCALE = 100.0f; // 100 unit/m
 
-static FORCEINLINE float GetOpticalDepth(float InValue)
+static FORCEINLINE float RemapTransmittance(const float Range, const float InValue)
 {
-	return -FMath::Loge(FMath::Clamp(InValue, MIN_TRANSMITTANCE, MAX_TRANSMITTANCE)) * SCATTER_PARAM_SCALE;
+	return InValue * (1.0f - (1.0f - Range)) + (1.0f - Range);
 }
 
-static FORCEINLINE FVector GetOpticalDepth(const FVector& InTransmittance)
+static FORCEINLINE FVector RemapTransmittance(const float Range, const FVector& InValue)
 {
-	return FVector(GetOpticalDepth(InTransmittance.X), GetOpticalDepth(InTransmittance.Y), GetOpticalDepth(InTransmittance.Z));
+	return FVector(RemapTransmittance(Range, InValue.X), RemapTransmittance(Range, InValue.Y), RemapTransmittance(Range, InValue.Z));
+}
+
+static FORCEINLINE float GetOpticalDepth(const float InValue)
+{
+	return -FMath::Loge(InValue) * SCATTER_PARAM_SCALE;
+}
+
+static FORCEINLINE FVector GetOpticalDepth(const FVector& InValue)
+{
+	return FVector(GetOpticalDepth(InValue.X), GetOpticalDepth(InValue.Y), GetOpticalDepth(InValue.Z));
 }
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList)
@@ -74,14 +82,14 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	FNVVolumetricLightingScatteringProperties& ScatteringProperties = Scene->ScatteringProperties;
 	
 
-	FVector Absorption = GetOpticalDepth(FVector(FLinearColor(ScatteringProperties.AbsorptionColor) * ScatteringProperties.AbsorptionTransmittance));
+	FVector Absorption = GetOpticalDepth(RemapTransmittance(ScatteringProperties.TransmittanceRange, FVector(FLinearColor(ScatteringProperties.AbsorptionColor) * ScatteringProperties.AbsorptionTransmittance)));
 	MediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
 	MediumDesc.uNumPhaseTerms = 0;
 	// Rayleigh
 	if (ScatteringProperties.bEnableRayleigh)
 	{
 		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::RAYLEIGH;
-		FVector Density = ScatteringProperties.RayleighScatter * SCATTER_PARAM_SCALE * FVector(5.96f, 13.24f, 33.1f);
+		FVector Density = GetOpticalDepth(RemapTransmittance(ScatteringProperties.TransmittanceRange, ScatteringProperties.RayleighTransmittance)) * FVector(5.96f, 13.24f, 33.1f);
 		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
 		MediumDesc.uNumPhaseTerms++;
 	}
@@ -90,7 +98,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	if(ScatteringProperties.MiePhase != EMiePhase::MIE_OFF)
 	{
 		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms].ePhaseFunc = ScatteringProperties.MiePhase == EMiePhase::MIE_HAZY ? NvVl::PhaseFunctionType::MIE_HAZY : NvVl::PhaseFunctionType::MIE_MURKY;
-		FVector Density = GetOpticalDepth(FVector(FLinearColor(ScatteringProperties.MieColor) * ScatteringProperties.MieTransmittance));
+		FVector Density = GetOpticalDepth(RemapTransmittance(ScatteringProperties.TransmittanceRange, FVector(FLinearColor(ScatteringProperties.MieColor) * ScatteringProperties.MieTransmittance)));
 		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
 		MediumDesc.uNumPhaseTerms++;
 	}
@@ -99,7 +107,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	for(int32 PhaseIndex = 0; PhaseIndex < ScatteringProperties.HGScatteringPhases.Num(); PhaseIndex++)
 	{
 		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms + PhaseIndex].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
-		FVector Density = GetOpticalDepth(FVector(FLinearColor(ScatteringProperties.HGScatteringPhases[PhaseIndex].HGColor) * ScatteringProperties.HGScatteringPhases[PhaseIndex].HGTransmittance));
+		FVector Density = GetOpticalDepth(RemapTransmittance(ScatteringProperties.TransmittanceRange, FVector(FLinearColor(ScatteringProperties.HGScatteringPhases[PhaseIndex].HGColor) * ScatteringProperties.HGScatteringPhases[PhaseIndex].HGTransmittance)));
 		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms + PhaseIndex].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
 		MediumDesc.PhaseTerms[MediumDesc.uNumPhaseTerms + PhaseIndex].fEccentricity = ScatteringProperties.HGScatteringPhases[PhaseIndex].HGEccentricity;
 		MediumDesc.uNumPhaseTerms++;
@@ -446,7 +454,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 
 	FVector FogLight = FLinearColor(PostprocessProperties.FogColor) * PostprocessProperties.FogIntensity;
     PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
-    PostprocessDesc.fMultiscatter = PostprocessProperties.MultiScatter * SCATTER_PARAM_SCALE;
+    PostprocessDesc.fMultiscatter = PostprocessProperties.MultiScatter * 0.0001f; // 10^-6 * 100 unit
 
 	check(Views.Num());
 	if (!SceneContext.IsSeparateTranslucencyActive(Views[0]))
