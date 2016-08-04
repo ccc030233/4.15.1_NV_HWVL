@@ -370,18 +370,14 @@ void FScene::UpdateSceneSettings(AWorldSettings* WorldSettings)
 #if WITH_NVVOLUMETRICLIGHTING
 void FScene::UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings)
 {
-	ENQUEUE_UNIQUE_RENDER_COMMAND_FIVEPARAMETER(
+	ENQUEUE_UNIQUE_RENDER_COMMAND_THREEPARAMETER(
 		UpdateVolumetricLightingSettings,
 		FScene*, Scene, this,
 		bool, bEnableProperties, WorldSettings->bEnableProperties,
-		FNVVolumetricLightingContextProperties, ContextProperties, WorldSettings->ContextProperties,
-		FNVVolumetricLightingScatteringProperties, ScatteringProperties, WorldSettings->ScatteringProperties,
-		FNVVolumetricLightingPostprocessProperties, PostprocessProperties, WorldSettings->PostprocessProperties,
+		FNVVolumetricLightingProperties, VolumetricLightingProperties, WorldSettings->VolumetricLightingProperties,
 	{
 		Scene->bEnableProperties = bEnableProperties;
-		Scene->ContextProperties = ContextProperties;
-		Scene->ScatteringProperties = ScatteringProperties;
-		Scene->PostprocessProperties = PostprocessProperties;
+		Scene->VolumetricLightingProperties = VolumetricLightingProperties;
 	});
 }
 #endif
@@ -547,9 +543,7 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 ,	NumEnabledSkylights_GameThread(0)
 #if WITH_NVVOLUMETRICLIGHTING
 ,	bEnableProperties(InWorld->GetWorldSettings()->bEnableProperties)
-,	ContextProperties(InWorld->GetWorldSettings()->ContextProperties)
-,	ScatteringProperties(InWorld->GetWorldSettings()->ScatteringProperties)
-,	PostprocessProperties(InWorld->GetWorldSettings()->PostprocessProperties)
+,	VolumetricLightingProperties(InWorld->GetWorldSettings()->VolumetricLightingProperties)
 #endif
 {
 	check(World);

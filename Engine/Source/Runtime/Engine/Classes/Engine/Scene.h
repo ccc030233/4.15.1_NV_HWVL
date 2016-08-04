@@ -78,6 +78,41 @@ struct FWeightedBlendables
 	TArray<FWeightedBlendable> Array;
 };
 
+UENUM()
+namespace EMiePhase
+{
+	enum Type
+	{
+		MIE_NONE UMETA(DisplayName="None"),
+		MIE_HAZY UMETA(DisplayName="Mie Hazy"),
+		MIE_MURKY UMETA(DisplayName="Mie Murky"),
+	};
+}
+
+USTRUCT()
+struct FHGScatteringTerm
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Color distribution for Henyey-Greenstein scattering. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=HGScatteringPhase, meta=(HideAlphaChannel))
+	FLinearColor HGColor;
+
+	/** Transmittance for Henyey-Greenstein scattering. Recommand 0.99. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=HGScatteringPhase, meta=(ClampMin = "0.0", ClampMax = "1.0"))
+	float HGTransmittance;
+
+	/** Eccentricity for Henyey-Greenstein scattering. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=HGScatteringPhase, meta=(ClampMin = "-1.0", ClampMax = "1.0"))
+	float HGEccentricity;
+
+	FHGScatteringTerm()
+		: HGColor(FLinearColor::White)
+		, HGTransmittance(1.0f)
+		, HGEccentricity(0.0f)
+	{
+	}
+};
 
 /** To be able to use struct PostProcessSettings. */
 // Each property consists of a bool to enable it (by default off),
@@ -452,6 +487,45 @@ struct FPostProcessSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_ScreenSpaceReflectionRoughnessScale:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_TransmittanceRange:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_RayleighTransmittance:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_MiePhase:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_MieColor:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_MieTransmittance:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_HGScattering1Term:1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_HGScattering2Term:1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_HGScattering3Term:1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_HGScattering4Term:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_AbsorptionColor:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_AbsorptionTransmittance:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_FogIntensity:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_FogColor:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_MultiScatter:1;
 
 	// -----------------------------------------------------------------------
 
@@ -964,10 +1038,58 @@ struct FPostProcessSettings
 	UPROPERTY(interp, BlueprintReadWrite, Category=ScreenSpaceReflections, meta=(ClampMin = "0.01", ClampMax = "1.0", editcondition = "bOverride_ScreenSpaceReflectionMaxRoughness", DisplayName = "Max Roughness"))
 	float ScreenSpaceReflectionMaxRoughness;
 
+	/** Range of the transmittance, the transmittance will be remapped to [1.0 - Range, 1). */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_TransmittanceRange"))
+	float TransmittanceRange;
+
+	/** Absorpsive component of the medium. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_AbsorptionColor"))
+	FLinearColor AbsorptionColor;
+
+	/** Transmittance for absorpsive component. Recommand 0.95. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_AbsorptionTransmittance"))
+	float AbsorptionTransmittance;
+
+	/** Transmittance for Rayleigh scattering. Recommand 0.99. Default optical depth is [5.96x10^-6, 1.324x10^-5, 3.31x10^-5] * 100 unit/m. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_RayleighTransmittance"))
+	float RayleighTransmittance;
+
+	/** Mie phase type: HAZY and MURKY. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, AdvancedDisplay, meta=(editcondition = "bOverride_MiePhase"))
+	TEnumAsByte<EMiePhase::Type> MiePhase;
+
+	/** Color distribution for Mie scattering. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_MieColor"))
+	FLinearColor MieColor;
+
+	/** Transmittance for Mie scattering. Recommand 0.97. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_MieTransmittance"))
+	float MieTransmittance;
+
+	/** Henyey-Greenstein scattering. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_HGScattering1Term", DisplayName = "#1 HG Scattering Term"))
+	FHGScatteringTerm	HGScattering1Term;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_HGScattering2Term", DisplayName = "#2 HG Scattering Term"))
+	FHGScatteringTerm	HGScattering2Term;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_HGScattering3Term", DisplayName = "#3 HG Scattering Term"))
+	FHGScatteringTerm	HGScattering3Term;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_HGScattering4Term", DisplayName = "#4 HG Scattering Term"))
+	FHGScatteringTerm	HGScattering4Term;
+
+	/** Brightness multiplier of the fog. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(UIMin = "0.0", UIMax = "100000.0", editcondition = "bOverride_FogIntensity"))
+	float FogIntensity;
+
+	/** Filter color of the fog. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_FogColor"))
+	FLinearColor FogColor;
+
 	// Note: Adding properties before this line require also changes to the OverridePostProcessSettings() function and 
 	// FPostProcessSettings constructor and possibly the SetBaseValues() method.
 	// -----------------------------------------------------------------------
-	
 	/**
 	 * Allows custom post process materials to be defined, using a MaterialInstance with the same Material as its parent to allow blending.
 	 * For materials this needs to be the "PostProcess" domain type. This can be used for any UObject object implementing the IBlendableInterface (e.g. could be used to fade weather settings).
@@ -1181,6 +1303,20 @@ struct FPostProcessSettings
 		ScreenSpaceReflectionQuality = 50.0f;
 		ScreenSpaceReflectionMaxRoughness = 0.6f;
 		bMobileHQGaussian = false;
+
+		TransmittanceRange = 0.0001f;
+		RayleighTransmittance = 1.0f;
+		MiePhase = EMiePhase::MIE_NONE;
+		MieColor = FLinearColor::White;
+		MieTransmittance = 1.0f;
+		AbsorptionColor = FLinearColor::White;
+		AbsorptionTransmittance = 1.0f;
+		FogIntensity = 0.0f;
+		FogColor = FLinearColor::White;
+		HGScattering1Term = FHGScatteringTerm();
+		HGScattering2Term = FHGScatteringTerm();
+		HGScattering3Term = FHGScatteringTerm();
+		HGScattering4Term = FHGScatteringTerm();
 	}
 
 	/**

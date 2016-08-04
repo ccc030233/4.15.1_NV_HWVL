@@ -306,71 +306,19 @@ bool AWorldSettings::CanEditChange(const UProperty* InProperty) const
 		}
 
 		if (InProperty->GetOuter()
-			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingContextProperties"))
+			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingProperties"))
 		{
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingContextProperties, DownsampleMode)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingContextProperties, MsaaMode)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingContextProperties, FilterMode))
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, TemporalFactor)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, FilterThreshold))
 			{
-				return bEnableProperties;
-			}
-		}
-
-		if (InProperty->GetOuter()
-			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingPostprocessProperties"))
-		{
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, FogIntensity)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, FogColor)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, MultiScatter))
-			{
-				return bEnableProperties && PostprocessProperties.bEnableFog;
+				return bEnableProperties && VolumetricLightingProperties.FilterMode == EFilterMode::TEMPORAL;
 			}
 
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, TemporalFactor)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, FilterThreshold))
-			{
-				return bEnableProperties && ContextProperties.FilterMode == EFilterMode::TEMPORAL;
-			}
-
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, bEnableFog)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, UpsampleQuality)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingPostprocessProperties, Blendfactor))
-			{
-				return bEnableProperties;
-			}
-		}
-
-		if (InProperty->GetOuter()
-			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingScatteringProperties"))
-		{
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, MieColor)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, MieTransmittance))
-			{
-				return bEnableProperties && ScatteringProperties.MiePhase != EMiePhase::MIE_OFF;
-			}
-
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, RayleighTransmittance))
-			{
-				return bEnableProperties && ScatteringProperties.bEnableRayleigh;
-			}
-
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, TransmittanceRange)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, bEnableRayleigh)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, MiePhase)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, HGScatteringPhases)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, AbsorptionColor)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingScatteringProperties, AbsorptionTransmittance))
-			{
-				return bEnableProperties;
-			}
-		}
-
-		if (InProperty->GetOuter()
-			&& InProperty->GetOuter()->GetName() == TEXT("HGScatteringPhase"))
-		{
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FHGScatteringPhase, HGColor)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FHGScatteringPhase, HGTransmittance)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FHGScatteringPhase, HGEccentricity))
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, DownsampleMode)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, MsaaMode)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, FilterMode)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, UpsampleQuality)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, Blendfactor))
 			{
 				return bEnableProperties;
 			}

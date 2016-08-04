@@ -1856,9 +1856,7 @@ public:
 
 #if WITH_NVVOLUMETRICLIGHTING
 	bool bEnableProperties;
-	FNVVolumetricLightingContextProperties		ContextProperties;
-	FNVVolumetricLightingScatteringProperties	ScatteringProperties;
-	FNVVolumetricLightingPostprocessProperties PostprocessProperties;
+	FNVVolumetricLightingProperties		VolumetricLightingProperties;
 #endif
 
 #if WITH_EDITOR
