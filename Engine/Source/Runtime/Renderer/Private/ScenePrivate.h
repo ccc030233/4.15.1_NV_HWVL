@@ -1855,6 +1855,7 @@ public:
 	float GlobalDistanceFieldViewDistance;
 
 #if WITH_NVVOLUMETRICLIGHTING
+	bool bSkipCurrentFrameVL;
 	bool bEnableProperties;
 	FNVVolumetricLightingProperties		VolumetricLightingProperties;
 #endif

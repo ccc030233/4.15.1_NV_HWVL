@@ -542,6 +542,7 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 ,	NumVisibleLights_GameThread(0)
 ,	NumEnabledSkylights_GameThread(0)
 #if WITH_NVVOLUMETRICLIGHTING
+,	bSkipCurrentFrameVL(false)
 ,	bEnableProperties(InWorld->GetWorldSettings()->bEnableProperties)
 ,	VolumetricLightingProperties(InWorld->GetWorldSettings()->VolumetricLightingProperties)
 #endif
