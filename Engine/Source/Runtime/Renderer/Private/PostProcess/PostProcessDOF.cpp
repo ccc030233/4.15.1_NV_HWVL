@@ -474,7 +474,7 @@ void FRCPassPostProcessDOFRecombine::Process(FRenderingCompositePassContext& Con
 		Context.HasHmdMesh(),
 		EDRF_UseTriangleOptimization);
 
-#if WITH_NVVOLUMETRICLIGHTING
+#if WITH_NVVOLUMETRICLIGHTING && 0
 	if (View.Family->EngineShowFlags.Game && bSeparateTranslucency)
 	{
 		if (GNVVolumetricLightingRHI->SeparateTranslucencyApplyLighting(DestRenderTarget.TargetableTexture))

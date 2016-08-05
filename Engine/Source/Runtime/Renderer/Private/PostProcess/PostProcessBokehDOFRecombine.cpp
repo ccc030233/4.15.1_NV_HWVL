@@ -251,7 +251,7 @@ void FRCPassPostProcessBokehDOFRecombine::Process(FRenderingCompositePassContext
 		Context.HasHmdMesh(),
 		EDRF_UseTriangleOptimization);
 
-#if WITH_NVVOLUMETRICLIGHTING
+#if WITH_NVVOLUMETRICLIGHTING && 0
 	if (View.Family->EngineShowFlags.Game && (Method == 2 || Method == 3))
 	{
 		if (GNVVolumetricLightingRHI->SeparateTranslucencyApplyLighting(DestRenderTarget.TargetableTexture))

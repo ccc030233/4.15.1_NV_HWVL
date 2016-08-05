@@ -28,7 +28,7 @@ static TAutoConsoleVariable<int32> CVarNvVlEnable(
 	ECVF_RenderThreadSafe);
 
 const float SCATTER_PARAM_SCALE = 100.0f; // 100 unit/m
-const float MULTI_SCATTER = 0.0002f;
+const float MULTI_SCATTER = 0.000002f * SCATTER_PARAM_SCALE;
 
 static FORCEINLINE float RemapTransmittance(const float Range, const float InValue)
 {
@@ -474,8 +474,9 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
     PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
     PostprocessDesc.fMultiscatter = MULTI_SCATTER;
 
-	check(Views.Num());
+#if 0
 	if (!SceneContext.IsSeparateTranslucencyActive(Views[0]))
+#endif
 	{
 		GNVVolumetricLightingRHI->ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
 
@@ -483,10 +484,12 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 		GDynamicRHI->ClearStateCache();
 		SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 	}
+#if 0
 	else
 	{
 		GNVVolumetricLightingRHI->SetSeparateTranslucencyPostprocess(CVarNvVlEnable.GetValueOnRenderThread() && Scene->bEnableProperties, PostprocessDesc);
 	}
+#endif
 }
 
 #endif
