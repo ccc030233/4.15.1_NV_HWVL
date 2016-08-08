@@ -27,6 +27,12 @@ static TAutoConsoleVariable<int32> CVarNvVlEnable(
 	TEXT("  1: on\n"),
 	ECVF_RenderThreadSafe);
 
+DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Begin Accumulation"), STAT_VolumetricLightingBeginAccumulation, STATGROUP_SceneRendering);
+DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Remap Shadow Depth"), STAT_VolumetricLightingRemapShadowDepth, STATGROUP_SceneRendering);
+DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Render Volume"), STAT_VolumetricLightingRenderVolume, STATGROUP_SceneRendering);
+DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting End Accumulation"), STAT_VolumetricLightingEndAccumulation, STATGROUP_SceneRendering);
+DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Apply Lighting"), STAT_VolumetricLightingApplyLighting, STATGROUP_SceneRendering);
+
 const float SCATTER_PARAM_SCALE = 100.0f; // 100 unit/m
 const float MULTI_SCATTER = 0.000002f * SCATTER_PARAM_SCALE;
 
@@ -56,6 +62,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	{
 		return;
 	}
+
+	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingBeginAccumulation);
 
 	check(Views.Num());
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
@@ -150,6 +158,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRemapShadowDepth(FRHICom
 		return;
 	}
 
+	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingRemapShadowDepth);
+
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 	const FTexture2DRHIRef& ShadowDepth = SceneContext.GetShadowDepthZTexture(false);
 	GNVVolumetricLightingRHI->RemapShadowDepth(ShadowDepth);
@@ -164,6 +174,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	{
 		return;
 	}
+
+	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingRenderVolume);
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
@@ -337,6 +349,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		return;
 	}
 
+	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingRenderVolume);
+
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
 	FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
@@ -419,6 +433,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHIComm
 		return;
 	}
 
+	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingEndAccumulation);
 	GNVVolumetricLightingRHI->EndAccumulation();
 }
 
@@ -428,6 +443,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 	{
 		return;
 	}
+
+	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingApplyLighting);
 
 	check(Views.Num());
 	const FViewInfo& View = Views[0];
