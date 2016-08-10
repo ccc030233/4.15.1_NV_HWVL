@@ -370,13 +370,11 @@ void FScene::UpdateSceneSettings(AWorldSettings* WorldSettings)
 #if WITH_NVVOLUMETRICLIGHTING
 void FScene::UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings)
 {
-	ENQUEUE_UNIQUE_RENDER_COMMAND_THREEPARAMETER(
+	ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
 		UpdateVolumetricLightingSettings,
 		FScene*, Scene, this,
-		bool, bEnableProperties, WorldSettings->bEnableProperties,
 		FNVVolumetricLightingProperties, VolumetricLightingProperties, WorldSettings->VolumetricLightingProperties,
 	{
-		Scene->bEnableProperties = bEnableProperties;
 		Scene->VolumetricLightingProperties = VolumetricLightingProperties;
 	});
 }
@@ -543,7 +541,6 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 ,	NumEnabledSkylights_GameThread(0)
 #if WITH_NVVOLUMETRICLIGHTING
 ,	bSkipCurrentFrameVL(false)
-,	bEnableProperties(InWorld->GetWorldSettings()->bEnableProperties)
 ,	VolumetricLightingProperties(InWorld->GetWorldSettings()->VolumetricLightingProperties)
 #endif
 {

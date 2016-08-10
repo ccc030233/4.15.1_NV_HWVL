@@ -615,10 +615,7 @@ class ENGINE_API AWorldSettings : public AInfo, public IInterface_AssetUserData
 	UPROPERTY()
 	TArray<struct FNetViewer> ReplicationViewers;
 
-	/** If enable the nvidia volumetric lighting. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
-	bool bEnableProperties;
-
+	/** Global properties for volumetric lighting. */
 	UPROPERTY(EditAnywhere, Category=NVVolumetricLighting)
 	struct FNVVolumetricLightingProperties VolumetricLightingProperties;
 

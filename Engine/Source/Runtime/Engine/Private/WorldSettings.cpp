@@ -77,8 +77,6 @@ AWorldSettings::AWorldSettings(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITORONLY_DATA
 	bActorLabelEditable = false;
 #endif // WITH_EDITORONLY_DATA
-
-	bEnableProperties = false;
 }
 
 void AWorldSettings::PreInitializeComponents()
@@ -311,16 +309,7 @@ bool AWorldSettings::CanEditChange(const UProperty* InProperty) const
 			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, TemporalFactor)
 				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, FilterThreshold))
 			{
-				return bEnableProperties && VolumetricLightingProperties.FilterMode == EFilterMode::TEMPORAL;
-			}
-
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, DownsampleMode)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, MsaaMode)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, FilterMode)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, UpsampleQuality)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(FNVVolumetricLightingProperties, Blendfactor))
-			{
-				return bEnableProperties;
+				return (VolumetricLightingProperties.FilterMode == EFilterMode::TEMPORAL);
 			}
 		}
 	}
