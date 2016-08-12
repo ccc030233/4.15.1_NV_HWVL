@@ -18,7 +18,6 @@ static TAutoConsoleVariable<int32> CVarNvVlDebugMode(
 	TEXT("  2: no blend\n"),
 	ECVF_RenderThreadSafe);
 
-
 static TAutoConsoleVariable<int32> CVarNvVlEnable(
 	TEXT("r.NvVl.Enable"),
 	1,
@@ -27,14 +26,27 @@ static TAutoConsoleVariable<int32> CVarNvVlEnable(
 	TEXT("  1: on\n"),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<float> CVarNvVlScatterScale(
+	TEXT("r.NvVl.ScatterScale"),
+	10.0f,
+	TEXT("Scattering Scale\n"),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarNvVlFog(
+	TEXT("r.NvVl.Fog"),
+	1,
+	TEXT("Enable Scattering Fogging\n")
+	TEXT("  0: off\n")
+	TEXT("  1: on\n"),
+	ECVF_RenderThreadSafe);
+
+const float MULTI_SCATTER = 0.0001f;
+
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Begin Accumulation"), STAT_VolumetricLightingBeginAccumulation, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Remap Shadow Depth"), STAT_VolumetricLightingRemapShadowDepth, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Render Volume"), STAT_VolumetricLightingRenderVolume, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting End Accumulation"), STAT_VolumetricLightingEndAccumulation, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Apply Lighting"), STAT_VolumetricLightingApplyLighting, STATGROUP_SceneRendering);
-
-const float SCATTER_PARAM_SCALE = 100.0f; // 100 unit/m
-const float MULTI_SCATTER = 0.000002f * SCATTER_PARAM_SCALE;
 
 static FORCEINLINE float RemapTransmittance(const float Range, const float InValue)
 {
@@ -48,7 +60,7 @@ static FORCEINLINE FVector RemapTransmittance(const float Range, const FVector& 
 
 static FORCEINLINE float GetOpticalDepth(const float InValue)
 {
-	return -FMath::Loge(InValue) * SCATTER_PARAM_SCALE;
+	return -FMath::Loge(InValue) * CVarNvVlScatterScale.GetValueOnRenderThread();
 }
 
 static FORCEINLINE FVector GetOpticalDepth(const FVector& InValue)
@@ -455,7 +467,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 	const FFinalPostProcessSettings& FinalPostProcessSettings = View.FinalPostProcessSettings;
 
 	NvVl::PostprocessDesc PostprocessDesc;
-	PostprocessDesc.bDoFog = FinalPostProcessSettings.FogColor != FLinearColor::Black && FinalPostProcessSettings.FogIntensity > 0;
+	PostprocessDesc.bDoFog = FinalPostProcessSettings.FogColor != FLinearColor::Black && FinalPostProcessSettings.FogIntensity > 0 && CVarNvVlFog.GetValueOnRenderThread();
     PostprocessDesc.bIgnoreSkyFog = false;
     PostprocessDesc.eUpsampleQuality = (NvVl::UpsampleQuality)Properties.UpsampleQuality.GetValue();
     PostprocessDesc.fBlendfactor = Properties.Blendfactor;
