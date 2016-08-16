@@ -37,7 +37,6 @@ public:
 	void SetSeparateTranslucencyPostprocess(bool bEnable, const NvVl::PostprocessDesc InPostprocessDesc);
 	bool SeparateTranslucencyApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI);
 private:
-	void UpdateShadowBuffer();
 
 	HMODULE ModuleHandle;
 	bool bNeedUpdateContext;
@@ -52,9 +51,9 @@ private:
 
 	NvVl::PlatformShaderResource SceneDepthSRV;
 
-	uint32 MaxShadowBufferWidthPerFrame;
-	uint32 MaxShadowBufferHeightPerFrame;
-	uint32 MaxShadowBufferSlicesPerFrame;
+	uint32 MaxShadowBufferWidth;
+	uint32 MaxShadowBufferHeight;
+	uint32 MaxShadowBufferSlices;
 };
 
 /** A global pointer to Nvidia Volumetric Lighting RHI implementation. */
