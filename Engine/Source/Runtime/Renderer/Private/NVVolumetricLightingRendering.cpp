@@ -28,7 +28,7 @@ static TAutoConsoleVariable<int32> CVarNvVlEnable(
 
 static TAutoConsoleVariable<float> CVarNvVlScatterScale(
 	TEXT("r.NvVl.ScatterScale"),
-	10.0f,
+	5.0f,
 	TEXT("Scattering Scale\n"),
 	ECVF_RenderThreadSafe);
 
