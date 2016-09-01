@@ -28,7 +28,7 @@ static TAutoConsoleVariable<int32> CVarNvVlEnable(
 
 static TAutoConsoleVariable<float> CVarNvVlScatterScale(
 	TEXT("r.NvVl.ScatterScale"),
-	5.0f,
+	10.0f,
 	TEXT("Scattering Scale\n"),
 	ECVF_RenderThreadSafe);
 
@@ -38,6 +38,12 @@ static TAutoConsoleVariable<int32> CVarNvVlFog(
 	TEXT("Enable Scattering Fogging\n")
 	TEXT("  0: off\n")
 	TEXT("  1: on\n"),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<float> CVarNvVlDirectionalVolumeScale(
+	TEXT("r.NvVl.DirectionalVolumeScale"),
+	3.0f,
+	TEXT("Volume Scale for the directional light\n"),
 	ECVF_RenderThreadSafe);
 
 const float MULTI_SCATTER = 0.0001f;
@@ -369,8 +375,11 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	LightDirection.Normalize();
 
 	FMatrix LightViewProj;
-	uint32 Cascade = ShadowInfos.Num() - 2; // TODO: better LightToWorld
-	LightViewProj = FTranslationMatrix(ShadowInfos[Cascade]->PreShadowTranslation) * ShadowInfos[Cascade]->SubjectAndReceiverMatrix; // use the first cascade as the LightToWorld
+	const uint32 Cascade = ShadowInfos.Num() - 1; // Take the last cascade as the base
+	const FMatrix ShadowProjection = FShadowProjectionMatrix(ShadowInfos[Cascade]->MinSubjectZ, ShadowInfos[Cascade]->MaxSubjectZ, FVector4(0,0,0,1));
+	const FMatrix WorldToFace = ShadowInfos[Cascade]->SubjectAndReceiverMatrix * ShadowProjection.InverseFast();
+	const FMatrix SubjectAndReceiverMatrix = WorldToFace * FScaleMatrix(1/CVarNvVlDirectionalVolumeScale.GetValueOnRenderThread()) * ShadowProjection;
+	LightViewProj = FTranslationMatrix(ShadowInfos[Cascade]->PreShadowTranslation) * SubjectAndReceiverMatrix;
 
 	NvVl::ShadowMapDesc ShadowmapDesc;
 	uint32 ShadowmapWidth = 0, ShadowmapHeight = 0;
