@@ -482,6 +482,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
     PostprocessDesc.fBlendfactor = Properties.Blendfactor;
     PostprocessDesc.fTemporalFactor = Properties.TemporalFactor;
     PostprocessDesc.fFilterThreshold = Properties.FilterThreshold;
+	FMatrix ViewProjNoAAMatrix = View.ViewMatrices.ViewMatrix * View.ViewMatrices.GetProjNoAAMatrix();
+	PostprocessDesc.mUnjitteredViewProj = *reinterpret_cast<const NvcMat44*>(&ViewProjNoAAMatrix.M[0][0]);
 
 	FVector FogLight = FinalPostProcessSettings.FogColor * FinalPostProcessSettings.FogIntensity;
     PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
