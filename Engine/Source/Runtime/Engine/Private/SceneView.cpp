@@ -1104,6 +1104,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_HG(HGScattering2Term);
 		LERP_HG(HGScattering3Term);
 		LERP_HG(HGScattering4Term);
+		LERP_PP(MultiScatter);
 #endif
 
 		// cubemaps are getting blended additively - in contrast to other properties, maybe we should make that consistent
@@ -1189,6 +1190,11 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		{
 			Dest.MiePhase = Src.MiePhase;
 		}
+
+		if (Src.bOverride_EnableFog)
+		{
+			Dest.bEnableFog = Src.bEnableFog;
+		}	
 #endif
 	}
 	

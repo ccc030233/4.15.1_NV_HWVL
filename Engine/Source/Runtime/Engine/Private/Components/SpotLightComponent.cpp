@@ -169,7 +169,7 @@ USpotLightComponent::USpotLightComponent(const FObjectInitializer& ObjectInitial
 	InnerConeAngle = 0.0f;
 	OuterConeAngle = 44.0f;
 
-	FalloffMode = EFalloffMode::FIXED;
+	FalloffMode = EFalloffMode::NONE;
 	FalloffAngle = 45.0f;
 	FalloffPower = 1.0f;
 }

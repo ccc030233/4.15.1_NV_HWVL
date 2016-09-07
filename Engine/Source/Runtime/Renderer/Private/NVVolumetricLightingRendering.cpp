@@ -42,11 +42,9 @@ static TAutoConsoleVariable<int32> CVarNvVlFog(
 
 static TAutoConsoleVariable<float> CVarNvVlDirectionalVolumeScale(
 	TEXT("r.NvVl.DirectionalVolumeScale"),
-	3.0f,
+	5.0f,
 	TEXT("Volume Scale for the directional light\n"),
 	ECVF_RenderThreadSafe);
-
-const float MULTI_SCATTER = 0.0001f;
 
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Begin Accumulation"), STAT_VolumetricLightingBeginAccumulation, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Remap Shadow Depth"), STAT_VolumetricLightingRemapShadowDepth, STATGROUP_SceneRendering);
@@ -378,7 +376,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	const uint32 Cascade = ShadowInfos.Num() - 1; // Take the last cascade as the base
 	const FMatrix ShadowProjection = FShadowProjectionMatrix(ShadowInfos[Cascade]->MinSubjectZ, ShadowInfos[Cascade]->MaxSubjectZ, FVector4(0,0,0,1));
 	const FMatrix WorldToFace = ShadowInfos[Cascade]->SubjectAndReceiverMatrix * ShadowProjection.InverseFast();
-	const FMatrix SubjectAndReceiverMatrix = WorldToFace * FScaleMatrix(1/CVarNvVlDirectionalVolumeScale.GetValueOnRenderThread()) * ShadowProjection;
+	float VolumeScale = CVarNvVlDirectionalVolumeScale.GetValueOnRenderThread();
+	const FMatrix SubjectAndReceiverMatrix = WorldToFace * FScaleMatrix(1/(VolumeScale > 0 ? VolumeScale : 1.0f)) * ShadowProjection;
 	LightViewProj = FTranslationMatrix(ShadowInfos[Cascade]->PreShadowTranslation) * SubjectAndReceiverMatrix;
 
 	NvVl::ShadowMapDesc ShadowmapDesc;
@@ -476,7 +475,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 	const FFinalPostProcessSettings& FinalPostProcessSettings = View.FinalPostProcessSettings;
 
 	NvVl::PostprocessDesc PostprocessDesc;
-	PostprocessDesc.bDoFog = FinalPostProcessSettings.FogColor != FLinearColor::Black && FinalPostProcessSettings.FogIntensity > 0 && CVarNvVlFog.GetValueOnRenderThread();
+	PostprocessDesc.bDoFog = FinalPostProcessSettings.bEnableFog && CVarNvVlFog.GetValueOnRenderThread();
     PostprocessDesc.bIgnoreSkyFog = false;
     PostprocessDesc.eUpsampleQuality = (NvVl::UpsampleQuality)Properties.UpsampleQuality.GetValue();
     PostprocessDesc.fBlendfactor = Properties.Blendfactor;
@@ -487,7 +486,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 
 	FVector FogLight = FinalPostProcessSettings.FogColor * FinalPostProcessSettings.FogIntensity;
     PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
-    PostprocessDesc.fMultiscatter = MULTI_SCATTER;
+    PostprocessDesc.fMultiscatter = FinalPostProcessSettings.MultiScatter;
 
 #if 0
 	if (!SceneContext.IsSeparateTranslucencyActive(Views[0]))

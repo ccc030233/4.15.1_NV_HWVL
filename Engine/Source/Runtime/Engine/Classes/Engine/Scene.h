@@ -519,6 +519,9 @@ struct FPostProcessSettings
 	uint32 bOverride_AbsorptionTransmittance:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_EnableFog:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_FogIntensity:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
@@ -1079,6 +1082,9 @@ struct FPostProcessSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_HGScattering4Term", DisplayName = "#4 HG Scattering Term"))
 	FHGScatteringTerm	HGScattering4Term;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_EnableFog"))
+	uint32 bEnableFog:1;
+
 	/** Brightness multiplier of the fog. */
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(UIMin = "0.0", UIMax = "100000.0", editcondition = "bOverride_FogIntensity"))
 	float FogIntensity;
@@ -1086,6 +1092,9 @@ struct FPostProcessSettings
 	/** Filter color of the fog. */
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_FogColor"))
 	FLinearColor FogColor;
+
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_MultiScatter"))
+	float MultiScatter;
 
 	// Note: Adding properties before this line require also changes to the OverridePostProcessSettings() function and 
 	// FPostProcessSettings constructor and possibly the SetBaseValues() method.
@@ -1311,8 +1320,10 @@ struct FPostProcessSettings
 		MieTransmittance = 1.0f;
 		AbsorptionColor = FLinearColor::White;
 		AbsorptionTransmittance = 1.0f;
+		bEnableFog = false;
 		FogIntensity = 0.0f;
 		FogColor = FLinearColor::White;
+		MultiScatter = 0.000001f;
 		HGScattering1Term = FHGScatteringTerm();
 		HGScattering2Term = FHGScatteringTerm();
 		HGScattering3Term = FHGScatteringTerm();
