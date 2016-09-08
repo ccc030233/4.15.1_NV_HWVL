@@ -386,7 +386,6 @@ struct ShadowMapDesc
 	uint32_t uElementCount; //!< Number of sub-elements in the shadow map
 	bool bLinearizedDepth;	//!< Linearized Depth for shadow map
 	bool bShadowSpace;		//!< Transform a world space position into the shadow space or clip space 
-	bool bLowToHighCascadedShadow; //!< Cascaded shadow quality is from low to high or on the contrary
 	NvcMat44 mCubeViewProj[6]; //!< View-Proj transform for 6 faces of cube
 
     //! Individual cascade descriptions

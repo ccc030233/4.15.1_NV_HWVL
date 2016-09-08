@@ -232,7 +232,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		ShadowmapDesc.bLinearizedDepth = false;
 		// shadow space
 		ShadowmapDesc.bShadowSpace = false;
-		ShadowmapDesc.bLowToHighCascadedShadow = true;
 
 		for (int32 FaceIndex = 0; FaceIndex < 6; FaceIndex++)
 		{
@@ -275,7 +274,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		ShadowmapDesc.bLinearizedDepth = LightSceneInfo->Proxy->GetLightType() == LightType_Spot ? true : false;
 		// shadow space
 		ShadowmapDesc.bShadowSpace = true;
-		ShadowmapDesc.bLowToHighCascadedShadow = true;
 
 		ShadowmapDesc.uElementCount = 1;
 		ShadowmapDesc.Elements[0].uOffsetX = 0;
@@ -404,7 +402,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	ShadowmapDesc.bLinearizedDepth = false;
 	// shadow space
 	ShadowmapDesc.bShadowSpace = true;
-	ShadowmapDesc.bLowToHighCascadedShadow = true;
 
 	ShadowmapDesc.uElementCount = FMath::Min((uint32)ShadowInfos.Num(), NvVl::MAX_SHADOWMAP_ELEMENTS);
 	for (uint32 ElementIndex = 0; ElementIndex < ShadowmapDesc.uElementCount; ElementIndex++)
