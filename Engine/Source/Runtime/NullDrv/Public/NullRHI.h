@@ -833,9 +833,9 @@ public:
 	}
 
 #if WITH_NVVOLUMETRICLIGHTING
-	virtual void ClearStateCache() override {};
-	virtual void GetVolumeLightingPlatformDesc(NvVl::PlatformDesc& PlatformDesc) override {};
-	virtual void GetVolumeLightingPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) override {};
+	virtual void RHIClearStateCache() override {};
+	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) override {};
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) override {};
 	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) override {};
 	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) override {};
 #endif

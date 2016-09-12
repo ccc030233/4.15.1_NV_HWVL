@@ -160,10 +160,10 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		GNVVolumetricLightingRHI->UpdateFilterMode(Properties.FilterMode);
 
 		int32 DebugMode = FMath::Clamp((int32)CVarNvVlDebugMode.GetValueOnRenderThread(), 0, 2);
-		GNVVolumetricLightingRHI->BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDesc, MediumDesc, (Nv::VolumetricLighting::DebugFlags)DebugMode); //SceneContext.GetActualDepthTexture()?
+		RHICmdList.BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDesc, MediumDesc, (Nv::VolumetricLighting::DebugFlags)DebugMode); //SceneContext.GetActualDepthTexture()?
 
 		// clear the state cache
-		GDynamicRHI->ClearStateCache();
+		RHICmdList.ClearStateCache();
 	}
 }
 
@@ -178,10 +178,10 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRemapShadowDepth(FRHICom
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 	const FTexture2DRHIRef& ShadowDepth = SceneContext.GetShadowDepthZTexture(false);
-	GNVVolumetricLightingRHI->RemapShadowDepth(ShadowDepth);
+	RHICmdList.RemapShadowDepth(ShadowDepth);
 
 	// clear the state cache
-	GDynamicRHI->ClearStateCache();
+	RHICmdList.ClearStateCache();
 }
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo)
@@ -349,10 +349,10 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		VolumeDesc.eTessQuality = (NvVl::TessellationQuality)LightSceneInfo->Proxy->GetNvVlTessQuality();
 	}
 
-	GNVVolumetricLightingRHI->RenderVolume(DepthMap, ShadowmapDesc, LightDesc, VolumeDesc);
+	RHICmdList.RenderVolume(DepthMap, ShadowmapDesc, LightDesc, VolumeDesc);
 
 	// clear the state cache
-	GDynamicRHI->ClearStateCache();
+	RHICmdList.ClearStateCache();
 }
 
 // for cascaded shadow
@@ -436,10 +436,10 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		VolumeDesc.eTessQuality = (NvVl::TessellationQuality)LightSceneInfo->Proxy->GetNvVlTessQuality();
 	}
 
-	GNVVolumetricLightingRHI->RenderVolume(ShadowDepth, ShadowmapDesc, LightDesc, VolumeDesc);
+	RHICmdList.RenderVolume(ShadowDepth, ShadowmapDesc, LightDesc, VolumeDesc);
 
 	// clear the state cache
-	GDynamicRHI->ClearStateCache();
+	RHICmdList.ClearStateCache();
 }
 
 
@@ -451,7 +451,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHIComm
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingEndAccumulation);
-	GNVVolumetricLightingRHI->EndAccumulation();
+	RHICmdList.EndAccumulation();
 }
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHICommandListImmediate& RHICmdList)
@@ -485,22 +485,11 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
     PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
     PostprocessDesc.fMultiscatter = FinalPostProcessSettings.MultiScatter;
 
-#if 0
-	if (!SceneContext.IsSeparateTranslucencyActive(Views[0]))
-#endif
-	{
-		GNVVolumetricLightingRHI->ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
+	RHICmdList.ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
 
-		// clear the state cache
-		GDynamicRHI->ClearStateCache();
-		SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
-	}
-#if 0
-	else
-	{
-		GNVVolumetricLightingRHI->SetSeparateTranslucencyPostprocess(CVarNvVlEnable.GetValueOnRenderThread() && !Scene->bSkipCurrentFrameVL, PostprocessDesc);
-	}
-#endif
+	// clear the state cache
+	RHICmdList.ClearStateCache();
+	SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 }
 
 #endif

@@ -20,7 +20,6 @@ FNVVolumetricLightingRHI::FNVVolumetricLightingRHI()
 	, RenderCtx(NULL)
 	, SceneDepthSRV(NULL)
 	, bNeedUpdateContext(true)
-	, bEnableSeparateTranslucencyPostprocess(false)
 	, MaxShadowBufferWidth(0)
 	, MaxShadowBufferHeight(0)
 	, MaxShadowBufferSlices(0)
@@ -52,8 +51,8 @@ void FNVVolumetricLightingRHI::Init()
     ContextDesc.eFilterMode = NvVl::FilterMode::NONE;
 
 	check(GDynamicRHI);
-	GDynamicRHI->GetVolumeLightingPlatformDesc(PlatformDesc);
-	GDynamicRHI->GetVolumeLightingPlatformRenderCtx(RenderCtx);
+	GDynamicRHI->GetPlatformDesc(PlatformDesc);
+	GDynamicRHI->GetPlatformRenderCtx(RenderCtx);
 
 }
 
@@ -183,33 +182,12 @@ void FNVVolumetricLightingRHI::EndAccumulation()
 	check(Status == NvVl::Status::OK);
 }
 
-void FNVVolumetricLightingRHI::ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc InPostprocessDesc)
+void FNVVolumetricLightingRHI::ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc& PostprocessDesc)
 {
 	NvVl::PlatformRenderTarget SceneRTV(NULL);
 	GDynamicRHI->GetPlatformRenderTarget(SceneColorSurfaceRHI, SceneRTV);
-	NvVl::Status Status = NvVl::ApplyLighting(Context, RenderCtx, SceneRTV, SceneDepthSRV, &InPostprocessDesc);
+	NvVl::Status Status = NvVl::ApplyLighting(Context, RenderCtx, SceneRTV, SceneDepthSRV, &PostprocessDesc);
 	check(Status == NvVl::Status::OK);
-}
-
-void FNVVolumetricLightingRHI::SetSeparateTranslucencyPostprocess(bool bEnable, const NvVl::PostprocessDesc InPostprocessDesc)
-{
-	bEnableSeparateTranslucencyPostprocess = bEnable;
-	SeparateTranslucencyPostprocessDesc = InPostprocessDesc;
-}
-
-bool FNVVolumetricLightingRHI::SeparateTranslucencyApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI)
-{
-	bool bResult = bEnableSeparateTranslucencyPostprocess;
-	if (bEnableSeparateTranslucencyPostprocess)
-	{
-		NvVl::PlatformRenderTarget SceneRTV(NULL);
-		GDynamicRHI->GetPlatformRenderTarget(SceneColorSurfaceRHI, SceneRTV);
-		NvVl::Status Status = NvVl::ApplyLighting(Context, RenderCtx, SceneRTV, SceneDepthSRV, &SeparateTranslucencyPostprocessDesc);
-		check(Status == NvVl::Status::OK);
-		bEnableSeparateTranslucencyPostprocess = false;
-	}
-
-	return bResult;
 }
 
 #endif

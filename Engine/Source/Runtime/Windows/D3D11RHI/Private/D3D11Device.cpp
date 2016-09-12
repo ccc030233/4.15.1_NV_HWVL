@@ -534,18 +534,18 @@ void* FD3D11DynamicRHI::RHIGetNativeDevice()
 }
 
 #if WITH_NVVOLUMETRICLIGHTING
-void FD3D11DynamicRHI::ClearStateCache()
+void FD3D11DynamicRHI::RHIClearStateCache()
 {
 	StateCache.ClearCache();
 }
 
-void FD3D11DynamicRHI::GetVolumeLightingPlatformDesc(NvVl::PlatformDesc& PlatformDesc)
+void FD3D11DynamicRHI::GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc)
 {
 	PlatformDesc.platform = NvVl::PlatformName::D3D11;
     PlatformDesc.d3d11.pDevice = Direct3DDevice;
 }
 
-void FD3D11DynamicRHI::GetVolumeLightingPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx)
+void FD3D11DynamicRHI::GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx)
 {
 	PlatformRenderCtx = GetDeviceContext();
 }

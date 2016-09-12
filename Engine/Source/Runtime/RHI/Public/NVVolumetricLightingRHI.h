@@ -33,19 +33,15 @@ public:
 	void RemapShadowDepth(FTextureRHIParamRef ShadowMapTextureRHI);
 	void RenderVolume(FTextureRHIParamRef ShadowMapTextureRHI, const NvVl::ShadowMapDesc& ShadowMapDesc, const NvVl::LightDesc& LightDesc, const NvVl::VolumeDesc& VolumeDesc);
 	void EndAccumulation();
-	void ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc InPostprocessDesc);
-	void SetSeparateTranslucencyPostprocess(bool bEnable, const NvVl::PostprocessDesc InPostprocessDesc);
-	bool SeparateTranslucencyApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI);
+	void ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc& PostprocessDesc);
 private:
 
 	HMODULE ModuleHandle;
 	bool bNeedUpdateContext;
-	bool bEnableSeparateTranslucencyPostprocess;
 
 	NvVl::ContextDesc		ContextDesc;
 	NvVl::PlatformDesc		PlatformDesc;
 	NvVl::Context			Context;
-	NvVl::PostprocessDesc	SeparateTranslucencyPostprocessDesc;
 
 	NvVl::PlatformRenderCtx	RenderCtx;
 

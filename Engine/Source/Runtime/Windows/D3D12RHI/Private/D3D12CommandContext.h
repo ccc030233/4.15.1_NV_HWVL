@@ -337,4 +337,8 @@ public:
 	virtual void RHIUpdateTextureReference(FTextureReferenceRHIParamRef TextureRef, FTextureRHIParamRef NewTexture) final override;
 
 	virtual void RHIClearMRTImpl(bool bClearColor, int32 NumClearColors, const FLinearColor* ColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil, FIntRect ExcludeRect);
+
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void RHIClearStateCache() override {};
+#endif
 };

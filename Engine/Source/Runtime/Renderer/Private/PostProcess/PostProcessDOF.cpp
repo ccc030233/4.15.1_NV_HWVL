@@ -474,18 +474,6 @@ void FRCPassPostProcessDOFRecombine::Process(FRenderingCompositePassContext& Con
 		Context.HasHmdMesh(),
 		EDRF_UseTriangleOptimization);
 
-#if WITH_NVVOLUMETRICLIGHTING && 0
-	if (View.Family->EngineShowFlags.Game && bSeparateTranslucency)
-	{
-		if (GNVVolumetricLightingRHI->SeparateTranslucencyApplyLighting(DestRenderTarget.TargetableTexture))
-		{
-			// clear the state cache
-			GDynamicRHI->ClearStateCache();
-			SetRenderTarget(Context.RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
-		}
-	}
-#endif
-
 	Context.RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());
 }
 
