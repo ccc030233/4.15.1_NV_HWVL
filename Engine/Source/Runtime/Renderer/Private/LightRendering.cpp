@@ -466,7 +466,6 @@ void FDeferredShadingSceneRenderer::RenderLights(FRHICommandListImmediate& RHICm
 				SCOPED_DRAW_EVENT(RHICmdList, StandardDeferredLighting);
 
 #if WITH_NVVOLUMETRICLIGHTING
-				if (ViewFamily.EngineShowFlags.Game)
 				{
 					for (int32 LightIndex = StandardDeferredStart; LightIndex < AttenuationLightStart; LightIndex++)
 					{

@@ -1261,10 +1261,7 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 	}
 
 #if WITH_NVVOLUMETRICLIGHTING
-	if (ViewFamily.EngineShowFlags.Game)
-	{
-		NVVolumetricLightingBeginAccumulation(RHICmdList);
-	}
+	NVVolumetricLightingBeginAccumulation(RHICmdList);
 #endif
 
 	// Render lighting.
@@ -1338,10 +1335,7 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 	}
 
 #if WITH_NVVOLUMETRICLIGHTING
-	if (ViewFamily.EngineShowFlags.Game)
-	{
-		NVVolumetricLightingEndAccumulation(RHICmdList);
-	}
+	NVVolumetricLightingEndAccumulation(RHICmdList);
 #endif
 
 	if (ViewFamily.EngineShowFlags.StationaryLightOverlap &&
@@ -1469,10 +1463,7 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 	}
 
 #if WITH_NVVOLUMETRICLIGHTING
-	if (ViewFamily.EngineShowFlags.Game)
-	{
-		NVVolumetricLightingApplyLighting(RHICmdList);
-	}
+	NVVolumetricLightingApplyLighting(RHICmdList);
 #endif
 
 	// Resolve the scene color for post processing.

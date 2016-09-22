@@ -3107,7 +3107,6 @@ bool FDeferredShadingSceneRenderer::RenderOnePassPointLightShadows(FRHICommandLi
 			}
 
 #if WITH_NVVOLUMETRICLIGHTING
-			if (ViewFamily.EngineShowFlags.Game)
 			{
 				if(ProjectedShadowInfo->bAllocated
 				&& ProjectedShadowInfo->bWholeSceneShadow
@@ -3760,7 +3759,6 @@ bool FDeferredShadingSceneRenderer::RenderProjectedShadows(FRHICommandListImmedi
 		}
 
 #if WITH_NVVOLUMETRICLIGHTING
-		if (ViewFamily.EngineShowFlags.Game)
 		{
 			int32 NumShadows = FMath::Min((int32)NvVl::MAX_SHADOWMAP_ELEMENTS, VolumetricShadows.Num());
 			for (int32 ShadowIndex = 0; ShadowIndex < NumShadows; ShadowIndex++)
