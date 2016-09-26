@@ -311,6 +311,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		case LightType_Directional:
 		{
 			LightDesc.eType = NvVl::LightType::DIRECTIONAL;
+			LightDesc.Directional.bIgnoreSkyScattering = !LightSceneInfo->Proxy->IsNvVlSkyScattering();
 			LightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
 		}
 	}
@@ -484,6 +485,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		case LightType_Directional:
 		{
 			LightDesc.eType = NvVl::LightType::DIRECTIONAL;
+			LightDesc.Directional.bIgnoreSkyScattering = !LightSceneInfo->Proxy->IsNvVlSkyScattering();
 			LightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
 		}
 	}
@@ -574,6 +576,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	LightDesc.mLightToWorld = *reinterpret_cast<const NvcMat44*>(&LightViewProjInv.M[0][0]);
 
 	LightDesc.eType = NvVl::LightType::DIRECTIONAL;
+	LightDesc.Directional.bIgnoreSkyScattering = !LightSceneInfo->Proxy->IsNvVlSkyScattering();
 	LightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
 
 	NvVl::VolumeDesc VolumeDesc;

@@ -132,6 +132,9 @@ class ENGINE_API UDirectionalLightComponent : public ULightComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, AdvancedDisplay)
 	uint32 bCastModulatedShadows : 1;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	uint32 bEnableSkyScattering:1;
+
 	/**
 	* Color to modulate against the scene color when rendering modulated shadows. (mobile only)
 	**/
@@ -194,6 +197,11 @@ class ENGINE_API UDirectionalLightComponent : public ULightComponent
 	//~ Begin UObject Interface
 
 	virtual void InvalidateLightingCacheDetailed(bool bInvalidateBuildEnqueuedLighting, bool bTranslationOnly) override;
+
+	virtual bool IsSkyScattering() const override
+	{
+		return bEnableSkyScattering;
+	}
 };
 
 

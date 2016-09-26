@@ -204,11 +204,11 @@ class ENGINE_API ULightComponent : public ULightComponentBase
 
 	/** If enable the nvidia volumetric lighting for this light */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
-	bool bEnableVolumetricLighting;
+	uint32 bEnableVolumetricLighting:1;
 
 	/** If true, use the custom volumetric lighting color/intensity, if false, use the light color/intensity. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
-	bool bUseVolumetricLightingColor;
+	uint32 bUseVolumetricLightingColor:1;
 
 	UPROPERTY(BlueprintReadOnly, interp, Category=NVVolumetricLighting, meta=(UIMin = "0.0", UIMax = "20.0"))
 	float VolumetricLightingIntensity;
@@ -385,6 +385,11 @@ public:
 	{
 		OutFalloffMode = 0;
 		OutFalloffAngleAndPower = FVector2D::ZeroVector;
+	}
+
+	virtual bool IsSkyScattering() const
+	{
+		return false;
 	}
 #endif
 protected:

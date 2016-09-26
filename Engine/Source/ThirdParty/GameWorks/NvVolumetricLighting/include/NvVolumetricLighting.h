@@ -403,6 +403,7 @@ struct LightDesc
 	{
 		//! LightType = Directional
 		struct {
+			bool bIgnoreSkyScattering;			//!< Ignore depth values of (1.0f) for scattering
 			NvcVec3 vDirection;			        //!< Normalized light direction
 		} Directional;
 

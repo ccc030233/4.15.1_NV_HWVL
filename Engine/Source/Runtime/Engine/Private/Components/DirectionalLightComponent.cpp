@@ -792,6 +792,10 @@ bool UDirectionalLightComponent::CanEditChange(const UProperty* InProperty) cons
 			return bUseInsetShadowsForMovableObjects && bCastModulatedShadows;
 		}
 
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UDirectionalLightComponent, bEnableSkyScattering))
+		{
+			return bEnableVolumetricLighting;
+		}
 	}
 
 	return Super::CanEditChange(InProperty);
