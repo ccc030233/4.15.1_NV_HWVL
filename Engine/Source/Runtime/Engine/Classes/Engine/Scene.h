@@ -89,6 +89,17 @@ namespace EMiePhase
 	};
 }
 
+UENUM()
+namespace EFogMode
+{
+	enum Type
+	{
+		FOG_NONE UMETA(DisplayName="None"),
+		FOG_NOSKY UMETA(DisplayName="Exclude Sky"),
+		FOG_FULL UMETA(DisplayName="Full"),
+	};
+}
+
 USTRUCT()
 struct FHGScatteringTerm
 {
@@ -519,7 +530,7 @@ struct FPostProcessSettings
 	uint32 bOverride_AbsorptionTransmittance:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_EnableFog:1;
+	uint32 bOverride_FogMode:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_FogIntensity:1;
@@ -1082,8 +1093,9 @@ struct FPostProcessSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_HGScattering4Term", DisplayName = "#4 HG Scattering Term"))
 	FHGScatteringTerm	HGScattering4Term;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_EnableFog"))
-	uint32 bEnableFog:1;
+	/** Fog mode based on the scattering. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_FogMode"))
+	TEnumAsByte<EFogMode::Type> FogMode;
 
 	/** Brightness multiplier of the fog. */
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(UIMin = "0.0", UIMax = "100000.0", editcondition = "bOverride_FogIntensity"))
@@ -1320,7 +1332,7 @@ struct FPostProcessSettings
 		MieTransmittance = 1.0f;
 		AbsorptionColor = FLinearColor::White;
 		AbsorptionTransmittance = 1.0f;
-		bEnableFog = false;
+		FogMode = EFogMode::FOG_NONE;
 		FogIntensity = 0.0f;
 		FogColor = FLinearColor::White;
 		MultiScatter = 0.000001f;

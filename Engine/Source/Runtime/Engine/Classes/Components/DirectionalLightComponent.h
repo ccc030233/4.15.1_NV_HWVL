@@ -132,6 +132,7 @@ class ENGINE_API UDirectionalLightComponent : public ULightComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, AdvancedDisplay)
 	uint32 bCastModulatedShadows : 1;
 
+	/** Whether the volumetric lighting affected the sky. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
 	uint32 bEnableSkyScattering:1;
 

@@ -623,8 +623,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 	const FFinalPostProcessSettings& FinalPostProcessSettings = View.FinalPostProcessSettings;
 
 	NvVl::PostprocessDesc PostprocessDesc;
-	PostprocessDesc.bDoFog = FinalPostProcessSettings.bEnableFog && CVarNvVlFog.GetValueOnRenderThread();
-    PostprocessDesc.bIgnoreSkyFog = false;
+	PostprocessDesc.bDoFog = (FinalPostProcessSettings.FogMode != EFogMode::FOG_NONE) && CVarNvVlFog.GetValueOnRenderThread();
+    PostprocessDesc.bIgnoreSkyFog = FinalPostProcessSettings.FogMode == EFogMode::FOG_NOSKY;
     PostprocessDesc.eUpsampleQuality = (NvVl::UpsampleQuality)Properties.UpsampleQuality.GetValue();
     PostprocessDesc.fBlendfactor = Properties.Blendfactor;
     PostprocessDesc.fTemporalFactor = Properties.TemporalFactor;

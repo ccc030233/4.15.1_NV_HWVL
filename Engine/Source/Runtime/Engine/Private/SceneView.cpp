@@ -1191,9 +1191,9 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 			Dest.MiePhase = Src.MiePhase;
 		}
 
-		if (Src.bOverride_EnableFog)
+		if (Src.bOverride_FogMode)
 		{
-			Dest.bEnableFog = Src.bEnableFog;
+			Dest.FogMode = Src.FogMode;
 		}	
 #endif
 	}
