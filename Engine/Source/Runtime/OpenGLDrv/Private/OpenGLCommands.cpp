@@ -3646,5 +3646,3 @@ IRHICommandContextContainer* FOpenGLDynamicRHI::RHIGetCommandContextContainer()
 {
 	return nullptr;
 }
-
-

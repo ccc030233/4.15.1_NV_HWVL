@@ -531,4 +531,34 @@ void* FD3D11DynamicRHI::RHIGetNativeDevice()
 	return (void*)Direct3DDevice.GetReference();
 }
 
+#if WITH_NVVOLUMETRICLIGHTING
+void FD3D11DynamicRHI::RHIClearStateCache()
+{
+	StateCache.ClearCache();
+}
 
+void FD3D11DynamicRHI::GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc)
+{
+	PlatformDesc.platform = NvVl::PlatformName::D3D11;
+    PlatformDesc.d3d11.pDevice = Direct3DDevice;
+}
+
+void FD3D11DynamicRHI::GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx)
+{
+	PlatformRenderCtx = GetDeviceContext();
+}
+
+void FD3D11DynamicRHI::GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource)
+{
+	FD3D11TextureBase* BaseTexture = GetD3D11TextureFromRHITexture(TextureRHI);
+	ID3D11ShaderResourceView* SRV = BaseTexture->GetShaderResourceView();
+	PlatformShaderResource = SRV;
+}
+
+void FD3D11DynamicRHI::GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget)
+{
+	FD3D11TextureBase* BaseTexture = GetD3D11TextureFromRHITexture(TextureRHI);
+	ID3D11RenderTargetView* RTV = BaseTexture->GetRenderTargetView(0, -1);
+	PlatformRenderTarget = RTV;
+}
+#endif

@@ -12,6 +12,10 @@
 	#define PLATFORM_ALLOW_NULL_RHI		0
 #endif
 
+#if WITH_NVVOLUMETRICLIGHTING
+#include "NVVolumetricLightingRHI.h"
+#endif
+
 // Globals.
 FDynamicRHI* GDynamicRHI = NULL;
 
@@ -197,6 +201,14 @@ void RHIPostInit()
 {
 	check(GDynamicRHI);
 	GDynamicRHI->PostInit();
+
+#if WITH_NVVOLUMETRICLIGHTING
+	if(!GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI = CreateNVVolumetricLightingRHI();
+		GNVVolumetricLightingRHI->Init();
+	}
+#endif
 }
 
 void RHIExit()
@@ -208,6 +220,15 @@ void RHIExit()
 		delete GDynamicRHI;
 		GDynamicRHI = NULL;
 	}
+
+#if WITH_NVVOLUMETRICLIGHTING
+	if (GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI->Shutdown();
+		delete GNVVolumetricLightingRHI;
+		GNVVolumetricLightingRHI = NULL;
+	}
+#endif
 }
 
 

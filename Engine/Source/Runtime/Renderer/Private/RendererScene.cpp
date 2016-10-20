@@ -362,6 +362,19 @@ void FScene::UpdateSceneSettings(AWorldSettings* WorldSettings)
 	});
 }
 
+#if WITH_NVVOLUMETRICLIGHTING
+void FScene::UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings)
+{
+	ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
+		UpdateVolumetricLightingSettings,
+		FScene*, Scene, this,
+		FNVVolumetricLightingProperties, VolumetricLightingProperties, WorldSettings->VolumetricLightingProperties,
+	{
+		Scene->VolumetricLightingProperties = VolumetricLightingProperties;
+	});
+}
+#endif
+
 /**
  * Sets the FX system associated with the scene.
  */
@@ -541,6 +554,10 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 ,	GlobalDistanceFieldViewDistance(InWorld->GetWorldSettings()->GlobalDistanceFieldViewDistance)
 ,	NumVisibleLights_GameThread(0)
 ,	NumEnabledSkylights_GameThread(0)
+#if WITH_NVVOLUMETRICLIGHTING
+,	bSkipCurrentFrameVL(false)
+,	VolumetricLightingProperties(InWorld->GetWorldSettings()->VolumetricLightingProperties)
+#endif
 {
 	FMemory::Memzero(MobileDirectionalLights);
 

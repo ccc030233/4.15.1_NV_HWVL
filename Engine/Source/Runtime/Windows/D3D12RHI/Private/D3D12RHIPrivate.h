@@ -248,6 +248,12 @@ public:
 	virtual class IRHIComputeContext* RHIGetDefaultAsyncComputeContext() final override;
 	virtual class IRHICommandContextContainer* RHIGetCommandContextContainer() final override;
 
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) override {};
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) override {};
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) override {};
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) override {};
+#endif
 	// FD3D12DynamicRHI interface.
 	virtual ID3D12CommandQueue* RHIGetD3DCommandQueue();
 	virtual FTexture2DRHIRef RHICreateTexture2DFromD3D12Resource(uint8 Format, uint32 Flags, const FClearValueBinding& ClearValueBinding, ID3D12Resource* Resource);

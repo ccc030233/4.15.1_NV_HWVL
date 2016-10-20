@@ -137,6 +137,13 @@ public:
 	virtual class IRHICommandContext* RHIGetDefaultContext() final override;
 	virtual class IRHICommandContextContainer* RHIGetCommandContextContainer() final override;
 
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) override {};
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) override {};
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) override {};
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) override {};
+#endif
+
 	inline uint32 GetPresentCount() const
 	{
 		return PresentCount;

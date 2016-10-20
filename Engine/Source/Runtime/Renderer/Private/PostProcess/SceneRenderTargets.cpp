@@ -14,6 +14,9 @@
 #include "HdrCustomResolveShaders.h"
 #include "Public/LightPropagationVolumeBlendable.h"
 #include "Engine/EngineTypes.h"
+#if WITH_NVVOLUMETRICLIGHTING
+#include "NVVolumetricLightingRHI.h"
+#endif
 
 IMPLEMENT_UNIFORM_BUFFER_STRUCT(FGBufferResourceStruct,TEXT("GBuffers"));
 
@@ -462,6 +465,10 @@ void FSceneRenderTargets::Allocate(FRHICommandList& RHICmdList, const FSceneView
 		UE_LOG(LogRenderer, Log, TEXT("Reallocating scene render targets to support %ux%u (Frame:%u)."), BufferSize.X, BufferSize.Y, ViewFamily.FrameNumber);
 
 		UpdateRHI();
+
+#if WITH_NVVOLUMETRICLIGHTING
+		GNVVolumetricLightingRHI->UpdateFrameBuffer(DesiredBufferSize.X, DesiredBufferSize.Y, GetNumSceneColorMSAASamples(CurrentFeatureLevel));
+#endif
 	}
 
 	// Do allocation of render targets if they aren't available for the current shading path

@@ -1000,6 +1000,10 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		RHICmdList.TransitionResource(EResourceTransitionAccess::EReadable, SceneContext.GetSceneDepthSurface());
 	}
 
+#if WITH_NVVOLUMETRICLIGHTING
+	NVVolumetricLightingBeginAccumulation(RHICmdList);
+#endif
+
 	// Render lighting.
 	if (ViewFamily.EngineShowFlags.Lighting
 		&& FeatureLevel >= ERHIFeatureLevel::SM4
@@ -1074,6 +1078,10 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		}
 		ServiceLocalQueue();
 	}
+
+#if WITH_NVVOLUMETRICLIGHTING
+	NVVolumetricLightingEndAccumulation(RHICmdList);
+#endif
 
 	FLightShaftsOutput LightShaftOutput;
 
@@ -1199,6 +1207,10 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		RenderStationaryLightOverlap(RHICmdList);
 		ServiceLocalQueue();
 	}
+
+#if WITH_NVVOLUMETRICLIGHTING
+	NVVolumetricLightingApplyLighting(RHICmdList);
+#endif
 
 	// Resolve the scene color for post processing.
 	SceneContext.ResolveSceneColor(RHICmdList, FResolveRect(0, 0, ViewFamily.FamilySizeX, ViewFamily.FamilySizeY));

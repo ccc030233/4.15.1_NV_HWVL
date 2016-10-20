@@ -1946,6 +1946,11 @@ public:
 
 	FReadOnlyCVARCache ReadOnlyCVARCache;
 
+#if WITH_NVVOLUMETRICLIGHTING
+	bool bSkipCurrentFrameVL;
+	FNVVolumetricLightingProperties		VolumetricLightingProperties;
+#endif
+
 #if WITH_EDITOR
 	/** Editor Pixel inspector */
 	FPixelInspectorData PixelInspectorData;
@@ -2072,6 +2077,10 @@ public:
 	}
 
 	virtual void UpdateSceneSettings(AWorldSettings* WorldSettings) override;
+
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings) override;
+#endif
 
 	/**
 	 * Sets the FX system associated with the scene.
