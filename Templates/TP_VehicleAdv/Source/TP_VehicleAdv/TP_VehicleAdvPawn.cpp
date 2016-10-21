@@ -232,13 +232,7 @@ void ATP_VehicleAdvPawn::EnableIncarView(const bool bState)
 			InternalCamera->Deactivate();
 			Camera->Activate();
 		}
-
-		APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
-		if ( (PlayerController != nullptr) && (PlayerController->PlayerCameraManager != nullptr ) )
-		{
-			PlayerController->PlayerCameraManager->bFollowHmdOrientation = true;
-		}
-
+		
 		InCarSpeed->SetVisibility(bInCarCameraActive);
 		InCarGear->SetVisibility(bInCarCameraActive);
 	}

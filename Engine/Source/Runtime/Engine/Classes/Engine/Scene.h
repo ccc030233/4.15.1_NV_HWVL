@@ -1111,6 +1111,7 @@ struct FPostProcessSettings
 	// Note: Adding properties before this line require also changes to the OverridePostProcessSettings() function and 
 	// FPostProcessSettings constructor and possibly the SetBaseValues() method.
 	// -----------------------------------------------------------------------
+	
 	/**
 	 * Allows custom post process materials to be defined, using a MaterialInstance with the same Material as its parent to allow blending.
 	 * For materials this needs to be the "PostProcess" domain type. This can be used for any UObject object implementing the IBlendableInterface (e.g. could be used to fade weather settings).
