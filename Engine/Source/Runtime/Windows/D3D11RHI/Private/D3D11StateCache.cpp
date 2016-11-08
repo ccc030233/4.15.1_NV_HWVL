@@ -353,10 +353,16 @@ void FD3D11StateCacheBase::ClearState()
 void FD3D11StateCacheBase::ClearCache()
 {
 #if D3D11_ALLOW_STATE_CACHE
+	const uint16 ClearSRVs = 8;
 	// Shader Resource View State Cache
 	for (uint32 ShaderFrequency = 0; ShaderFrequency < SF_NumFrequencies; ShaderFrequency++)
 	{
-		for (uint32 Index = 0; Index < D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT; Index++)
+		if (ShaderFrequency == SF_Geometry)
+		{
+			continue;
+		}
+
+		for (uint32 Index = 0; Index < ClearSRVs; Index++)
 		{
 			if(CurrentShaderResourceViews[ShaderFrequency][Index])
 			{
@@ -365,6 +371,13 @@ void FD3D11StateCacheBase::ClearCache()
 			}
 		}
 	}
+
+	ID3D11ShaderResourceView * SRVs[ClearSRVs] = { nullptr };
+	Direct3DDeviceIMContext->VSSetShaderResources(0, ClearSRVs, SRVs);
+	Direct3DDeviceIMContext->HSSetShaderResources(0, ClearSRVs, SRVs);
+	Direct3DDeviceIMContext->DSSetShaderResources(0, ClearSRVs, SRVs);
+	Direct3DDeviceIMContext->PSSetShaderResources(0, ClearSRVs, SRVs);
+	Direct3DDeviceIMContext->CSSetShaderResources(0, ClearSRVs, SRVs);
 
 	// Rasterizer State Cache
 	CurrentRasterizerState = nullptr;
@@ -404,15 +417,28 @@ void FD3D11StateCacheBase::ClearCache()
 	CurrentIndexOffset = 0;
 	CurrentPrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
+	const uint16 ClearConstantBuffers = 4;
 	for (uint32 Frequency = 0; Frequency < SF_NumFrequencies; Frequency++)
 	{
-		for (uint32 Index = 0; Index < D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT; Index++)
+		if (Frequency == SF_Geometry)
+		{
+			continue;
+		}
+
+		for (uint32 Index = 0; Index < ClearConstantBuffers; Index++)
 		{
 			CurrentConstantBuffers[Frequency][Index].Buffer = nullptr;
 			CurrentConstantBuffers[Frequency][Index].FirstConstant = 0;
 			CurrentConstantBuffers[Frequency][Index].NumConstants = D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT;
 		}
 	}
+
+	ID3D11Buffer * ConstantBuffers[ClearConstantBuffers] = { nullptr };
+    Direct3DDeviceIMContext->VSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
+    Direct3DDeviceIMContext->HSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
+    Direct3DDeviceIMContext->DSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
+    Direct3DDeviceIMContext->PSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
+    Direct3DDeviceIMContext->CSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
 
 #endif	// D3D11_ALLOW_STATE_CACHE
 }

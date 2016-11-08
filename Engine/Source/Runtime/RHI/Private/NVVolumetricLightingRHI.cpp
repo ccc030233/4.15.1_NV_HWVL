@@ -137,14 +137,6 @@ void FNVVolumetricLightingRHI::BeginAccumulation(FTextureRHIParamRef SceneDepthT
 	check(Status == NvVl::Status::OK);
 }
 
-void FNVVolumetricLightingRHI::RemapShadowDepth(FTextureRHIParamRef ShadowMapTextureRHI)
-{
-	NvVl::PlatformShaderResource ShadowMapSRV(NULL);
-	GDynamicRHI->GetPlatformShaderResource(ShadowMapTextureRHI, ShadowMapSRV);
-	NvVl::Status Status = NvVl::RemapShadowDepth(Context, RenderCtx, ShadowMapSRV);
-	check(Status == NvVl::Status::OK);
-}
-
 void FNVVolumetricLightingRHI::RenderVolume(const TArray<FTextureRHIParamRef>& ShadowMapTextures, const NvVl::ShadowMapDesc& ShadowMapDesc, const NvVl::LightDesc& LightDesc, const NvVl::VolumeDesc& VolumeDesc)
 {
 	NvVl::PlatformShaderResource ShadowMapSRVs[NvVl::MAX_SHADOWMAP_ELEMENTS] = {

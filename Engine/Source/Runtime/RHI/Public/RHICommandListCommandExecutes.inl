@@ -525,11 +525,6 @@ void FRHICommandBeginAccumulation::Execute(FRHICommandListBase& CmdList)
 	GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
 }
 
-void FRHICommandRemapShadowDepth::Execute(FRHICommandListBase& CmdList)
-{
-	GNVVolumetricLightingRHI->RemapShadowDepth(ShadowMapTextureRHI);
-}
-
 void FRHICommandRenderVolume::Execute(FRHICommandListBase& CmdList)
 {
 	GNVVolumetricLightingRHI->RenderVolume(ShadowMapTextures, ShadowMapDesc, LightDesc, VolumeDesc);

@@ -1135,17 +1135,6 @@ struct FRHICommandBeginAccumulation : public FRHICommand<FRHICommandBeginAccumul
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
-struct FRHICommandRemapShadowDepth : public FRHICommand<FRHICommandRemapShadowDepth>
-{
-	FTextureRHIParamRef ShadowMapTextureRHI;
-
-	FORCEINLINE_DEBUGGABLE FRHICommandRemapShadowDepth(FTextureRHIParamRef InShadowMapTextureRHI)
-		: ShadowMapTextureRHI(InShadowMapTextureRHI)
-	{
-	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-
 struct FRHICommandRenderVolume : public FRHICommand<FRHICommandRenderVolume>
 {
 	TArray<FTextureRHIParamRef> ShadowMapTextures;
@@ -2188,16 +2177,6 @@ public:
 			return;
 		}
 		new (AllocCommand<FRHICommandBeginAccumulation>()) FRHICommandBeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
-	}
-
-	FORCEINLINE_DEBUGGABLE void RemapShadowDepth(FTextureRHIParamRef ShadowMapTextureRHI)
-	{
-		if (Bypass())
-		{
-			GNVVolumetricLightingRHI->RemapShadowDepth(ShadowMapTextureRHI);
-			return;
-		}
-		new (AllocCommand<FRHICommandRemapShadowDepth>()) FRHICommandRemapShadowDepth(ShadowMapTextureRHI);
 	}
 
 	FORCEINLINE_DEBUGGABLE void RenderVolume(const TArray<FTextureRHIParamRef>& ShadowMapTextures, const NvVl::ShadowMapDesc& ShadowMapDesc, const NvVl::LightDesc& LightDesc, const NvVl::VolumeDesc& VolumeDesc)

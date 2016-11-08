@@ -47,7 +47,6 @@ static TAutoConsoleVariable<float> CVarNvVlDirectionalVolumeScale(
 	ECVF_RenderThreadSafe);
 
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Begin Accumulation"), STAT_VolumetricLightingBeginAccumulation, STATGROUP_SceneRendering);
-DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Remap Shadow Depth"), STAT_VolumetricLightingRemapShadowDepth, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Render Volume"), STAT_VolumetricLightingRenderVolume, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting End Accumulation"), STAT_VolumetricLightingEndAccumulation, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Apply Lighting"), STAT_VolumetricLightingApplyLighting, STATGROUP_SceneRendering);
@@ -164,24 +163,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 
 		// clear the state cache
 		RHICmdList.ClearStateCache();
+		SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 	}
-}
-
-void FDeferredShadingSceneRenderer::NVVolumetricLightingRemapShadowDepth(FRHICommandListImmediate& RHICmdList)
-{
-	if (!CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
-	{
-		return;
-	}
-
-	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingRemapShadowDepth);
-
-	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
-	//?const FTexture2DRHIRef& ShadowDepth = SceneContext.GetShadowDepthZTexture(false);
-	//?RHICmdList.RemapShadowDepth(ShadowDepth);
-
-	// clear the state cache
-	RHICmdList.ClearStateCache();
 }
 
 void GetLightMatrix(const FWholeSceneProjectedShadowInitializer& Initializer, float& MinSubjectZ, float& MaxSubjectZ, FVector& PreShadowTranslation, FMatrix& SubjectAndReceiverMatrix)
@@ -329,6 +312,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 	// clear the state cache
 	RHICmdList.ClearStateCache();
+	SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 }
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo)
@@ -493,6 +477,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 	// clear the state cache
 	RHICmdList.ClearStateCache();
+	SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 }
 
 // for cascaded shadow
@@ -613,6 +598,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 	// clear the state cache
 	RHICmdList.ClearStateCache();
+	SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 }
 
 
@@ -662,7 +648,19 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 
 	// clear the state cache
 	RHICmdList.ClearStateCache();
-	SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+	if (Properties.MsaaMode == MultisampleMode::SINGLE && Properties.FilterMode == EFilterMode::NONE)
+	{
+		SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+	}
+	else
+	{
+		FTextureRHIParamRef RenderTargets[2] =
+		{
+			FTextureRHIParamRef(),
+			FTextureRHIParamRef()
+		};
+		SetRenderTargets(RHICmdList, 2, RenderTargets, FTextureRHIParamRef(), 0, NULL);
+	}
 }
 
 #endif
