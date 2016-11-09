@@ -522,22 +522,34 @@ template struct FRHICommandPopEvent<ECmdList::ECompute>;
 #if WITH_NVVOLUMETRICLIGHTING
 void FRHICommandBeginAccumulation::Execute(FRHICommandListBase& CmdList)
 {
-	GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
+	if (GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
+	}
 }
 
 void FRHICommandRenderVolume::Execute(FRHICommandListBase& CmdList)
 {
-	GNVVolumetricLightingRHI->RenderVolume(ShadowMapTextures, ShadowMapDesc, LightDesc, VolumeDesc);
+	if (GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI->RenderVolume(ShadowMapTextures, ShadowMapDesc, LightDesc, VolumeDesc);
+	}
 }
 
 void FRHICommandEndAccumulation::Execute(FRHICommandListBase& CmdList)
 {
-	GNVVolumetricLightingRHI->EndAccumulation();
+	if (GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI->EndAccumulation();
+	}
 }
 
 void FRHICommandApplyLighting::Execute(FRHICommandListBase& CmdList)
 {
-	GNVVolumetricLightingRHI->ApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);
+	if (GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI->ApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);
+	}
 }
 
 void FRHICommandClearStateCache::Execute(FRHICommandListBase& CmdList)

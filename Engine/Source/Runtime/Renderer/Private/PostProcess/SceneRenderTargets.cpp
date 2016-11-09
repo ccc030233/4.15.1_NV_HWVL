@@ -465,10 +465,6 @@ void FSceneRenderTargets::Allocate(FRHICommandList& RHICmdList, const FSceneView
 		UE_LOG(LogRenderer, Log, TEXT("Reallocating scene render targets to support %ux%u (Frame:%u)."), BufferSize.X, BufferSize.Y, ViewFamily.FrameNumber);
 
 		UpdateRHI();
-
-#if WITH_NVVOLUMETRICLIGHTING
-		GNVVolumetricLightingRHI->UpdateFrameBuffer(DesiredBufferSize.X, DesiredBufferSize.Y, GetNumSceneColorMSAASamples(CurrentFeatureLevel));
-#endif
 	}
 
 	// Do allocation of render targets if they aren't available for the current shading path

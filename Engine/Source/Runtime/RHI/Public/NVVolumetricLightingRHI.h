@@ -22,6 +22,7 @@ public:
 	void Shutdown();
 
 	void UpdateContext();
+	void ReleaseContext();
 
 	void UpdateFrameBuffer(int32 InBufferSizeX, int32 InBufferSizeY, uint16 InNumSamples);
 	void UpdateDownsampleMode(uint32 InMode);

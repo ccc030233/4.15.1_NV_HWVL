@@ -2173,7 +2173,10 @@ public:
 	{
 		if (Bypass())
 		{
-			GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
+			if (GNVVolumetricLightingRHI)
+			{
+				GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
+			}
 			return;
 		}
 		new (AllocCommand<FRHICommandBeginAccumulation>()) FRHICommandBeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
@@ -2183,7 +2186,10 @@ public:
 	{
 		if (Bypass())
 		{
-			GNVVolumetricLightingRHI->RenderVolume(ShadowMapTextures, ShadowMapDesc, LightDesc, VolumeDesc);
+			if (GNVVolumetricLightingRHI)
+			{
+				GNVVolumetricLightingRHI->RenderVolume(ShadowMapTextures, ShadowMapDesc, LightDesc, VolumeDesc);
+			}
 			return;
 		}
 		new (AllocCommand<FRHICommandRenderVolume>()) FRHICommandRenderVolume(ShadowMapTextures, ShadowMapDesc, LightDesc, VolumeDesc);
@@ -2193,7 +2199,10 @@ public:
 	{
 		if (Bypass())
 		{
-			GNVVolumetricLightingRHI->EndAccumulation();
+			if (GNVVolumetricLightingRHI)
+			{
+				GNVVolumetricLightingRHI->EndAccumulation();
+			}
 			return;
 		}
 		new (AllocCommand<FRHICommandEndAccumulation>()) FRHICommandEndAccumulation();
@@ -2203,7 +2212,10 @@ public:
 	{
 		if (Bypass())
 		{
-			GNVVolumetricLightingRHI->ApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);
+			if (GNVVolumetricLightingRHI)
+			{
+				GNVVolumetricLightingRHI->ApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);
+			}
 			return;
 		}
 		new (AllocCommand<FRHICommandApplyLighting>()) FRHICommandApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);

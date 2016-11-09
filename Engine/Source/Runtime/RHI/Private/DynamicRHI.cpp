@@ -206,21 +206,16 @@ void RHIPostInit()
 	if(!GNVVolumetricLightingRHI)
 	{
 		GNVVolumetricLightingRHI = CreateNVVolumetricLightingRHI();
-		GNVVolumetricLightingRHI->Init();
+		if (GNVVolumetricLightingRHI)
+		{
+			GNVVolumetricLightingRHI->Init();
+		}
 	}
 #endif
 }
 
 void RHIExit()
 {
-	if ( !GUsingNullRHI && GDynamicRHI != NULL )
-	{
-		// Destruct the dynamic RHI.
-		GDynamicRHI->Shutdown();
-		delete GDynamicRHI;
-		GDynamicRHI = NULL;
-	}
-
 #if WITH_NVVOLUMETRICLIGHTING
 	if (GNVVolumetricLightingRHI)
 	{
@@ -229,6 +224,14 @@ void RHIExit()
 		GNVVolumetricLightingRHI = NULL;
 	}
 #endif
+
+	if ( !GUsingNullRHI && GDynamicRHI != NULL )
+	{
+		// Destruct the dynamic RHI.
+		GDynamicRHI->Shutdown();
+		delete GDynamicRHI;
+		GDynamicRHI = NULL;
+	}
 }
 
 

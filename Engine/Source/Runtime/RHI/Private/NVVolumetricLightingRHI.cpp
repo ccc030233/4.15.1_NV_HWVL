@@ -9,8 +9,19 @@
 
 FNVVolumetricLightingRHI* GNVVolumetricLightingRHI = NULL;
 
+static TAutoConsoleVariable<int32> CVarNvVl(
+	TEXT("r.NvVl"),
+	1,
+	TEXT("0 to disable volumetric lighting feature. Restart required"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 FNVVolumetricLightingRHI* CreateNVVolumetricLightingRHI()
 {
+	if (CVarNvVl.GetValueOnGameThread() == false)
+	{
+		return nullptr;
+	}
+
 	return new FNVVolumetricLightingRHI();
 }
 
@@ -54,13 +65,18 @@ void FNVVolumetricLightingRHI::Init()
 
 }
 
-void FNVVolumetricLightingRHI::Shutdown()
+void FNVVolumetricLightingRHI::ReleaseContext()
 {
 	if (Context)
 	{
 		NvVl::ReleaseContext(Context);
 		Context = NULL;
 	}
+}
+
+void FNVVolumetricLightingRHI::Shutdown()
+{
+	ReleaseContext();
 
 	NvVl::CloseLibrary();
 
@@ -75,11 +91,7 @@ void FNVVolumetricLightingRHI::UpdateContext()
 {
 	if (bNeedUpdateContext)
 	{
-		if (Context)
-		{
-			NvVl::ReleaseContext(Context);
-			Context = NULL;
-		}
+		ReleaseContext();
 
 		NvVl::Status NvVlStatus = NvVl::CreateContext(Context, &PlatformDesc, &ContextDesc);
 		check(NvVlStatus == NvVl::Status::OK);

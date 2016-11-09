@@ -73,7 +73,7 @@ static FORCEINLINE FVector GetOpticalDepth(const FVector& InValue)
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList)
 {
-	if (!CVarNvVlEnable.GetValueOnRenderThread())
+	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread())
 	{
 		return;
 	}
@@ -154,6 +154,8 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 
 	if (!Scene->bSkipCurrentFrameVL)
 	{
+		FIntPoint BufferSize = SceneContext.GetBufferSizeXY();
+		GNVVolumetricLightingRHI->UpdateFrameBuffer(BufferSize.X, BufferSize.Y, 1);
 		GNVVolumetricLightingRHI->UpdateDownsampleMode(Properties.DownsampleMode);
 		GNVVolumetricLightingRHI->UpdateMsaaMode(Properties.MsaaMode);
 		GNVVolumetricLightingRHI->UpdateFilterMode(Properties.FilterMode);
@@ -182,7 +184,7 @@ void GetLightMatrix(const FWholeSceneProjectedShadowInitializer& Initializer, fl
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo)
 {
-	if (!CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
 	{
 		return;
 	}
@@ -317,7 +319,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo)
 {
-	if (!CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
 	{
 		return;
 	}
@@ -483,7 +485,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 // for cascaded shadow
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const TArray<FProjectedShadowInfo*, SceneRenderingAllocator>& ShadowInfos)
 {
-	if (!CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
 	{
 		return;
 	}
@@ -604,7 +606,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHICommandListImmediate& RHICmdList)
 {
-	if (!CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
 	{
 		return;
 	}
