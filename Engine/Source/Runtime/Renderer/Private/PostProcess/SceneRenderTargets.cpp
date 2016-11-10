@@ -14,9 +14,6 @@
 #include "HdrCustomResolveShaders.h"
 #include "Public/LightPropagationVolumeBlendable.h"
 #include "Engine/EngineTypes.h"
-#if WITH_NVVOLUMETRICLIGHTING
-#include "NVVolumetricLightingRHI.h"
-#endif
 
 IMPLEMENT_UNIFORM_BUFFER_STRUCT(FGBufferResourceStruct,TEXT("GBuffers"));
 

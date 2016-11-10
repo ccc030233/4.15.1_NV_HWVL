@@ -89,7 +89,7 @@ void FNVVolumetricLightingRHI::Shutdown()
 
 void FNVVolumetricLightingRHI::UpdateContext()
 {
-	if (bNeedUpdateContext)
+	if (bNeedUpdateContext || Context == nullptr)
 	{
 		ReleaseContext();
 

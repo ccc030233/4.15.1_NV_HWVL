@@ -73,8 +73,14 @@ static FORCEINLINE FVector GetOpticalDepth(const FVector& InValue)
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList)
 {
-	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread())
+	if (GNVVolumetricLightingRHI == nullptr)
 	{
+		return;
+	}
+
+	if (!CVarNvVlEnable.GetValueOnRenderThread())
+	{
+		GNVVolumetricLightingRHI->ReleaseContext();
 		return;
 	}
 
