@@ -706,6 +706,8 @@ UDirectionalLightComponent::UDirectionalLightComponent(const FObjectInitializer&
 	bUseInsetShadowsForMovableObjects = true;
 
 	ModulatedShadowColor = FColor(128, 128, 128);
+
+	SkyBlendWeight = 1.0f;
 }
 
 #if WITH_EDITOR
@@ -794,10 +796,10 @@ bool UDirectionalLightComponent::CanEditChange(const UProperty* InProperty) cons
 			return bUseInsetShadowsForMovableObjects && bCastModulatedShadows;
 		}
 
-		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UDirectionalLightComponent, bEnableSkyScattering))
-		{
-			return bEnableVolumetricLighting;
-		}
+        if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UDirectionalLightComponent, SkyBlendWeight))
+        {
+            return bEnableVolumetricLighting;
+        }
 	}
 
 	return Super::CanEditChange(InProperty);

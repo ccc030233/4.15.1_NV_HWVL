@@ -347,7 +347,7 @@ struct FNVVolumetricLightingProperties
 	float Blendfactor;
 	
 	/** Weight of pixel history smoothing (0.0 for off) for Temporal AA mode */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties, meta=(ClampMin = "0.0"))
 	float TemporalFactor;
 	
 	/** Threshold of frame movement to use temporal history for Temporal AA mode */

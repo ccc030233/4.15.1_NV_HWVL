@@ -289,7 +289,7 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	Intensity = LightComponent->bUseVolumetricLightingColor ? FLinearColor(InLightComponent->VolumetricLightingColor) * InLightComponent->VolumetricLightingIntensity : Color;
 	InLightComponent->GetNvVlAttenuation(AttenuationMode, AttenuationFactors);
 	InLightComponent->GetNvVlFalloff(FalloffMode, FalloffAngleAndPower);
-	bEnableSkyScattering = InLightComponent->IsSkyScattering();
+	SkyBlendWeight = InLightComponent->GetNvVlSkyBlendWeight();
 #endif
 }
 

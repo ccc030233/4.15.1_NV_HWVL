@@ -405,8 +405,8 @@ struct LightDesc
 	{
 		//! LightType = Directional
 		struct {
-			bool bIgnoreSkyScattering;			//!< Ignore depth values of (1.0f) for scattering
 			NvcVec3 vDirection;			        //!< Normalized light direction
+			float fSkyBlendFactor;				//!< Blend weight of the sky scattering
 		} Directional;
 
 		//! LightType = Spotlight
@@ -454,7 +454,6 @@ struct PostprocessDesc
     bool bDoFog;						//!< Apply fogging based on scattering
     bool bIgnoreSkyFog;				    //!< Ignore depth values of (1.0f) for fogging
     float  fBlendfactor;				//!< Blend factor to use for compositing
-
 };
 
 /*==============================================================================
@@ -506,6 +505,7 @@ NV_VOLUMETRICLIGHTING_API(Status) RemapShadowDepth(
 NV_VOLUMETRICLIGHTING_API(Status) RenderVolume(
     Context ctx,                            //!< Library context to operate on
     PlatformRenderCtx renderCtx,            //!< Context to use for rendering
+	PlatformShaderResource sceneDepth,		//!< Depth buffer for scene
     PlatformShaderResource shadowMap[],       //!< Shadow map resource for each cascade, size is uElementCount
     ShadowMapDesc const* pShadowMapDesc,    //!< Shadow map layout description
     LightDesc const* pLightDesc,            //!< Light source description

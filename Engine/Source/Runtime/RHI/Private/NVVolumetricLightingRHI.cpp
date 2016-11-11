@@ -166,7 +166,7 @@ void FNVVolumetricLightingRHI::RenderVolume(const TArray<FTextureRHIParamRef>& S
 		}
 	}
 	
-	NvVl::Status Status = NvVl::RenderVolume(Context, RenderCtx, ShadowMapSRVs, &ShadowMapDesc, &LightDesc, &VolumeDesc);
+	NvVl::Status Status = NvVl::RenderVolume(Context, RenderCtx, SceneDepthSRV, ShadowMapSRVs, &ShadowMapDesc, &LightDesc, &VolumeDesc);
 	check(Status == NvVl::Status::OK);
 }
 

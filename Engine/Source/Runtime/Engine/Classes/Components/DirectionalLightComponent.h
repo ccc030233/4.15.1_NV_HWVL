@@ -126,15 +126,15 @@ class ENGINE_API UDirectionalLightComponent : public ULightComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Light, meta=(ShowOnlyInnerProperties))
 	struct FLightmassDirectionalLightSettings LightmassSettings;
 
+	/** The blend weight of the sky scattering for volumetric lighting. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0"))
+	float SkyBlendWeight;
+
 	/**
 	* Whether the light should cast modulated shadows from dynamic objects (mobile only).  Also requires Cast Shadows to be set to True.
 	**/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, AdvancedDisplay)
 	uint32 bCastModulatedShadows : 1;
-
-	/** Whether the volumetric lighting affected the sky. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
-	uint32 bEnableSkyScattering:1;
 
 	/**
 	* Color to modulate against the scene color when rendering modulated shadows. (mobile only)
@@ -199,10 +199,9 @@ class ENGINE_API UDirectionalLightComponent : public ULightComponent
 
 	virtual void InvalidateLightingCacheDetailed(bool bInvalidateBuildEnqueuedLighting, bool bTranslationOnly) override;
 
-	virtual bool IsSkyScattering() const override
-	{
-		return bEnableSkyScattering;
-	}
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual float GetNvVlSkyBlendWeight() const { return SkyBlendWeight; }
+#endif
 };
 
 

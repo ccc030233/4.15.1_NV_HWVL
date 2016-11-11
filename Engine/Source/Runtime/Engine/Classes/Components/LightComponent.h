@@ -397,10 +397,7 @@ public:
 		OutFalloffAngleAndPower = FVector2D::ZeroVector;
 	}
 
-	virtual bool IsSkyScattering() const
-	{
-		return false;
-	}
+	virtual float GetNvVlSkyBlendWeight() const { return 1.0f; }
 #endif
 protected:
 	//~ Begin UActorComponent Interface
