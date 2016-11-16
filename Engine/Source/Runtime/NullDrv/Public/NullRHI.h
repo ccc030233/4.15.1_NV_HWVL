@@ -836,6 +836,14 @@ public:
 		return nullptr; 
 	}
 
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void RHIClearStateCache() final override {};
+	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override {};
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) final override {};
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) final override {};
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) final override {};
+#endif
+
 private:
 
 	/** Allocates a static buffer for RHI functions to return as a write destination. */

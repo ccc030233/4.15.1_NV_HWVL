@@ -7,6 +7,9 @@
 #pragma once
 #include "LockFreeFixedSizeAllocator.h"
 #include "TaskGraphInterfaces.h"
+#if WITH_NVVOLUMETRICLIGHTING
+#include "NVVolumetricLightingRHI.h"
+#endif
 
 DECLARE_STATS_GROUP(TEXT("RHICmdList"), STATGROUP_RHICMDLIST, STATCAT_Advanced);
 
@@ -1230,6 +1233,71 @@ struct FRHICommandSetLocalGraphicsPipelineState : public FRHICommand<FRHICommand
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
+#if WITH_NVVOLUMETRICLIGHTING
+struct FRHICommandBeginAccumulation : public FRHICommand<FRHICommandBeginAccumulation>
+{
+	FTextureRHIParamRef SceneDepthTextureRHI;
+	NvVl::ViewerDesc ViewerDesc;
+	NvVl::MediumDesc MediumDesc;
+	NvVl::DebugFlags DebugFlags;
+
+	FORCEINLINE_DEBUGGABLE FRHICommandBeginAccumulation(FTextureRHIParamRef InSceneDepthTextureRHI, const NvVl::ViewerDesc& InViewerDesc, const NvVl::MediumDesc& InMediumDesc, NvVl::DebugFlags InDebugFlags)
+		: SceneDepthTextureRHI(InSceneDepthTextureRHI)
+		, ViewerDesc(InViewerDesc)
+		, MediumDesc(InMediumDesc)
+		, DebugFlags(InDebugFlags)
+	{
+	}
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+
+struct FRHICommandRenderVolume : public FRHICommand<FRHICommandRenderVolume>
+{
+	TArray<FTextureRHIParamRef> ShadowMapTextures;
+	NvVl::ShadowMapDesc ShadowMapDesc;
+	NvVl::LightDesc LightDesc;
+	NvVl::VolumeDesc VolumeDesc;
+
+	FORCEINLINE_DEBUGGABLE FRHICommandRenderVolume(const TArray<FTextureRHIParamRef>& InShadowMapTextures, const NvVl::ShadowMapDesc& InShadowMapDesc, const NvVl::LightDesc& InLightDesc, const NvVl::VolumeDesc& InVolumeDesc)
+		: ShadowMapTextures(InShadowMapTextures)
+		, ShadowMapDesc(InShadowMapDesc)
+		, LightDesc(InLightDesc)
+		, VolumeDesc(InVolumeDesc)
+	{
+	}
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+
+struct FRHICommandEndAccumulation : public FRHICommand<FRHICommandEndAccumulation>
+{
+	FORCEINLINE_DEBUGGABLE FRHICommandEndAccumulation()
+	{
+	}
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+
+struct FRHICommandApplyLighting : public FRHICommand<FRHICommandApplyLighting>
+{
+	FTextureRHIParamRef SceneColorSurfaceRHI;
+	NvVl::PostprocessDesc PostprocessDesc;
+
+	FORCEINLINE_DEBUGGABLE FRHICommandApplyLighting(FTextureRHIParamRef InSceneColorSurfaceRHI, const NvVl::PostprocessDesc& InPostprocessDesc)
+		: SceneColorSurfaceRHI(InSceneColorSurfaceRHI)
+		, PostprocessDesc(InPostprocessDesc)
+	{
+	}
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+
+struct FRHICommandClearStateCache : public FRHICommand<FRHICommandClearStateCache>
+{
+	FORCEINLINE_DEBUGGABLE FRHICommandClearStateCache()
+	{
+	}
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+#endif
+
 struct FComputedUniformBuffer
 {
 	FUniformBufferRHIRef UniformBuffer;
@@ -2345,6 +2413,70 @@ public:
 		new (AllocCommand<FRHICommandDebugBreak>()) FRHICommandDebugBreak();
 #endif
 	}
+
+#if WITH_NVVOLUMETRICLIGHTING
+	FORCEINLINE_DEBUGGABLE void BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const NvVl::ViewerDesc& ViewerDesc, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags)
+	{
+		if (Bypass())
+		{
+			if (GNVVolumetricLightingRHI)
+			{
+				GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
+			}
+			return;
+		}
+		new (AllocCommand<FRHICommandBeginAccumulation>()) FRHICommandBeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
+	}
+
+	FORCEINLINE_DEBUGGABLE void RenderVolume(const TArray<FTextureRHIParamRef>& ShadowMapTextures, const NvVl::ShadowMapDesc& ShadowMapDesc, const NvVl::LightDesc& LightDesc, const NvVl::VolumeDesc& VolumeDesc)
+	{
+		if (Bypass())
+		{
+			if (GNVVolumetricLightingRHI)
+			{
+				GNVVolumetricLightingRHI->RenderVolume(ShadowMapTextures, ShadowMapDesc, LightDesc, VolumeDesc);
+			}
+			return;
+		}
+		new (AllocCommand<FRHICommandRenderVolume>()) FRHICommandRenderVolume(ShadowMapTextures, ShadowMapDesc, LightDesc, VolumeDesc);
+	}
+
+	FORCEINLINE_DEBUGGABLE void EndAccumulation()
+	{
+		if (Bypass())
+		{
+			if (GNVVolumetricLightingRHI)
+			{
+				GNVVolumetricLightingRHI->EndAccumulation();
+			}
+			return;
+		}
+		new (AllocCommand<FRHICommandEndAccumulation>()) FRHICommandEndAccumulation();
+	}
+
+	FORCEINLINE_DEBUGGABLE void ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc& PostprocessDesc)
+	{
+		if (Bypass())
+		{
+			if (GNVVolumetricLightingRHI)
+			{
+				GNVVolumetricLightingRHI->ApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);
+			}
+			return;
+		}
+		new (AllocCommand<FRHICommandApplyLighting>()) FRHICommandApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);
+	}
+
+	FORCEINLINE_DEBUGGABLE void ClearStateCache()
+	{
+		if (Bypass())
+		{
+			CMD_CONTEXT(RHIClearStateCache)();
+			return;
+		}
+		new (AllocCommand<FRHICommandClearStateCache>()) FRHICommandClearStateCache();
+	}
+#endif
 };
 
 class RHI_API FRHIAsyncComputeCommandList : public FRHICommandListBase

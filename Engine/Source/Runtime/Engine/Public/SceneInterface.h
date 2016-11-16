@@ -284,6 +284,10 @@ public:
 
 	virtual void UpdateSceneSettings(AWorldSettings* WorldSettings) {}
 
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings) {}
+#endif
+
 	/**
 	 * Sets the FX system associated with the scene.
 	 */

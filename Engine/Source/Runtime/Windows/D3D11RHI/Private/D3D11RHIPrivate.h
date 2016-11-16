@@ -497,6 +497,14 @@ public:
 
 	virtual bool RHICopySubTextureRegion(FTexture2DRHIParamRef SourceTexture, FTexture2DRHIParamRef DestinationTexture, FBox2D SourceBox, FBox2D DestinationBox) final override;
 
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void RHIClearStateCache() final override;
+	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override;
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) final override;
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) final override;
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) final override;
+#endif
+
 	// Accessors.
 	ID3D11Device* GetDevice() const
 	{

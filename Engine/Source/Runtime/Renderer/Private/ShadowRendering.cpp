@@ -1349,6 +1349,10 @@ bool FDeferredShadingSceneRenderer::RenderShadowProjections(FRHICommandListImmed
 
 	FSceneRenderer::RenderShadowProjections(RHICmdList, LightSceneInfo, false, false);
 
+#if WITH_NVVOLUMETRICLIGHTING
+	TArray<FProjectedShadowInfo*,SceneRenderingAllocator> DirectionalShadows;
+#endif
+
 	for (int32 ShadowIndex = 0; ShadowIndex < VisibleLightInfo.ShadowsToProject.Num(); ShadowIndex++)
 	{
 		FProjectedShadowInfo* ProjectedShadowInfo = VisibleLightInfo.ShadowsToProject[ShadowIndex];
@@ -1366,8 +1370,29 @@ bool FDeferredShadingSceneRenderer::RenderShadowProjections(FRHICommandListImmed
 			SCOPED_DRAW_EVENT(RHICmdList, InjectTranslucentVolume);
 			// Inject the shadowed light into the translucency lighting volumes
 			InjectTranslucentVolumeLighting(RHICmdList, *LightSceneInfo, ProjectedShadowInfo);
+
+#if WITH_NVVOLUMETRICLIGHTING
+			if (LightSceneInfo->Proxy->IsNVVolumetricLighting())
+			{
+				if (!ProjectedShadowInfo->IsWholeSceneDirectionalShadow())
+				{
+					NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo, ProjectedShadowInfo);
+				}
+				else
+				{
+					DirectionalShadows.Add(ProjectedShadowInfo);
+				}
+			}
+#endif
 		}
 	}
+
+#if WITH_NVVOLUMETRICLIGHTING
+	if (DirectionalShadows.Num() > 0)
+	{
+		NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo, DirectionalShadows);
+	}
+#endif
 
 	RenderCapsuleDirectShadows(*LightSceneInfo, RHICmdList, VisibleLightInfo.CapsuleShadowsToProject, false);
 

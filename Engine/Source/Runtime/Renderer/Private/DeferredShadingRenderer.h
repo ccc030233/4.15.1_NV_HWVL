@@ -402,6 +402,15 @@ private:
 
 	void CopySceneCaptureComponentToTarget(FRHICommandListImmediate& RHICmdList);
 
+#if WITH_NVVOLUMETRICLIGHTING
+	void NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList);
+	void NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const TArray<FProjectedShadowInfo*, SceneRenderingAllocator>& ShadowInfos);
+	void NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo);
+	void NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo);
+	void NVVolumetricLightingEndAccumulation(FRHICommandListImmediate& RHICmdList);
+	void NVVolumetricLightingApplyLighting(FRHICommandListImmediate& RHICmdList);
+#endif
+
 	friend class FTranslucentPrimSet;
 };
 

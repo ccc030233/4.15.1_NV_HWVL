@@ -206,6 +206,12 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	, StatId(InLightComponent->GetStatID(true))
 	, FarShadowDistance(0)
 	, FarShadowCascadeCount(0)
+#if WITH_NVVOLUMETRICLIGHTING
+	, bEnableNVVL(InLightComponent->bEnableVolumetricLighting)
+	, TessQuality(InLightComponent->TessQuality)
+	, TargetRayResolution(InLightComponent->TargetRayResolution)
+	, DepthBias(InLightComponent->DepthBias)
+#endif
 {
 	const FLightComponentMapBuildData* MapBuildData = InLightComponent->GetLightComponentMapBuildData();
 	
@@ -255,6 +261,13 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	LightFunctionScale = LightComponent->LightFunctionScale;
 	LightFunctionFadeDistance = LightComponent->LightFunctionFadeDistance;
 	LightFunctionDisabledBrightness = LightComponent->DisabledBrightness;
+
+#if WITH_NVVOLUMETRICLIGHTING
+	Intensity = LightComponent->bUseVolumetricLightingColor ? FLinearColor(InLightComponent->VolumetricLightingColor) * InLightComponent->VolumetricLightingIntensity : Color;
+	InLightComponent->GetNvVlAttenuation(AttenuationMode, AttenuationFactors);
+	InLightComponent->GetNvVlFalloff(FalloffMode, FalloffAngleAndPower);
+	SkyBlendWeight = InLightComponent->GetNvVlSkyBlendWeight();
+#endif
 }
 
 bool FLightSceneProxy::ShouldCreatePerObjectShadowsForDynamicObjects() const
@@ -333,6 +346,15 @@ ULightComponent::ULightComponent(const FObjectInitializer& ObjectInitializer)
 	BloomTint = FColor::White;
 
 	RayStartOffsetDepthScale = .003f;
+
+	bEnableVolumetricLighting = false;
+	TessQuality = ETessellationQuality::HIGH;
+	DepthBias = 0.0f;
+	TargetRayResolution = 12.0f;
+
+	bUseVolumetricLightingColor = false;
+	VolumetricLightingIntensity = 10.0f;
+	VolumetricLightingColor = FColor::White;
 }
 
 
@@ -509,6 +531,20 @@ bool ULightComponent::CanEditChange(const UProperty* InProperty) const
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, Temperature))
 		{
 			return bUseTemperature;
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, VolumetricLightingIntensity)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, VolumetricLightingColor))
+		{
+			return bEnableVolumetricLighting && bUseVolumetricLightingColor;
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, bUseVolumetricLightingColor)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, TargetRayResolution)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, DepthBias)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, TessQuality))
+		{
+			return bEnableVolumetricLighting;
 		}
 	}
 

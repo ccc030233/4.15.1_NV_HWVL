@@ -121,6 +121,11 @@ public:
 	virtual void RHIBeginScene() final override;
 	virtual void RHIEndScene() final override;
 
+	// Vulkan TODO
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void RHIClearStateCache() final override {};
+#endif
+
 	inline FVulkanCommandBufferManager* GetCommandBufferManager()
 	{
 		return CommandBufferManager;

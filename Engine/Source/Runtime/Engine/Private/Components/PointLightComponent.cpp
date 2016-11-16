@@ -118,6 +118,10 @@ UPointLightComponent::UPointLightComponent(const FObjectInitializer& ObjectIniti
 	SourceRadius = 0.0f;
 	SourceLength = 0.0f;
 	bUseInverseSquaredFalloff = true;
+
+	AttenuationMode = EAttenuationMode::INV_POLYNOMIAL;
+	AttenuationFactors = FVector4(1.0f, 2.0f, 1.0f, 0.0f);
+	VolumetricLightingIntensity = 5000.0f;
 }
 
 FLightSceneProxy* UPointLightComponent::CreateSceneProxy() const
@@ -258,6 +262,12 @@ bool UPointLightComponent::CanEditChange(const UProperty* InProperty) const
 		if (FCString::Strcmp(*PropertyName, TEXT("LightFalloffExponent")) == 0)
 		{
 			return !bUseInverseSquaredFalloff;
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UPointLightComponent, AttenuationMode)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UPointLightComponent, AttenuationFactors))
+		{
+			return bEnableVolumetricLighting;
 		}
 	}
 

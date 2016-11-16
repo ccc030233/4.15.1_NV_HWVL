@@ -128,6 +128,14 @@ public:
 	virtual class IRHICommandContext* RHIGetDefaultContext() final override;
 	virtual class IRHICommandContextContainer* RHIGetCommandContextContainer() final override;
 
+	// Vulkan TODO
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override {};
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) final override {};
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) final override {};
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) final override {};
+#endif
+
 	inline uint32 GetPresentCount() const
 	{
 		return PresentCount;

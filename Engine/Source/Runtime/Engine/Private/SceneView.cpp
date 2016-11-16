@@ -1175,6 +1175,12 @@ bool FSceneView::ProjectWorldToScreen(const FVector& WorldPosition, const FIntRe
 
 #define LERP_PP(NAME) if(Src.bOverride_ ## NAME)	Dest . NAME = FMath::Lerp(Dest . NAME, Src . NAME, Weight);
 #define IF_PP(NAME) if(Src.bOverride_ ## NAME && Src . NAME)
+#if WITH_NVVOLUMETRICLIGHTING
+#define LERP_HG(NAME) if(Src.bOverride_ ## NAME)	\
+	{	Dest.NAME.HGColor = FMath::Lerp(Dest.NAME.HGColor, Src.NAME.HGColor, Weight); \
+		Dest.NAME.HGTransmittance = FMath::Lerp(Dest.NAME.HGTransmittance, Src.NAME.HGTransmittance, Weight); \
+		Dest.NAME.HGEccentricity = FMath::Lerp(Dest.NAME.HGEccentricity, Src.NAME.HGEccentricity, Weight); }
+#endif
 
 // @param Weight 0..1
 void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, float Weight)
@@ -1321,6 +1327,21 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_PP(ScreenSpaceReflectionIntensity);
 		LERP_PP(ScreenSpaceReflectionMaxRoughness);
 
+#if WITH_NVVOLUMETRICLIGHTING
+		LERP_PP(RayleighTransmittance);
+		LERP_PP(MieColor);
+		LERP_PP(MieTransmittance);
+		LERP_PP(AbsorptionColor);
+		LERP_PP(AbsorptionTransmittance);
+		LERP_PP(FogIntensity);
+		LERP_PP(FogColor);
+		LERP_HG(HGScattering1Term);
+		LERP_HG(HGScattering2Term);
+		LERP_HG(HGScattering3Term);
+		LERP_HG(HGScattering4Term);
+		LERP_PP(MultiScatter);
+#endif
+
 		// cubemaps are getting blended additively - in contrast to other properties, maybe we should make that consistent
 		if (Src.AmbientCubemap && Src.bOverride_AmbientCubemapIntensity)
 		{
@@ -1388,6 +1409,23 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		{
 			Dest.AmbientOcclusionRadiusInWS = Src.AmbientOcclusionRadiusInWS;
 		}
+
+#if WITH_NVVOLUMETRICLIGHTING
+		if (Src.bOverride_TransmittanceRange)
+		{
+			Dest.TransmittanceRange = Src.TransmittanceRange;
+		}
+
+		if (Src.bOverride_MiePhase)
+		{
+			Dest.MiePhase = Src.MiePhase;
+		}
+
+		if (Src.bOverride_FogMode)
+		{
+			Dest.FogMode = Src.FogMode;
+		}	
+#endif
 	}
 	
 	// will be deprecated soon, use the new asset LightPropagationVolumeBlendable instead

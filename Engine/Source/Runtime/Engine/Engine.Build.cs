@@ -73,6 +73,7 @@ public class Engine : ModuleRules
 				"DatabaseSupport",
                 "PacketHandler",
 				"HardwareSurvey",
+                "NvVolumetricLighting",
             }
         );
 

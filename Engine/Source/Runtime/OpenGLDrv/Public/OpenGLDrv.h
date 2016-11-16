@@ -489,6 +489,15 @@ public:
 	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override;
 	virtual void RHIPopEvent() final override;
 
+	// OpenGL TODO
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void RHIClearStateCache() final override {};
+	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override {};
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) final override {};
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) final override {};
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) final override {};
+#endif
+
 	void Cleanup();
 
 	void PurgeFramebufferFromCaches(GLuint Framebuffer);

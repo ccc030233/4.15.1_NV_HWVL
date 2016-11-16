@@ -502,6 +502,10 @@ public:
 	virtual void RHIPopEvent() = 0;
 
 	virtual void RHIUpdateTextureReference(FTextureReferenceRHIParamRef TextureRef, FTextureRHIParamRef NewTexture) = 0;
+
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void RHIClearStateCache() = 0;
+#endif
 };
 
 /** The interface which is implemented by the dynamically bound RHI. */
@@ -1217,6 +1221,13 @@ public:
 	virtual FTextureCubeRHIRef RHICreateTextureCube_RenderThread(class FRHICommandListImmediate& RHICmdList, uint32 Size, uint8 Format, uint32 NumMips, uint32 Flags, FRHIResourceCreateInfo& CreateInfo);
 	virtual FTextureCubeRHIRef RHICreateTextureCubeArray_RenderThread(class FRHICommandListImmediate& RHICmdList, uint32 Size, uint32 ArraySize, uint8 Format, uint32 NumMips, uint32 Flags, FRHIResourceCreateInfo& CreateInfo);
 	virtual FRenderQueryRHIRef RHICreateRenderQuery_RenderThread(class FRHICommandListImmediate& RHICmdList, ERenderQueryType QueryType);
+
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) = 0;
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) = 0;
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) = 0;
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) = 0;
+#endif
 
 	//Utilities
 	virtual void EnableIdealGPUCaptureOptions(bool bEnable);

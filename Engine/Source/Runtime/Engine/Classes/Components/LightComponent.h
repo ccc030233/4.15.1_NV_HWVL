@@ -8,6 +8,17 @@
 #include "Classes/Engine/MapBuildDataRegistry.h"
 #include "LightComponent.generated.h"
 
+UENUM()
+namespace ETessellationQuality
+{
+	enum Type
+	{
+		LOW,
+		MEDIUM,
+		HIGH,
+	};
+}
+
 /** 
  * A texture containing depth values of static objects that was computed during the lighting build.
  * Used by Stationary lights to shadow translucency.
@@ -178,6 +189,31 @@ class ENGINE_API ULightComponent : public ULightComponentBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=DistanceFieldShadows, meta=(UIMin = "0", UIMax = ".1"), AdvancedDisplay)
 	float RayStartOffsetDepthScale;
 
+	/** If enable the nvidia volumetric lighting for this light */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	uint32 bEnableVolumetricLighting:1;
+
+	/** If true, use the custom volumetric lighting color/intensity, if false, use the light color/intensity. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	uint32 bUseVolumetricLightingColor:1;
+
+	UPROPERTY(BlueprintReadOnly, interp, Category=NVVolumetricLighting, meta=(UIMin = "0.0", UIMax = "20.0"))
+	float VolumetricLightingIntensity;
+
+	UPROPERTY(BlueprintReadOnly, interp, Category=NVVolumetricLighting, meta=(HideAlphaChannel))
+	FColor VolumetricLightingColor;
+
+	/** Target minimum ray width in pixels */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	float TargetRayResolution;
+
+	/** Amount to bias ray geometry depth */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	float DepthBias;
+
+	/** Quality level of tessellation to use */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	TEnumAsByte<ETessellationQuality::Type> TessQuality;
 public:
 	/** Set intensity of the light */
 	UFUNCTION(BlueprintCallable, Category="Rendering|Components|Light")
@@ -326,6 +362,21 @@ public:
 		return NULL;
 	}
 
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void GetNvVlAttenuation(int32& OutAttenuationMode, FVector4& OutAttenuationFactors) const
+	{
+		OutAttenuationMode = 0;
+		OutAttenuationFactors = FVector4(0);
+	}
+
+	virtual void GetNvVlFalloff(int32& OutFalloffMode, FVector2D& OutFalloffAngleAndPower) const
+	{
+		OutFalloffMode = 0;
+		OutFalloffAngleAndPower = FVector2D::ZeroVector;
+	}
+
+	virtual float GetNvVlSkyBlendWeight() const { return 1.0f; }
+#endif
 protected:
 	//~ Begin UActorComponent Interface
 	virtual void OnRegister() override;
