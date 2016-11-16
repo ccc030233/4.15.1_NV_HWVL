@@ -40,11 +40,13 @@ static TAutoConsoleVariable<int32> CVarNvVlFog(
 	TEXT("  1: on\n"),
 	ECVF_RenderThreadSafe);
 
+#if 0
 static TAutoConsoleVariable<float> CVarNvVlDirectionalVolumeScale(
 	TEXT("r.NvVl.DirectionalVolumeScale"),
 	5.0f,
 	TEXT("Volume Scale for the directional light\n"),
 	ECVF_RenderThreadSafe);
+#endif
 
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Begin Accumulation"), STAT_VolumetricLightingBeginAccumulation, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("Volumetric Lighting Render Volume"), STAT_VolumetricLightingRenderVolume, STATGROUP_SceneRendering);
@@ -75,12 +77,14 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 {
 	if (GNVVolumetricLightingRHI == nullptr)
 	{
+		Scene->bSkipCurrentFrameVL = true;
 		return;
 	}
 
-	if (!CVarNvVlEnable.GetValueOnRenderThread())
+	if (!CVarNvVlEnable.GetValueOnRenderThread() || GetShadowQuality() == 0)
 	{
 		GNVVolumetricLightingRHI->ReleaseContext();
+		Scene->bSkipCurrentFrameVL = true;
 		return;
 	}
 
@@ -504,12 +508,17 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	LightDirection.Normalize();
 
 	FMatrix LightViewProj;
+	
+#if 0
 	const uint32 Cascade = ShadowInfos.Num() - 1; // Take the last cascade as the base
 	const FMatrix ShadowProjection = FShadowProjectionMatrix(ShadowInfos[Cascade]->MinSubjectZ, ShadowInfos[Cascade]->MaxSubjectZ, FVector4(0,0,0,1));
 	const FMatrix WorldToFace = ShadowInfos[Cascade]->SubjectAndReceiverMatrix * ShadowProjection.InverseFast();
 	float VolumeScale = CVarNvVlDirectionalVolumeScale.GetValueOnRenderThread();
 	const FMatrix SubjectAndReceiverMatrix = WorldToFace * FScaleMatrix(1/(VolumeScale > 0 ? VolumeScale : 1.0f)) * ShadowProjection;
 	LightViewProj = FTranslationMatrix(ShadowInfos[Cascade]->PreShadowTranslation) * SubjectAndReceiverMatrix;
+#else
+	LightViewProj = FTranslationMatrix(ShadowInfos[0]->PreShadowTranslation) * ShadowInfos[0]->SubjectAndReceiverMatrix;
+#endif
 
 	NvVl::ShadowMapDesc ShadowmapDesc;
 	TArray<FTextureRHIParamRef> ShadowDepthTextures;
@@ -623,7 +632,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHIComm
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHICommandListImmediate& RHICmdList)
 {
-	if (!CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
 	{
 		return;
 	}
