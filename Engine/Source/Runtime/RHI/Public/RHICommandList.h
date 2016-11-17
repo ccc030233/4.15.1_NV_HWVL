@@ -2474,6 +2474,7 @@ public:
 			CMD_CONTEXT(RHIClearStateCache)();
 			return;
 		}
+		FlushStateCache();
 		new (AllocCommand<FRHICommandClearStateCache>()) FRHICommandClearStateCache();
 	}
 #endif
