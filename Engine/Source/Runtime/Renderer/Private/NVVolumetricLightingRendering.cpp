@@ -89,6 +89,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingBeginAccumulation);
+	SCOPED_DRAW_EVENT(RHICmdList, VolumetricLightingBeginAccumulation);
 
 	check(Views.Num());
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
@@ -200,6 +201,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingRenderVolume);
+	SCOPED_DRAW_EVENT(RHICmdList, VolumetricLightingRenderVolume);
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
@@ -335,6 +337,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingRenderVolume);
+	SCOPED_DRAW_EVENT(RHICmdList, VolumetricLightingRenderVolume);
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
@@ -501,6 +504,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingRenderVolume);
+	SCOPED_DRAW_EVENT(RHICmdList, VolumetricLightingRenderVolume);
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
@@ -617,6 +621,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHIComm
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingEndAccumulation);
+	SCOPED_DRAW_EVENT(RHICmdList, VolumetricLightingEndAccumulation);
 	RHICmdList.EndAccumulation();
 }
 
@@ -628,6 +633,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 	}
 
 	SCOPE_CYCLE_COUNTER(STAT_VolumetricLightingApplyLighting);
+	SCOPED_DRAW_EVENT(RHICmdList, VolumetricLightingApplyLighting);
 
 	check(Views.Num());
 	const FViewInfo& View = Views[0];
