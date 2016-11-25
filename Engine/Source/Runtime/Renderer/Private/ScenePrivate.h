@@ -1936,7 +1936,6 @@ public:
 	FReadOnlyCVARCache ReadOnlyCVARCache;
 
 #if WITH_NVVOLUMETRICLIGHTING
-	bool bSkipCurrentFrameVL;
 	FNVVolumetricLightingProperties		VolumetricLightingProperties;
 #endif
 

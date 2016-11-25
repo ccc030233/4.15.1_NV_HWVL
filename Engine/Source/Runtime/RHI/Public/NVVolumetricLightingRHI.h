@@ -28,6 +28,16 @@ public:
 	void UpdateDownsampleMode(uint32 InMode);
 	void UpdateMsaaMode(uint32 InMode);
 	void UpdateFilterMode(uint32 InMode);
+	void UpdateRendering(bool Enabled);
+
+	// SeparateTranslucency
+	void SetSeparateTranslucencyPostprocessDesc(const NvVl::PostprocessDesc& InPostprocessDesc);
+	const NvVl::PostprocessDesc* GetSeparateTranslucencyPostprocessDesc();
+
+	// 
+	bool IsMSAAEnabled() const { return ContextDesc.eInternalSampleMode == NvVl::MultisampleMode::MSAA2 || ContextDesc.eInternalSampleMode == NvVl::MultisampleMode::MSAA4; }
+	bool IsTemporalFilterEnabled() const { return ContextDesc.eFilterMode == NvVl::FilterMode::TEMPORAL; }
+	bool IsRendering() const { return bEnableRendering; }
 	
 	void BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const NvVl::ViewerDesc& ViewerDesc, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags);
 	void RenderVolume(const TArray<FTextureRHIParamRef>& ShadowMapTextures, const NvVl::ShadowMapDesc& ShadowMapDesc, const NvVl::LightDesc& LightDesc, const NvVl::VolumeDesc& VolumeDesc);
@@ -37,10 +47,13 @@ private:
 
 	HMODULE ModuleHandle;
 	bool bNeedUpdateContext;
+	bool bEnableRendering;
+	bool bEnableSeparateTranslucency;
 
 	NvVl::ContextDesc		ContextDesc;
 	NvVl::PlatformDesc		PlatformDesc;
 	NvVl::Context			Context;
+	NvVl::PostprocessDesc	SeparateTranslucencyPostprocessDesc;
 
 	NvVl::PlatformRenderCtx	RenderCtx;
 

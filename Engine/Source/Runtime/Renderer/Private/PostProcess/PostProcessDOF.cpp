@@ -477,6 +477,32 @@ void FRCPassPostProcessDOFRecombine::Process(FRenderingCompositePassContext& Con
 		Context.HasHmdMesh(),
 		EDRF_UseTriangleOptimization);
 
+#if WITH_NVVOLUMETRICLIGHTING
+	if (GNVVolumetricLightingRHI && GNVVolumetricLightingRHI->IsRendering() && bSeparateTranslucency)
+	{
+		const NvVl::PostprocessDesc* PostprocessDesc = GNVVolumetricLightingRHI->GetSeparateTranslucencyPostprocessDesc();
+		if (PostprocessDesc)
+		{
+			Context.RHICmdList.ApplyLighting(DestRenderTarget.TargetableTexture, *PostprocessDesc);
+
+			// clear the state cache
+			Context.RHICmdList.ClearStateCache();
+			if (!GNVVolumetricLightingRHI->IsMSAAEnabled() && !GNVVolumetricLightingRHI->IsTemporalFilterEnabled())
+			{
+				SetRenderTarget(Context.RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+			}
+			else
+			{
+				FTextureRHIParamRef RenderTargets[2] =
+				{
+					FTextureRHIParamRef(),
+					FTextureRHIParamRef()
+				};
+				SetRenderTargets(Context.RHICmdList, 2, RenderTargets, FTextureRHIParamRef(), 0, NULL);
+			}
+		}
+	}
+#endif
 
 	Context.RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());
 }

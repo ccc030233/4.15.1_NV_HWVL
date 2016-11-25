@@ -82,14 +82,15 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 {
 	if (GNVVolumetricLightingRHI == nullptr)
 	{
-		Scene->bSkipCurrentFrameVL = true;
 		return;
 	}
 
 	if (!CVarNvVlEnable.GetValueOnRenderThread() || GetShadowQuality() == 0)
 	{
+		GNVVolumetricLightingRHI->UpdateRendering(false);
+
+		// cleanup render resource
 		GNVVolumetricLightingRHI->ReleaseContext();
-		Scene->bSkipCurrentFrameVL = true;
 		return;
 	}
 
@@ -167,9 +168,9 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		}
 	}
 
-	Scene->bSkipCurrentFrameVL = (MediumDesc.uNumPhaseTerms == 0);
+	GNVVolumetricLightingRHI->UpdateRendering(MediumDesc.uNumPhaseTerms != 0);
 
-	if (!Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI->IsRendering())
 	{
 		FIntPoint BufferSize = SceneContext.GetBufferSizeXY();
 		GNVVolumetricLightingRHI->UpdateFrameBuffer(BufferSize.X, BufferSize.Y, 1);
@@ -201,7 +202,7 @@ void GetLightMatrix(const FWholeSceneProjectedShadowInitializer& Initializer, fl
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo)
 {
-	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI == nullptr || !GNVVolumetricLightingRHI->IsRendering())
 	{
 		return;
 	}
@@ -338,7 +339,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo)
 {
-	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI == nullptr || !GNVVolumetricLightingRHI->IsRendering())
 	{
 		return;
 	}
@@ -506,7 +507,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 // for cascaded shadow
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const TArray<FProjectedShadowInfo*, SceneRenderingAllocator>& ShadowInfos)
 {
-	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI == nullptr || !GNVVolumetricLightingRHI->IsRendering())
 	{
 		return;
 	}
@@ -624,7 +625,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHICommandListImmediate& RHICmdList)
 {
-	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI == nullptr || !GNVVolumetricLightingRHI->IsRendering())
 	{
 		return;
 	}
@@ -637,7 +638,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingEndAccumulation(FRHIComm
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHICommandListImmediate& RHICmdList)
 {
-	if (GNVVolumetricLightingRHI == nullptr || !CVarNvVlEnable.GetValueOnRenderThread() || Scene->bSkipCurrentFrameVL)
+	if (GNVVolumetricLightingRHI == nullptr || !GNVVolumetricLightingRHI->IsRendering())
 	{
 		return;
 	}
@@ -668,22 +669,29 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
     PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
     PostprocessDesc.fMultiscatter = FinalPostProcessSettings.MultiScatter;
 
-	RHICmdList.ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
-
-	// clear the state cache
-	RHICmdList.ClearStateCache();
-	if (Properties.MsaaMode == MultisampleMode::SINGLE && Properties.FilterMode == EFilterMode::NONE)
+	if (!SceneContext.IsSeparateTranslucencyActive(Views[0]))
 	{
-		SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+		RHICmdList.ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
+
+		// clear the state cache
+		RHICmdList.ClearStateCache();
+		if (!GNVVolumetricLightingRHI->IsMSAAEnabled() && !GNVVolumetricLightingRHI->IsTemporalFilterEnabled())
+		{
+			SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
+		}
+		else
+		{
+			FTextureRHIParamRef RenderTargets[2] =
+			{
+				FTextureRHIParamRef(),
+				FTextureRHIParamRef()
+			};
+			SetRenderTargets(RHICmdList, 2, RenderTargets, FTextureRHIParamRef(), 0, NULL);
+		}
 	}
 	else
 	{
-		FTextureRHIParamRef RenderTargets[2] =
-		{
-			FTextureRHIParamRef(),
-			FTextureRHIParamRef()
-		};
-		SetRenderTargets(RHICmdList, 2, RenderTargets, FTextureRHIParamRef(), 0, NULL);
+		GNVVolumetricLightingRHI->SetSeparateTranslucencyPostprocessDesc(PostprocessDesc);
 	}
 }
 

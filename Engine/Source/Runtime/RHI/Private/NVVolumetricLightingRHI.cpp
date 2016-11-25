@@ -32,6 +32,8 @@ FNVVolumetricLightingRHI::FNVVolumetricLightingRHI()
 	, RenderCtx(NULL)
 	, SceneDepthSRV(NULL)
 	, bNeedUpdateContext(true)
+	, bEnableRendering(false)
+	, bEnableSeparateTranslucency(false)
 {
 }
 
@@ -185,4 +187,27 @@ void FNVVolumetricLightingRHI::ApplyLighting(FTextureRHIParamRef SceneColorSurfa
 	check(Status == NvVl::Status::OK);
 }
 
+void FNVVolumetricLightingRHI::SetSeparateTranslucencyPostprocessDesc(const NvVl::PostprocessDesc& InPostprocessDesc)
+{
+	bEnableSeparateTranslucency = true;
+	SeparateTranslucencyPostprocessDesc = InPostprocessDesc;
+}
+
+const NvVl::PostprocessDesc* FNVVolumetricLightingRHI::GetSeparateTranslucencyPostprocessDesc()
+{
+	if (bEnableSeparateTranslucency)
+	{
+		return &SeparateTranslucencyPostprocessDesc;
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+void FNVVolumetricLightingRHI::UpdateRendering(bool Enabled)
+{
+	bEnableSeparateTranslucency = false;
+	bEnableRendering = Enabled;
+}
 #endif
