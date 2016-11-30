@@ -594,9 +594,4 @@ void FRHICommandApplyLighting::Execute(FRHICommandListBase& CmdList)
 	}
 }
 
-void FRHICommandClearStateCache::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(ClearStateCache);
-	INTERNAL_DECORATOR(RHIClearStateCache)();
-}
 #endif

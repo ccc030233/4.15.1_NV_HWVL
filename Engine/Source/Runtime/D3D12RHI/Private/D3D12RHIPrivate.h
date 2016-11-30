@@ -317,6 +317,7 @@ public:
 
 	// DX12 TODO
 #if WITH_NVVOLUMETRICLIGHTING
+	virtual void ClearStateCache() final override {};
 	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override {};
 	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) final override {};
 	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) final override {};

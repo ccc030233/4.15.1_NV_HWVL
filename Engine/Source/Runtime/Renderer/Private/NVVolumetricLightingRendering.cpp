@@ -180,10 +180,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 
 		int32 DebugMode = FMath::Clamp((int32)CVarNvVlDebugMode.GetValueOnRenderThread(), 0, 2);
 		RHICmdList.BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDesc, MediumDesc, (Nv::VolumetricLighting::DebugFlags)DebugMode); //SceneContext.GetActualDepthTexture()?
-
-		// clear the state cache
-		RHICmdList.ClearStateCache();
-		SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 	}
 }
 
@@ -331,10 +327,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 	TArray<FTextureRHIParamRef> ShadowDepthTextures;
 	RHICmdList.RenderVolume(ShadowDepthTextures, ShadowmapDesc, LightDesc, VolumeDesc);
-
-	// clear the state cache
-	RHICmdList.ClearStateCache();
-	SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 }
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo, const FProjectedShadowInfo* ShadowInfo)
@@ -498,10 +490,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	}
 
 	RHICmdList.RenderVolume(ShadowDepthTextures, ShadowmapDesc, LightDesc, VolumeDesc);
-
-	// clear the state cache
-	RHICmdList.ClearStateCache();
-	SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 }
 
 // for cascaded shadow
@@ -616,10 +604,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	}
 
 	RHICmdList.RenderVolume(ShadowDepthTextures, ShadowmapDesc, LightDesc, VolumeDesc);
-
-	// clear the state cache
-	RHICmdList.ClearStateCache();
-	SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
 }
 
 
@@ -672,22 +656,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 	if (!SceneContext.IsSeparateTranslucencyActive(Views[0]))
 	{
 		RHICmdList.ApplyLighting(SceneContext.GetSceneColorSurface(), PostprocessDesc);
-
-		// clear the state cache
-		RHICmdList.ClearStateCache();
-		if (!GNVVolumetricLightingRHI->IsMSAAEnabled() && !GNVVolumetricLightingRHI->IsTemporalFilterEnabled())
-		{
-			SetRenderTarget(RHICmdList, FTextureRHIParamRef(), FTextureRHIParamRef());
-		}
-		else
-		{
-			FTextureRHIParamRef RenderTargets[2] =
-			{
-				FTextureRHIParamRef(),
-				FTextureRHIParamRef()
-			};
-			SetRenderTargets(RHICmdList, 2, RenderTargets, FTextureRHIParamRef(), 0, NULL);
-		}
 	}
 	else
 	{

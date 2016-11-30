@@ -546,9 +546,18 @@ void* FD3D11DynamicRHI::RHIGetNativeDevice()
 }
 
 #if WITH_NVVOLUMETRICLIGHTING
-void FD3D11DynamicRHI::RHIClearStateCache()
+void FD3D11DynamicRHI::ClearStateCache()
 {
 	StateCache.ClearCache();
+
+	FMemory::Memzero(CurrentRenderTargets, sizeof(CurrentRenderTargets));
+	FMemory::Memzero(CurrentUAVs, sizeof(CurrentUAVs));
+
+	CurrentDepthStencilTarget = nullptr;
+	CurrentDepthTexture = nullptr;
+
+	NumSimultaneousRenderTargets = 0;
+	NumUAVs = 0;
 }
 
 void FD3D11DynamicRHI::GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc)

@@ -375,11 +375,6 @@ public:
 	// This should be called right after the effect generates the resources which will be used in subsequent frame(s).
 	virtual void RHIBroadcastTemporalEffect(const FName& InEffectName, FTextureRHIParamRef* InTextures, int32 NumTextures) final AFR_API_OVERRIDE;
 
-	// DX12 TODO
-#if WITH_NVVOLUMETRICLIGHTING
-	virtual void RHIClearStateCache() final override {}
-#endif
-
 	template<typename ObjectType, typename RHIType>
 	inline ObjectType* RetrieveObject(RHIType RHIObject)
 	{
@@ -817,13 +812,6 @@ public:
 	{
 		PhysicalContexts[Index] = Context;
 	}
-
-#if WITH_NVVOLUMETRICLIGHTING
-	virtual void RHIClearStateCache() final override
-	{
-		ContextRedirect(RHIClearStateCache());
-	}
-#endif
 
 private:
 	uint32 CurrentDeviceIndex;

@@ -1288,14 +1288,6 @@ struct FRHICommandApplyLighting : public FRHICommand<FRHICommandApplyLighting>
 	}
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
-
-struct FRHICommandClearStateCache : public FRHICommand<FRHICommandClearStateCache>
-{
-	FORCEINLINE_DEBUGGABLE FRHICommandClearStateCache()
-	{
-	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
 #endif
 
 struct FComputedUniformBuffer
@@ -2425,6 +2417,7 @@ public:
 			}
 			return;
 		}
+		FlushStateCache();
 		new (AllocCommand<FRHICommandBeginAccumulation>()) FRHICommandBeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
 	}
 
@@ -2438,6 +2431,7 @@ public:
 			}
 			return;
 		}
+		FlushStateCache();
 		new (AllocCommand<FRHICommandRenderVolume>()) FRHICommandRenderVolume(ShadowMapTextures, ShadowMapDesc, LightDesc, VolumeDesc);
 	}
 
@@ -2464,18 +2458,8 @@ public:
 			}
 			return;
 		}
-		new (AllocCommand<FRHICommandApplyLighting>()) FRHICommandApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);
-	}
-
-	FORCEINLINE_DEBUGGABLE void ClearStateCache()
-	{
-		if (Bypass())
-		{
-			CMD_CONTEXT(RHIClearStateCache)();
-			return;
-		}
 		FlushStateCache();
-		new (AllocCommand<FRHICommandClearStateCache>()) FRHICommandClearStateCache();
+		new (AllocCommand<FRHICommandApplyLighting>()) FRHICommandApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);
 	}
 #endif
 };
