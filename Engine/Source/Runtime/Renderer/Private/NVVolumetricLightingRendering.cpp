@@ -84,9 +84,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		return;
 	}
 
-	SCOPED_DRAW_EVENT(RHICmdList, VolumetricLightingBeginAccumulation);
-	SCOPED_GPU_STAT(RHICmdList, Stat_GPU_BeginAccumulation);
-
 	check(Views.Num());
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 	const FViewInfo& View = Views[0];
@@ -161,6 +158,9 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 
 	if (GNVVolumetricLightingRHI->IsRendering())
 	{
+		SCOPED_DRAW_EVENT(RHICmdList, VolumetricLightingBeginAccumulation);
+		SCOPED_GPU_STAT(RHICmdList, Stat_GPU_BeginAccumulation);
+
 		FIntPoint BufferSize = SceneContext.GetBufferSizeXY();
 		GNVVolumetricLightingRHI->UpdateFrameBuffer(BufferSize.X, BufferSize.Y, 1);
 		GNVVolumetricLightingRHI->UpdateDownsampleMode(Properties.DownsampleMode);
