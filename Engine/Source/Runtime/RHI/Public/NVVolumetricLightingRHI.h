@@ -6,6 +6,11 @@
 
 #if WITH_NVVOLUMETRICLIGHTING
 
+DECLARE_FLOAT_COUNTER_STAT_EXTERN(TEXT("VolumetricLighting BeginAccumulation"), Stat_GPU_BeginAccumulation, STATGROUP_GPU, RHI_API);
+DECLARE_FLOAT_COUNTER_STAT_EXTERN(TEXT("VolumetricLighting RenderVolume"), Stat_GPU_RenderVolume, STATGROUP_GPU, RHI_API);
+DECLARE_FLOAT_COUNTER_STAT_EXTERN(TEXT("VolumetricLighting EndAccumulation"), Stat_GPU_EndAccumulation, STATGROUP_GPU, RHI_API);
+DECLARE_FLOAT_COUNTER_STAT_EXTERN(TEXT("VolumetricLighting ApplyLighting"), Stat_GPU_ApplyLighting, STATGROUP_GPU, RHI_API);
+
 /** The interface which is implemented by Nvidia Volumetric Lighting RHI. */
 class RHI_API FNVVolumetricLightingRHI
 {

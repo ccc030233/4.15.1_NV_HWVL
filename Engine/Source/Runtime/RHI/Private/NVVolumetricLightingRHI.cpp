@@ -8,6 +8,11 @@
 #include "RHI.h"
 #include "NVVolumetricLightingRHI.h"
 
+DEFINE_STAT(Stat_GPU_BeginAccumulation);
+DEFINE_STAT(Stat_GPU_RenderVolume);
+DEFINE_STAT(Stat_GPU_EndAccumulation);
+DEFINE_STAT(Stat_GPU_ApplyLighting);
+
 FNVVolumetricLightingRHI* GNVVolumetricLightingRHI = NULL;
 
 static TAutoConsoleVariable<int32> CVarNvVl(

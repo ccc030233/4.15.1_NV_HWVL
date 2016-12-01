@@ -483,6 +483,8 @@ void FRCPassPostProcessDOFRecombine::Process(FRenderingCompositePassContext& Con
 		const NvVl::PostprocessDesc* PostprocessDesc = GNVVolumetricLightingRHI->GetSeparateTranslucencyPostprocessDesc();
 		if (PostprocessDesc)
 		{
+			SCOPED_DRAW_EVENT(Context.RHICmdList, VolumetricLightingApplyLighting);
+			SCOPED_GPU_STAT(Context.RHICmdList, Stat_GPU_ApplyLighting);
 			Context.RHICmdList.ApplyLighting(DestRenderTarget.TargetableTexture, *PostprocessDesc);
 		}
 	}
