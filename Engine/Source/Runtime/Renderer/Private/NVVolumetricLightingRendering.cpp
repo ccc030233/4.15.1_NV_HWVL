@@ -86,20 +86,26 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 
 	check(Views.Num());
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
-	const FViewInfo& View = Views[0];
-
-	NvVl::ViewerDesc ViewerDesc;
-	FMatrix ProjMatrix = View.ViewMatrices.GetProjectionMatrix();
-    ViewerDesc.mProj = *reinterpret_cast<const NvcMat44*>(&ProjMatrix.M[0][0]);
-	FMatrix ViewProjMatrix = View.ViewMatrices.GetViewProjectionMatrix();
-    ViewerDesc.mViewProj = *reinterpret_cast<const NvcMat44*>(&ViewProjMatrix.M[0][0]);
-    ViewerDesc.vEyePosition = *reinterpret_cast<const NvcVec3 *>(&View.ViewLocation);
-	ViewerDesc.uViewportTopLeftX = View.ViewRect.Min.X;
-	ViewerDesc.uViewportTopLeftY = View.ViewRect.Min.Y;
-    ViewerDesc.uViewportWidth = View.ViewRect.Width();
-    ViewerDesc.uViewportHeight = View.ViewRect.Height();
-	ViewerDesc.bReversedZ = ((int32)ERHIZBuffer::IsInverted != 0);
 	
+	TArray<NvVl::ViewerDesc> ViewerDescs;
+
+	for(int i = 0; i < ((Views.Num() > 1) ? 2:1); ++i)
+	{
+		const FViewInfo& View = Views[i];
+		NvVl::ViewerDesc ViewerDesc;
+		FMatrix ProjMatrix = View.ViewMatrices.GetProjectionMatrix();
+		ViewerDesc.mProj = *reinterpret_cast<const NvcMat44*>(&ProjMatrix.M[0][0]);
+		FMatrix ViewProjMatrix = View.ViewMatrices.GetViewProjectionMatrix();
+		ViewerDesc.mViewProj = *reinterpret_cast<const NvcMat44*>(&ViewProjMatrix.M[0][0]);
+		ViewerDesc.vEyePosition = *reinterpret_cast<const NvcVec3 *>(&View.ViewLocation);
+		ViewerDesc.uViewportTopLeftX = View.ViewRect.Min.X;
+		ViewerDesc.uViewportTopLeftY = View.ViewRect.Min.Y;
+		ViewerDesc.uViewportWidth = View.ViewRect.Width();
+		ViewerDesc.uViewportHeight = View.ViewRect.Height();
+		ViewerDescs.Add(ViewerDesc);
+	}
+
+	const FViewInfo& View = Views[0];
 	NvVl::MediumDesc MediumDesc;
 	const FNVVolumetricLightingProperties& Properties = Scene->VolumetricLightingProperties;
 	const FFinalPostProcessSettings& FinalPostProcessSettings = View.FinalPostProcessSettings;
@@ -166,9 +172,11 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		GNVVolumetricLightingRHI->UpdateDownsampleMode(Properties.DownsampleMode);
 		GNVVolumetricLightingRHI->UpdateMsaaMode(Properties.MsaaMode);
 		GNVVolumetricLightingRHI->UpdateFilterMode(Properties.FilterMode);
+		GNVVolumetricLightingRHI->UpdateStereoMode(Views.Num() > 1);
+		GNVVolumetricLightingRHI->UpdateProjectionMode((int32)ERHIZBuffer::IsInverted != 0);
 
 		int32 DebugMode = FMath::Clamp((int32)CVarNvVlDebugMode.GetValueOnRenderThread(), 0, 2);
-		RHICmdList.BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDesc, MediumDesc, (Nv::VolumetricLighting::DebugFlags)DebugMode); //SceneContext.GetActualDepthTexture()?
+		RHICmdList.BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDescs, MediumDesc, (Nv::VolumetricLighting::DebugFlags)DebugMode); //SceneContext.GetActualDepthTexture()?
 	}
 }
 
@@ -242,7 +250,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	ShadowmapDesc.bLinearizedDepth = false;
 	// shadow space
 	ShadowmapDesc.bShadowSpace = false;
-	ShadowmapDesc.bInternalShadowDepth = false;
 
 	ShadowmapDesc.uElementCount = 1;
 	ShadowmapDesc.Elements[0].uOffsetX = 0;
@@ -301,7 +308,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		{
 			LightDesc.eType = NvVl::LightType::DIRECTIONAL;
 			LightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
-			LightDesc.Directional.fSkyBlendFactor = LightSceneInfo->Proxy->GetNvVlSkyBlendWeight();
 		}
 	}
 
@@ -363,7 +369,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		ShadowmapDesc.bLinearizedDepth = false;
 		// shadow space
 		ShadowmapDesc.bShadowSpace = false;
-		ShadowmapDesc.bInternalShadowDepth = false;
 
 		for (int32 FaceIndex = 0; FaceIndex < 6; FaceIndex++)
 		{
@@ -379,7 +384,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 		ShadowDepthTextures.Add(ShadowDepthTexture);
 	}
-	else
+	else // Spot light
 	{
 		const FTexture2DRHIRef& ShadowDepthTexture = ShadowInfo->RenderTargets.DepthTarget->GetRenderTargetItem().ShaderResourceTexture->GetTexture2D();
 
@@ -396,10 +401,9 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		ShadowmapDesc.uWidth = ShadowmapWidth;
 		ShadowmapDesc.uHeight = ShadowmapHeight;
 		// Shadow depth type
-		ShadowmapDesc.bLinearizedDepth = LightSceneInfo->Proxy->GetLightType() == LightType_Spot ? true : false;
+		ShadowmapDesc.bLinearizedDepth = true;
 		// shadow space
 		ShadowmapDesc.bShadowSpace = true;
-		ShadowmapDesc.bInternalShadowDepth = false;
 
 		ShadowmapDesc.uElementCount = 1;
 		ShadowmapDesc.Elements[0].uOffsetX = 0;
@@ -439,6 +443,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		}
 		break;
 		case LightType_Spot:
+		default:
 		{
 			LightDesc.eType = NvVl::LightType::SPOTLIGHT;
 			LightDesc.Spotlight.fZNear = ShadowInfo->MinSubjectZ;
@@ -459,13 +464,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 			LightDesc.Spotlight.fAttenuationFactors[3] = AttenuationFactors.W;
 		}
 		break;
-		default:
-		case LightType_Directional:
-		{
-			LightDesc.eType = NvVl::LightType::DIRECTIONAL;
-			LightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
-			LightDesc.Directional.fSkyBlendFactor = LightSceneInfo->Proxy->GetNvVlSkyBlendWeight();
-		}
 	}
 
 	NvVl::VolumeDesc VolumeDesc;
@@ -539,7 +537,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	ShadowmapDesc.bLinearizedDepth = false;
 	// shadow space
 	ShadowmapDesc.bShadowSpace = true;
-	ShadowmapDesc.bInternalShadowDepth = false;
 
 	ShadowmapDesc.uElementCount = FMath::Min((uint32)ShadowInfos.Num(), NvVl::MAX_SHADOWMAP_ELEMENTS);
 
@@ -579,7 +576,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 
 	LightDesc.eType = NvVl::LightType::DIRECTIONAL;
 	LightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
-	LightDesc.Directional.fSkyBlendFactor = LightSceneInfo->Proxy->GetNvVlSkyBlendWeight();
 
 	NvVl::VolumeDesc VolumeDesc;
 	{

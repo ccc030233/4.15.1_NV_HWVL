@@ -566,7 +566,7 @@ void FRHICommandBeginAccumulation::Execute(FRHICommandListBase& CmdList)
 {
 	if (GNVVolumetricLightingRHI)
 	{
-		GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
+		GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDescs, MediumDesc, DebugFlags);
 	}
 }
 

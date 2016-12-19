@@ -357,11 +357,6 @@ void FD3D11StateCacheBase::ClearCache()
 	// Shader Resource View State Cache
 	for (uint32 ShaderFrequency = 0; ShaderFrequency < SF_NumFrequencies; ShaderFrequency++)
 	{
-		if (ShaderFrequency == SF_Geometry)
-		{
-			continue;
-		}
-
 		for (uint32 Index = 0; Index < ClearSRVs; Index++)
 		{
 			if(CurrentShaderResourceViews[ShaderFrequency][Index])
@@ -376,6 +371,7 @@ void FD3D11StateCacheBase::ClearCache()
 	Direct3DDeviceIMContext->VSSetShaderResources(0, ClearSRVs, SRVs);
 	Direct3DDeviceIMContext->HSSetShaderResources(0, ClearSRVs, SRVs);
 	Direct3DDeviceIMContext->DSSetShaderResources(0, ClearSRVs, SRVs);
+	Direct3DDeviceIMContext->GSSetShaderResources(0, ClearSRVs, SRVs);
 	Direct3DDeviceIMContext->PSSetShaderResources(0, ClearSRVs, SRVs);
 	Direct3DDeviceIMContext->CSSetShaderResources(0, ClearSRVs, SRVs);
 
@@ -420,11 +416,6 @@ void FD3D11StateCacheBase::ClearCache()
 	const uint16 ClearConstantBuffers = 4;
 	for (uint32 Frequency = 0; Frequency < SF_NumFrequencies; Frequency++)
 	{
-		if (Frequency == SF_Geometry)
-		{
-			continue;
-		}
-
 		for (uint32 Index = 0; Index < ClearConstantBuffers; Index++)
 		{
 			CurrentConstantBuffers[Frequency][Index].Buffer = nullptr;
@@ -437,6 +428,7 @@ void FD3D11StateCacheBase::ClearCache()
     Direct3DDeviceIMContext->VSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
     Direct3DDeviceIMContext->HSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
     Direct3DDeviceIMContext->DSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
+	Direct3DDeviceIMContext->GSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
     Direct3DDeviceIMContext->PSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
     Direct3DDeviceIMContext->CSSetConstantBuffers(0, ClearConstantBuffers, ConstantBuffers);
 

@@ -1044,7 +1044,6 @@ public:
 	inline int32 GetNvVlFalloffMode() const { return FalloffMode; }
 	inline FVector2D GetNvVlFalloffAngleAndPower() const { return FalloffAngleAndPower; }
 	inline const FLinearColor& GetNvVlIntensity() const { return Intensity; }
-	inline float GetNvVlSkyBlendWeight() const { return SkyBlendWeight; }
 #endif
 protected:
 
@@ -1202,7 +1201,6 @@ protected:
 	int32 FalloffMode;
 	FVector2D FalloffAngleAndPower;
 	FLinearColor Intensity;
-	float SkyBlendWeight;
 #endif
 };
 

@@ -1237,13 +1237,13 @@ struct FRHICommandSetLocalGraphicsPipelineState : public FRHICommand<FRHICommand
 struct FRHICommandBeginAccumulation : public FRHICommand<FRHICommandBeginAccumulation>
 {
 	FTextureRHIParamRef SceneDepthTextureRHI;
-	NvVl::ViewerDesc ViewerDesc;
+	TArray<NvVl::ViewerDesc> ViewerDescs;
 	NvVl::MediumDesc MediumDesc;
 	NvVl::DebugFlags DebugFlags;
 
-	FORCEINLINE_DEBUGGABLE FRHICommandBeginAccumulation(FTextureRHIParamRef InSceneDepthTextureRHI, const NvVl::ViewerDesc& InViewerDesc, const NvVl::MediumDesc& InMediumDesc, NvVl::DebugFlags InDebugFlags)
+	FORCEINLINE_DEBUGGABLE FRHICommandBeginAccumulation(FTextureRHIParamRef InSceneDepthTextureRHI, const TArray<NvVl::ViewerDesc>& InViewerDescs, const NvVl::MediumDesc& InMediumDesc, NvVl::DebugFlags InDebugFlags)
 		: SceneDepthTextureRHI(InSceneDepthTextureRHI)
-		, ViewerDesc(InViewerDesc)
+		, ViewerDescs(InViewerDescs)
 		, MediumDesc(InMediumDesc)
 		, DebugFlags(InDebugFlags)
 	{
@@ -2407,18 +2407,18 @@ public:
 	}
 
 #if WITH_NVVOLUMETRICLIGHTING
-	FORCEINLINE_DEBUGGABLE void BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const NvVl::ViewerDesc& ViewerDesc, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags)
+	FORCEINLINE_DEBUGGABLE void BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const TArray<NvVl::ViewerDesc>& ViewerDescs, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags)
 	{
 		if (Bypass())
 		{
 			if (GNVVolumetricLightingRHI)
 			{
-				GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
+				GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDescs, MediumDesc, DebugFlags);
 			}
 			return;
 		}
 		FlushStateCache();
-		new (AllocCommand<FRHICommandBeginAccumulation>()) FRHICommandBeginAccumulation(SceneDepthTextureRHI, ViewerDesc, MediumDesc, DebugFlags);
+		new (AllocCommand<FRHICommandBeginAccumulation>()) FRHICommandBeginAccumulation(SceneDepthTextureRHI, ViewerDescs, MediumDesc, DebugFlags);
 	}
 
 	FORCEINLINE_DEBUGGABLE void RenderVolume(const TArray<FTextureRHIParamRef>& ShadowMapTextures, const NvVl::ShadowMapDesc& ShadowMapDesc, const NvVl::LightDesc& LightDesc, const NvVl::VolumeDesc& VolumeDesc)

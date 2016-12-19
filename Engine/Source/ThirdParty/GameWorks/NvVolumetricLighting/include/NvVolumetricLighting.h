@@ -290,6 +290,16 @@ enum class UpsampleQuality
 	COUNT
 };
 
+enum class MRSConfiguration
+{
+	UNKNOWN = -1,
+	NONE,			//!< No MRS
+	Conservative,
+	Aggressive,
+	SuperAggressive,
+    COUNT
+};
+
 //! Platform-specific parameters
 struct PlatformDesc
 {
@@ -318,14 +328,9 @@ struct ContextDesc
 	DownsampleMode eDownsampleMode;			//!< Target resolution of internal buffer
 	MultisampleMode eInternalSampleMode;	//!< Target sample rate of internal buffer
 	FilterMode eFilterMode;					//!< Type of filtering to do on the output
-
-	struct
-	{
-		uint32_t uWidth;					//!< Width of cascaded shadow depth for remapping
-		uint32_t uHeight;					//!< Height of cascaded shadow depth for remapping
-		uint32_t uSamples;					//!< Sample rate of cascaded shadow depth for remapping
-		uint32_t uSlices;					//!< Slices of cascaded shadow map for remapping
-	} remapCascadedShadowBuffer;
+	MRSConfiguration eMultiResConfig;		//!< MRS configuration
+	bool bStereoEnabled;					//!< Stereo rendering
+	bool bReversedZ;						//!< Reversed z projection transform for view frustum (0 far, 1 near)
 };
 
 //! Viewer Camera/Framebuffer Description
@@ -338,7 +343,10 @@ struct ViewerDesc
 	uint32_t uViewportTopLeftY;	//!< Viewport Top left Y position
 	uint32_t uViewportWidth;	//!< Viewport Width (may differ from framebuffer)
 	uint32_t uViewportHeight;	//!< Viewport Height (may differ from framebuffer)
-	bool bReversedZ;			//!< Reversed z projection transform (0 far, 1 near)
+	uint32_t uNonMultiResViewportTopLeftX;	//!< Non MultiRes Viewport Top left X position
+	uint32_t uNonMultiResViewportTopLeftY;	//!< Non MultiRes Viewport Top left Y position
+	uint32_t uNonMultiResViewportWidth;		//!< Non MultiRes Viewport Width (may differ from framebuffer)
+	uint32_t uNonMultiResViewportHeight;	//!< Non MultiRes Viewport Height (may differ from framebuffer)
 };
 
 //! Describes one component of the phase function
@@ -388,7 +396,6 @@ struct ShadowMapDesc
 	uint32_t uElementCount; //!< Number of sub-elements in the shadow map
 	bool bLinearizedDepth;	//!< Linearized Depth for shadow map
 	bool bShadowSpace;		//!< Transform a world space position into the shadow space or clip space 
-	bool bInternalShadowDepth;	//!< If used the shadow depth from remapping
 	NvcMat44 mCubeViewProj[6]; //!< View-Proj transform for 6 faces of cube
 
     //! Individual cascade descriptions
@@ -406,7 +413,6 @@ struct LightDesc
 		//! LightType = Directional
 		struct {
 			NvcVec3 vDirection;			        //!< Normalized light direction
-			float fSkyBlendFactor;				//!< Blend weight of the sky scattering
 		} Directional;
 
 		//! LightType = Spotlight
@@ -454,6 +460,7 @@ struct PostprocessDesc
     bool bDoFog;						//!< Apply fogging based on scattering
     bool bIgnoreSkyFog;				    //!< Ignore depth values of (1.0f) for fogging
     float  fBlendfactor;				//!< Blend factor to use for compositing
+
 };
 
 /*==============================================================================
@@ -489,23 +496,15 @@ NV_VOLUMETRICLIGHTING_API(Status) BeginAccumulation(
     Context ctx,                                //!< Library context to operate on
     PlatformRenderCtx renderCtx,		        //!< Context to use for rendering
     PlatformShaderResource sceneDepth,	        //!< Scene Depth-Buffer
-    ViewerDesc const* pViewerDesc,		        //!< Description of camera space
+    ViewerDesc const* pViewerDesc[],		    //!< Description of camera space
     MediumDesc const* pMediumDesc,		        //!< Description of medium
     DebugFlags debugFlags = DebugFlags::NONE    //!< Debug flags to apply for this pass
     );
-
-//! Remap the shadow depth to texture array
-NV_VOLUMETRICLIGHTING_API(Status) RemapShadowDepth(
-    Context ctx,                                //!< Library context to operate on
-    PlatformRenderCtx renderCtx,		        //!< Context to use for rendering
-	PlatformShaderResource shadowMap			//!< Shadow map resource
-	);
 
 //! Add a lighting volume to the accumulated results
 NV_VOLUMETRICLIGHTING_API(Status) RenderVolume(
     Context ctx,                            //!< Library context to operate on
     PlatformRenderCtx renderCtx,            //!< Context to use for rendering
-	PlatformShaderResource sceneDepth,		//!< Depth buffer for scene
     PlatformShaderResource shadowMap[],       //!< Shadow map resource for each cascade, size is uElementCount
     ShadowMapDesc const* pShadowMapDesc,    //!< Shadow map layout description
     LightDesc const* pLightDesc,            //!< Light source description

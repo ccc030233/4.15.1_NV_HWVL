@@ -59,13 +59,12 @@ void FNVVolumetricLightingRHI::Init()
     ContextDesc.framebuffer.uWidth = 0;
     ContextDesc.framebuffer.uHeight = 0;
     ContextDesc.framebuffer.uSamples = 0;
-	ContextDesc.remapCascadedShadowBuffer.uWidth = 0;
-	ContextDesc.remapCascadedShadowBuffer.uHeight = 0;
-	ContextDesc.remapCascadedShadowBuffer.uSamples = 0;
-	ContextDesc.remapCascadedShadowBuffer.uSlices = 0;
     ContextDesc.eDownsampleMode = NvVl::DownsampleMode::FULL;
     ContextDesc.eInternalSampleMode = NvVl::MultisampleMode::SINGLE;
     ContextDesc.eFilterMode = NvVl::FilterMode::NONE;
+	ContextDesc.bReversedZ = true;
+	ContextDesc.eMultiResConfig = NvVl::MRSConfiguration::NONE;
+	ContextDesc.bStereoEnabled = false;
 
 	check(GDynamicRHI);
 	GDynamicRHI->GetPlatformDesc(PlatformDesc);
@@ -122,6 +121,36 @@ void FNVVolumetricLightingRHI::UpdateFrameBuffer(int32 InBufferSizeX, int32 InBu
 	}
 }
 
+void FNVVolumetricLightingRHI::UpdateStereoMode(bool IsStereo)
+{
+	if (ContextDesc.bStereoEnabled != IsStereo)
+	{
+		ContextDesc.bStereoEnabled = IsStereo;
+		bNeedUpdateContext = true;
+	}
+}
+
+void FNVVolumetricLightingRHI::UpdateMRSLevel(int32 InLevel)
+{
+	InLevel = FMath::Clamp(InLevel, 0, (int32)NvVl::MRSConfiguration::COUNT-1);
+
+	if (ContextDesc.eMultiResConfig != (NvVl::MRSConfiguration)InLevel)
+	{
+		ContextDesc.eMultiResConfig = (NvVl::MRSConfiguration)InLevel;
+
+		bNeedUpdateContext = true;
+	}
+}
+
+void FNVVolumetricLightingRHI::UpdateProjectionMode(bool IsReversedZ)
+{
+	if (ContextDesc.bReversedZ != IsReversedZ)
+	{
+		ContextDesc.bReversedZ = IsReversedZ;
+		bNeedUpdateContext = true;
+	}
+}
+
 void FNVVolumetricLightingRHI::UpdateDownsampleMode(uint32 InMode)
 {
 	if (ContextDesc.eDownsampleMode != (NvVl::DownsampleMode)InMode)
@@ -149,11 +178,16 @@ void FNVVolumetricLightingRHI::UpdateFilterMode(uint32 InMode)
 	}
 }
 
-void FNVVolumetricLightingRHI::BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const NvVl::ViewerDesc& ViewerDesc, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags)
+void FNVVolumetricLightingRHI::BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const TArray<NvVl::ViewerDesc>& ViewerDescs, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags)
 {
 	UpdateContext();
 	GDynamicRHI->GetPlatformShaderResource(SceneDepthTextureRHI, SceneDepthSRV);
-	NvVl::Status Status = NvVl::BeginAccumulation(Context, RenderCtx, SceneDepthSRV, &ViewerDesc, &MediumDesc, DebugFlags);
+	const NvVl::ViewerDesc* ppViewerDesc[2] = { nullptr };
+	for(int32 i = 0; i < ViewerDescs.Num(); i++)
+	{
+		ppViewerDesc[i] = &(ViewerDescs[i]);
+	}
+	NvVl::Status Status = NvVl::BeginAccumulation(Context, RenderCtx, SceneDepthSRV, ppViewerDesc, &MediumDesc, DebugFlags);
 	check(Status == NvVl::Status::OK);
 	GDynamicRHI->ClearStateCache();
 }
@@ -175,7 +209,7 @@ void FNVVolumetricLightingRHI::RenderVolume(const TArray<FTextureRHIParamRef>& S
 		}
 	}
 	
-	NvVl::Status Status = NvVl::RenderVolume(Context, RenderCtx, SceneDepthSRV, ShadowMapSRVs, &ShadowMapDesc, &LightDesc, &VolumeDesc);
+	NvVl::Status Status = NvVl::RenderVolume(Context, RenderCtx, ShadowMapSRVs, &ShadowMapDesc, &LightDesc, &VolumeDesc);
 	check(Status == NvVl::Status::OK);
 	GDynamicRHI->ClearStateCache();
 }

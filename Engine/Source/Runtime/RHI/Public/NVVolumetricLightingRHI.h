@@ -34,6 +34,9 @@ public:
 	void UpdateMsaaMode(uint32 InMode);
 	void UpdateFilterMode(uint32 InMode);
 	void UpdateRendering(bool Enabled);
+	void UpdateStereoMode(bool IsStereo);
+	void UpdateMRSLevel(int32 InLevel);
+	void UpdateProjectionMode(bool IsReversedZ);
 
 	// SeparateTranslucency
 	void SetSeparateTranslucencyPostprocessDesc(const NvVl::PostprocessDesc& InPostprocessDesc);
@@ -44,7 +47,7 @@ public:
 	bool IsTemporalFilterEnabled() const { return ContextDesc.eFilterMode == NvVl::FilterMode::TEMPORAL; }
 	bool IsRendering() const { return bEnableRendering; }
 	
-	void BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const NvVl::ViewerDesc& ViewerDesc, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags);
+	void BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const TArray<NvVl::ViewerDesc>& ViewerDescs, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags);
 	void RenderVolume(const TArray<FTextureRHIParamRef>& ShadowMapTextures, const NvVl::ShadowMapDesc& ShadowMapDesc, const NvVl::LightDesc& LightDesc, const NvVl::VolumeDesc& VolumeDesc);
 	void EndAccumulation();
 	void ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc& PostprocessDesc);

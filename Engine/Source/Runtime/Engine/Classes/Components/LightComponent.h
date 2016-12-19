@@ -374,8 +374,6 @@ public:
 		OutFalloffMode = 0;
 		OutFalloffAngleAndPower = FVector2D::ZeroVector;
 	}
-
-	virtual float GetNvVlSkyBlendWeight() const { return 1.0f; }
 #endif
 protected:
 	//~ Begin UActorComponent Interface
