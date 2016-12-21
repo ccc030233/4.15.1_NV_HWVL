@@ -348,7 +348,7 @@ void FD3D11StateCacheBase::ClearState()
 
 #endif	// D3D11_ALLOW_STATE_CACHE
 }
-
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 void FD3D11StateCacheBase::ClearCache()
 {
@@ -435,3 +435,4 @@ void FD3D11StateCacheBase::ClearCache()
 #endif	// D3D11_ALLOW_STATE_CACHE
 }
 #endif
+// NVCHANGE_END: Nvidia Volumetric Lighting

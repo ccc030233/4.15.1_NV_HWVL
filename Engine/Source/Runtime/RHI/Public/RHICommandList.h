@@ -7,9 +7,11 @@
 #pragma once
 #include "LockFreeFixedSizeAllocator.h"
 #include "TaskGraphInterfaces.h"
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 #include "NVVolumetricLightingRHI.h"
 #endif
+// NVCHANGE_END: Nvidia Volumetric Lighting
 
 DECLARE_STATS_GROUP(TEXT("RHICmdList"), STATGROUP_RHICMDLIST, STATCAT_Advanced);
 
@@ -1233,6 +1235,7 @@ struct FRHICommandSetLocalGraphicsPipelineState : public FRHICommand<FRHICommand
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 struct FRHICommandBeginAccumulation : public FRHICommand<FRHICommandBeginAccumulation>
 {
@@ -1289,6 +1292,7 @@ struct FRHICommandApplyLighting : public FRHICommand<FRHICommandApplyLighting>
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 #endif
+// NVCHANGE_END: Nvidia Volumetric Lighting
 
 struct FComputedUniformBuffer
 {
@@ -2406,6 +2410,7 @@ public:
 #endif
 	}
 
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	FORCEINLINE_DEBUGGABLE void BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const TArray<NvVl::ViewerDesc>& ViewerDescs, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags)
 	{
@@ -2462,6 +2467,7 @@ public:
 		new (AllocCommand<FRHICommandApplyLighting>()) FRHICommandApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);
 	}
 #endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 };
 
 class RHI_API FRHIAsyncComputeCommandList : public FRHICommandListBase

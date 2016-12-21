@@ -45,6 +45,7 @@ class ENGINE_API USpotLightComponent : public UPointLightComponent
 	//UFUNCTION(BlueprintCallable, Category="Rendering|Lighting")
 	//void SetLightShaftConeAngle(float NewLightShaftConeAngle);
 
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	/** Equation to use for angular falloff */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
 	TEnumAsByte<EFalloffMode::Type> FalloffMode;
@@ -56,6 +57,7 @@ class ENGINE_API USpotLightComponent : public UPointLightComponent
 	/** falloff power */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
 	float FalloffPower;
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 
 	// ULightComponent interface.
 	virtual FSphere GetBoundingSphere() const override;
@@ -64,9 +66,12 @@ class ENGINE_API USpotLightComponent : public UPointLightComponent
 	virtual FLightSceneProxy* CreateSceneProxy() const override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty( struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	virtual bool CanEditChange(const UProperty* InProperty) const override;
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 #endif
 
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	virtual void GetNvVlFalloff(int32& OutFalloffMode, FVector2D& OutFalloffAngleAndPower) const override
 	{
@@ -74,6 +79,7 @@ class ENGINE_API USpotLightComponent : public UPointLightComponent
 		OutFalloffAngleAndPower = FVector2D(FalloffAngle * (float)PI / 180.0f, FalloffPower);
 	}
 #endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 };
 
 

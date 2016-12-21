@@ -1033,7 +1033,7 @@ public:
 
 	virtual float GetMaxDrawDistance() const { return 0.0f; }
 	virtual float GetFadeRange() const { return 0.0f; }
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	inline bool IsNVVolumetricLighting() const { return bEnableNVVL; }
 	inline int32 GetNvVlTessQuality() const { return TessQuality; }
@@ -1045,6 +1045,7 @@ public:
 	inline FVector2D GetNvVlFalloffAngleAndPower() const { return FalloffAngleAndPower; }
 	inline const FLinearColor& GetNvVlIntensity() const { return Intensity; }
 #endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 protected:
 
 	friend class FScene;
@@ -1188,7 +1189,7 @@ protected:
 
 	/** Updates the light's color. */
 	void SetColor(const FLinearColor& InColor);
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	bool bEnableNVVL;
 	int32 TessQuality;
@@ -1202,6 +1203,7 @@ protected:
 	FVector2D FalloffAngleAndPower;
 	FLinearColor Intensity;
 #endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 };
 
 

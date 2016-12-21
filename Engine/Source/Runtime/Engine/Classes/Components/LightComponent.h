@@ -189,6 +189,7 @@ class ENGINE_API ULightComponent : public ULightComponentBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=DistanceFieldShadows, meta=(UIMin = "0", UIMax = ".1"), AdvancedDisplay)
 	float RayStartOffsetDepthScale;
 
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	/** If enable the nvidia volumetric lighting for this light */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
 	uint32 bEnableVolumetricLighting:1;
@@ -214,6 +215,7 @@ class ENGINE_API ULightComponent : public ULightComponentBase
 	/** Quality level of tessellation to use */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
 	TEnumAsByte<ETessellationQuality::Type> TessQuality;
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 public:
 	/** Set intensity of the light */
 	UFUNCTION(BlueprintCallable, Category="Rendering|Components|Light")
@@ -362,6 +364,7 @@ public:
 		return NULL;
 	}
 
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	virtual void GetNvVlAttenuation(int32& OutAttenuationMode, FVector4& OutAttenuationFactors) const
 	{
@@ -375,6 +378,7 @@ public:
 		OutFalloffAngleAndPower = FVector2D::ZeroVector;
 	}
 #endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 protected:
 	//~ Begin UActorComponent Interface
 	virtual void OnRegister() override;

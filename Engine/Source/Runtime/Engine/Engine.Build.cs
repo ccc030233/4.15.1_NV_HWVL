@@ -73,7 +73,9 @@ public class Engine : ModuleRules
 				"DatabaseSupport",
                 "PacketHandler",
 				"HardwareSurvey",
+                // NVCHANGE_BEGIN: Nvidia Volumetric Lighting
                 "NvVolumetricLighting",
+                // NVCHANGE_END: Nvidia Volumetric Lighting
             }
         );
 

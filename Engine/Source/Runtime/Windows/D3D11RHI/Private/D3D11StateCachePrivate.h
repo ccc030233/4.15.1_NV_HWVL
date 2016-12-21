@@ -892,11 +892,11 @@ public:
 	 * sampler state, and viewports to NULL
 	 */
 	virtual void ClearState();
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	virtual void ClearCache();
 #endif
-
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 #if D3D11_ALLOW_STATE_CACHE && D3D11_STATE_CACHE_DEBUG
 protected:
 	// Debug helper methods to verify cached state integrity.

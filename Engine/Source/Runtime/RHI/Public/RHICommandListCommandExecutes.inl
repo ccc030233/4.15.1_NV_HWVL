@@ -561,6 +561,7 @@ void FRHICommandPopEvent<CmdListType>::Execute(FRHICommandListBase& CmdList)
 template struct FRHICommandPopEvent<ECmdList::EGfx>;
 template struct FRHICommandPopEvent<ECmdList::ECompute>;
 
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 void FRHICommandBeginAccumulation::Execute(FRHICommandListBase& CmdList)
 {
@@ -595,3 +596,4 @@ void FRHICommandApplyLighting::Execute(FRHICommandListBase& CmdList)
 }
 
 #endif
+// NVCHANGE_END: Nvidia Volumetric Lighting

@@ -65,11 +65,13 @@ class ENGINE_API UPointLightComponent : public ULightComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Light)
 	float SourceLength;
 
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
 	TEnumAsByte<EAttenuationMode::Type> AttenuationMode;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
 	FVector4 AttenuationFactors;
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 
 	/** The Lightmass settings for this object. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Light, meta=(ShowOnlyInnerProperties))
@@ -124,6 +126,7 @@ public:
 	 */
 	virtual void PostInterpChange(UProperty* PropertyThatChanged) override;
 
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	virtual void GetNvVlAttenuation(int32& OutAttenuationMode, FVector4& OutAttenuationFactors) const override
 	{
@@ -131,6 +134,7 @@ public:
 		OutAttenuationFactors = AttenuationFactors;
 	}
 #endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 private:
 
 	/** Pushes the value of radius to the rendering thread. */

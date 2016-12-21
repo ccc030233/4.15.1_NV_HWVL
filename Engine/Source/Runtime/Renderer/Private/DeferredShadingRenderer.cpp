@@ -1011,11 +1011,11 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 
 		RHICmdList.TransitionResource(EResourceTransitionAccess::EReadable, SceneContext.GetSceneDepthSurface());
 	}
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	NVVolumetricLightingBeginAccumulation(RHICmdList);
 #endif
-
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 	// Render lighting.
 	if (ViewFamily.EngineShowFlags.Lighting
 		&& FeatureLevel >= ERHIFeatureLevel::SM4
@@ -1090,11 +1090,11 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		}
 		ServiceLocalQueue();
 	}
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	NVVolumetricLightingEndAccumulation(RHICmdList);
 #endif
-
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 	FLightShaftsOutput LightShaftOutput;
 
 	// Draw Lightshafts
@@ -1221,11 +1221,11 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		RenderStationaryLightOverlap(RHICmdList);
 		ServiceLocalQueue();
 	}
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	NVVolumetricLightingApplyLighting(RHICmdList);
 #endif
-
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 	// Resolve the scene color for post processing.
 	SceneContext.ResolveSceneColor(RHICmdList, FResolveRect(0, 0, ViewFamily.FamilySizeX, ViewFamily.FamilySizeY));
 

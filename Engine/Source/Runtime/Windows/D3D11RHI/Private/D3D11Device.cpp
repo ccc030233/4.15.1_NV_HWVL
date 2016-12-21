@@ -544,7 +544,7 @@ void* FD3D11DynamicRHI::RHIGetNativeDevice()
 {
 	return (void*)Direct3DDevice.GetReference();
 }
-
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 void FD3D11DynamicRHI::ClearStateCache()
 {
@@ -585,3 +585,4 @@ void FD3D11DynamicRHI::GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, N
 	PlatformRenderTarget = RTV;
 }
 #endif
+// NVCHANGE_END: Nvidia Volumetric Lighting

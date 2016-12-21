@@ -9,11 +9,11 @@
 #include "Core.h"
 #include "RHIDefinitions.h"
 #include "StaticArray.h"
-
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 #include "NvVolumetricLighting.h"
 #endif
-
+// NVCHANGE_END: Nvidia Volumetric Lighting
 #define INVALID_FENCE_ID (0xffffffffffffffffull)
 
 inline const bool IsValidFenceID( const uint64 FenceID )

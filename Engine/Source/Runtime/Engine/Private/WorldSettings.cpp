@@ -412,9 +412,11 @@ void AWorldSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	if (PropertyThatChanged != nullptr && GetWorld() != nullptr && GetWorld()->Scene)
 	{
 		GetWorld()->Scene->UpdateSceneSettings(this);
+		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 		GetWorld()->Scene->UpdateVolumetricLightingSettings(this);
 #endif
+		// NVCHANGE_END: Nvidia Volumetric Lighting
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);

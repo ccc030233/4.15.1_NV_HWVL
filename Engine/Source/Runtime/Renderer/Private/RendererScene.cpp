@@ -362,7 +362,7 @@ void FScene::UpdateSceneSettings(AWorldSettings* WorldSettings)
 		Scene->GlobalDistanceFieldViewDistance = GlobalDistanceFieldViewDistance;
 	});
 }
-
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 void FScene::UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings)
 {
@@ -375,7 +375,7 @@ void FScene::UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings)
 	});
 }
 #endif
-
+// NVCHANGE_END: Nvidia Volumetric Lighting
 /**
  * Sets the FX system associated with the scene.
  */
@@ -561,9 +561,11 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 ,	GlobalDistanceFieldViewDistance(InWorld->GetWorldSettings()->GlobalDistanceFieldViewDistance)
 ,	NumVisibleLights_GameThread(0)
 ,	NumEnabledSkylights_GameThread(0)
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 ,	VolumetricLightingProperties(InWorld->GetWorldSettings()->VolumetricLightingProperties)
 #endif
+// NVCHANGE_END: Nvidia Volumetric Lighting
 {
 	FMemory::Memzero(MobileDirectionalLights);
 

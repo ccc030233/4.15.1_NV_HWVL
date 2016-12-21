@@ -1175,12 +1175,14 @@ bool FSceneView::ProjectWorldToScreen(const FVector& WorldPosition, const FIntRe
 
 #define LERP_PP(NAME) if(Src.bOverride_ ## NAME)	Dest . NAME = FMath::Lerp(Dest . NAME, Src . NAME, Weight);
 #define IF_PP(NAME) if(Src.bOverride_ ## NAME && Src . NAME)
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 #define LERP_HG(NAME) if(Src.bOverride_ ## NAME)	\
 	{	Dest.NAME.HGColor = FMath::Lerp(Dest.NAME.HGColor, Src.NAME.HGColor, Weight); \
 		Dest.NAME.HGTransmittance = FMath::Lerp(Dest.NAME.HGTransmittance, Src.NAME.HGTransmittance, Weight); \
 		Dest.NAME.HGEccentricity = FMath::Lerp(Dest.NAME.HGEccentricity, Src.NAME.HGEccentricity, Weight); }
 #endif
+// NVCHANGE_END: Nvidia Volumetric Lighting
 
 // @param Weight 0..1
 void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, float Weight)
@@ -1326,7 +1328,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_PP(ScreenSpaceReflectionQuality);
 		LERP_PP(ScreenSpaceReflectionIntensity);
 		LERP_PP(ScreenSpaceReflectionMaxRoughness);
-
+		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 		LERP_PP(RayleighTransmittance);
 		LERP_PP(MieColor);
@@ -1341,6 +1343,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_HG(HGScattering4Term);
 		LERP_PP(MultiScatter);
 #endif
+		// NVCHANGE_END: Nvidia Volumetric Lighting
 
 		// cubemaps are getting blended additively - in contrast to other properties, maybe we should make that consistent
 		if (Src.AmbientCubemap && Src.bOverride_AmbientCubemapIntensity)
@@ -1409,7 +1412,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		{
 			Dest.AmbientOcclusionRadiusInWS = Src.AmbientOcclusionRadiusInWS;
 		}
-
+		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 		if (Src.bOverride_TransmittanceRange)
 		{
@@ -1426,6 +1429,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 			Dest.FogMode = Src.FogMode;
 		}	
 #endif
+		// NVCHANGE_END: Nvidia Volumetric Lighting
 	}
 	
 	// will be deprecated soon, use the new asset LightPropagationVolumeBlendable instead

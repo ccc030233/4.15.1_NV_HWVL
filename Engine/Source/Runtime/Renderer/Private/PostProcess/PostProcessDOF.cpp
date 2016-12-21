@@ -476,7 +476,7 @@ void FRCPassPostProcessDOFRecombine::Process(FRenderingCompositePassContext& Con
 		View.StereoPass,
 		Context.HasHmdMesh(),
 		EDRF_UseTriangleOptimization);
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	if (GNVVolumetricLightingRHI && GNVVolumetricLightingRHI->IsRendering() && bSeparateTranslucency)
 	{
@@ -489,7 +489,7 @@ void FRCPassPostProcessDOFRecombine::Process(FRenderingCompositePassContext& Con
 		}
 	}
 #endif
-
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 	Context.RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());
 }
 
