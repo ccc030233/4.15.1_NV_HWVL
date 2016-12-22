@@ -5,6 +5,7 @@
 #include "LightComponent.h"
 #include "PointLightComponent.generated.h"
 
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 UENUM()
 namespace EAttenuationMode
 {
@@ -15,6 +16,7 @@ namespace EAttenuationMode
 		INV_POLYNOMIAL,
 	};
 }
+// NVCHANGE_END: Nvidia Volumetric Lighting
 
 /**
  * A light component which emits light from a single point equally in all directions.

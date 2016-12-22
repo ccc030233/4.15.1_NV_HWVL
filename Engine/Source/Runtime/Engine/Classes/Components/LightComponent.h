@@ -8,6 +8,7 @@
 #include "Classes/Engine/MapBuildDataRegistry.h"
 #include "LightComponent.generated.h"
 
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 UENUM()
 namespace ETessellationQuality
 {
@@ -18,6 +19,7 @@ namespace ETessellationQuality
 		HIGH,
 	};
 }
+// NVCHANGE_END: Nvidia Volumetric Lighting
 
 /** 
  * A texture containing depth values of static objects that was computed during the lighting build.

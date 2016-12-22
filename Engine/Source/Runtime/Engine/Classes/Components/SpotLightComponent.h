@@ -4,6 +4,7 @@
 #include "PointLightComponent.h"
 #include "SpotLightComponent.generated.h"
 
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 UENUM()
 namespace EFalloffMode
 {
@@ -14,6 +15,7 @@ namespace EFalloffMode
 		CUSTOM,
 	};
 }
+// NVCHANGE_END: Nvidia Volumetric Lighting
 
 /**
  * A spot light component emits a directional cone shaped light (Eg a Torch).

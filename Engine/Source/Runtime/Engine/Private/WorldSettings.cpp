@@ -325,6 +325,7 @@ bool AWorldSettings::CanEditChange(const UProperty* InProperty) const
 			}
 		}
 
+		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 		if (InProperty->GetOuter()
 			&& InProperty->GetOuter()->GetName() == TEXT("NVVolumetricLightingProperties"))
 		{
@@ -334,6 +335,7 @@ bool AWorldSettings::CanEditChange(const UProperty* InProperty) const
 				return (VolumetricLightingProperties.FilterMode == EFilterMode::TEMPORAL);
 			}
 		}
+		// NVCHANGE_END: Nvidia Volumetric Lighting
 	}
 
 	return Super::CanEditChange(InProperty);

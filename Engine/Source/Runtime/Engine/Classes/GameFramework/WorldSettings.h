@@ -263,6 +263,7 @@ private:
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 UENUM()
 namespace EDownsampleMode
 {
@@ -351,6 +352,7 @@ struct FNVVolumetricLightingProperties
 
 	}
 };
+// NVCHANGE_END: Nvidia Volumetric Lighting
 
 /**
  * Actor containing all script accessible world properties.
@@ -603,9 +605,11 @@ class ENGINE_API AWorldSettings : public AInfo, public IInterface_AssetUserData
 	UPROPERTY()
 	TArray<struct FNetViewer> ReplicationViewers;
 
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	/** Global properties for volumetric lighting. */
 	UPROPERTY(EditAnywhere, Category=NVVolumetricLighting)
 	struct FNVVolumetricLightingProperties VolumetricLightingProperties;
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 
 	// ************************************
 

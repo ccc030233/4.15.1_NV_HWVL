@@ -80,6 +80,7 @@ struct FWeightedBlendables
 	TArray<FWeightedBlendable> Array;
 };
 
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 UENUM()
 namespace EMiePhase
 {
@@ -126,6 +127,7 @@ struct FHGScatteringTerm
 	{
 	}
 };
+// NVCHANGE_END: Nvidia Volumetric Lighting
 
 /** To be able to use struct PostProcessSettings. */
 // Each property consists of a bool to enable it (by default off),
@@ -537,6 +539,7 @@ struct FPostProcessSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_ScreenSpaceReflectionRoughnessScale:1;
 
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_TransmittanceRange:1;
 
@@ -578,7 +581,7 @@ struct FPostProcessSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_MultiScatter:1;
-
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 	// -----------------------------------------------------------------------
 
 	UPROPERTY(interp, BlueprintReadWrite, Category=WhiteBalance, meta=(UIMin = "1500.0", UIMax = "15000.0", editcondition = "bOverride_WhiteTemp", DisplayName = "Temp"))
@@ -1124,6 +1127,7 @@ struct FPostProcessSettings
 	UPROPERTY(interp, BlueprintReadWrite, Category=ScreenSpaceReflections, meta=(ClampMin = "0.01", ClampMax = "1.0", editcondition = "bOverride_ScreenSpaceReflectionMaxRoughness", DisplayName = "Max Roughness"))
 	float ScreenSpaceReflectionMaxRoughness;
 
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	/** Range of the transmittance, the transmittance will be remapped to [1.0 - Range, 1). */
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_TransmittanceRange"))
 	float TransmittanceRange;
@@ -1179,6 +1183,7 @@ struct FPostProcessSettings
 
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_MultiScatter"))
 	float MultiScatter;
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 
 	// Note: Adding properties before this line require also changes to the OverridePostProcessSettings() function and 
 	// FPostProcessSettings constructor and possibly the SetBaseValues() method.
@@ -1419,6 +1424,7 @@ struct FPostProcessSettings
 		ScreenSpaceReflectionMaxRoughness = 0.6f;
 		bMobileHQGaussian = false;
 
+		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 		TransmittanceRange = 0.0001f;
 		RayleighTransmittance = 1.0f;
 		MiePhase = EMiePhase::MIE_NONE;
@@ -1434,6 +1440,7 @@ struct FPostProcessSettings
 		HGScattering2Term = FHGScatteringTerm();
 		HGScattering3Term = FHGScatteringTerm();
 		HGScattering4Term = FHGScatteringTerm();
+		// NVCHANGE_END: Nvidia Volumetric Lighting
 	}
 
 	/**
