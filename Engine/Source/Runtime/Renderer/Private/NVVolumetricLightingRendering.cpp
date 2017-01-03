@@ -629,6 +629,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 	FVector FogLight = FinalPostProcessSettings.FogColor * FinalPostProcessSettings.FogIntensity;
     PostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
     PostprocessDesc.fMultiscatter = FinalPostProcessSettings.MultiScatter;
+	PostprocessDesc.eStereoPass = NvVl::StereoscopicPass::FULL;
 
 	if (!SceneContext.IsSeparateTranslucencyActive(Views[0]))
 	{

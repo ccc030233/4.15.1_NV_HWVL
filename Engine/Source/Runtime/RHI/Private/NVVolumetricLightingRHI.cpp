@@ -235,7 +235,7 @@ void FNVVolumetricLightingRHI::SetSeparateTranslucencyPostprocessDesc(const NvVl
 	SeparateTranslucencyPostprocessDesc = InPostprocessDesc;
 }
 
-const NvVl::PostprocessDesc* FNVVolumetricLightingRHI::GetSeparateTranslucencyPostprocessDesc()
+NvVl::PostprocessDesc* FNVVolumetricLightingRHI::GetSeparateTranslucencyPostprocessDesc()
 {
 	if (bEnableSeparateTranslucency)
 	{

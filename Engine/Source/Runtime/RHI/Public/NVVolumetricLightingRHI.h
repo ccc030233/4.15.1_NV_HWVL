@@ -40,7 +40,7 @@ public:
 
 	// SeparateTranslucency
 	void SetSeparateTranslucencyPostprocessDesc(const NvVl::PostprocessDesc& InPostprocessDesc);
-	const NvVl::PostprocessDesc* GetSeparateTranslucencyPostprocessDesc();
+	NvVl::PostprocessDesc* GetSeparateTranslucencyPostprocessDesc();
 
 	// 
 	bool IsMSAAEnabled() const { return ContextDesc.eInternalSampleMode == NvVl::MultisampleMode::MSAA2 || ContextDesc.eInternalSampleMode == NvVl::MultisampleMode::MSAA4; }

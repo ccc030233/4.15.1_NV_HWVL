@@ -480,11 +480,12 @@ void FRCPassPostProcessDOFRecombine::Process(FRenderingCompositePassContext& Con
 #if WITH_NVVOLUMETRICLIGHTING
 	if (GNVVolumetricLightingRHI && GNVVolumetricLightingRHI->IsRendering() && bSeparateTranslucency)
 	{
-		const NvVl::PostprocessDesc* PostprocessDesc = GNVVolumetricLightingRHI->GetSeparateTranslucencyPostprocessDesc();
+		NvVl::PostprocessDesc* PostprocessDesc = GNVVolumetricLightingRHI->GetSeparateTranslucencyPostprocessDesc();
 		if (PostprocessDesc)
 		{
 			SCOPED_DRAW_EVENT(Context.RHICmdList, VolumetricLightingApplyLighting);
 			SCOPED_GPU_STAT(Context.RHICmdList, Stat_GPU_ApplyLighting);
+			PostprocessDesc->eStereoPass = (NvVl::StereoscopicPass)View.StereoPass;
 			Context.RHICmdList.ApplyLighting(DestRenderTarget.TargetableTexture, *PostprocessDesc);
 		}
 	}

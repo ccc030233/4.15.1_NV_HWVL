@@ -300,6 +300,14 @@ enum class MRSConfiguration
     COUNT
 };
 
+enum class StereoscopicPass
+{
+	UNKNOWN = -1,
+	FULL,
+	LEFTEYE,
+	RIGHTEYE,
+};
+
 //! Platform-specific parameters
 struct PlatformDesc
 {
@@ -460,7 +468,7 @@ struct PostprocessDesc
     bool bDoFog;						//!< Apply fogging based on scattering
     bool bIgnoreSkyFog;				    //!< Ignore depth values of (1.0f) for fogging
     float  fBlendfactor;				//!< Blend factor to use for compositing
-
+	StereoscopicPass	eStereoPass;	//!< Apply postprocess on the full/left/right screen.
 };
 
 /*==============================================================================
