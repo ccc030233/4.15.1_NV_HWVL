@@ -353,7 +353,7 @@ void FD3D11StateCacheBase::ClearState()
 void FD3D11StateCacheBase::ClearCache()
 {
 #if D3D11_ALLOW_STATE_CACHE
-	const uint16 ClearSRVs = 8;
+	const uint16 ClearSRVs = 11;
 	// Shader Resource View State Cache
 	for (uint32 ShaderFrequency = 0; ShaderFrequency < SF_NumFrequencies; ShaderFrequency++)
 	{

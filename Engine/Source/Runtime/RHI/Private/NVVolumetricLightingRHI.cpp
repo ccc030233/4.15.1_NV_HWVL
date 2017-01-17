@@ -36,7 +36,6 @@ FNVVolumetricLightingRHI::FNVVolumetricLightingRHI()
 	, Context(NULL)
 	, RenderCtx(NULL)
 	, SceneDepthSRV(NULL)
-	, bNeedUpdateContext(true)
 	, bEnableRendering(false)
 	, bEnableSeparateTranslucency(false)
 {
@@ -63,8 +62,10 @@ void FNVVolumetricLightingRHI::Init()
     ContextDesc.eInternalSampleMode = NvVl::MultisampleMode::SINGLE;
     ContextDesc.eFilterMode = NvVl::FilterMode::NONE;
 	ContextDesc.bReversedZ = true;
-	ContextDesc.eMultiResConfig = NvVl::MRSConfiguration::NONE;
+	ContextDesc.eMultiResConfig = NvVl::VRProjectConfiguration::NONE;
+	ContextDesc.eLensMatchedConfig = NvVl::VRProjectConfiguration::NONE;
 	ContextDesc.bStereoEnabled = false;
+	ContextDesc.bSinglePassStereo = false;
 
 	check(GDynamicRHI);
 	GDynamicRHI->GetPlatformDesc(PlatformDesc);
@@ -94,93 +95,21 @@ void FNVVolumetricLightingRHI::Shutdown()
 	}
 }
 
-void FNVVolumetricLightingRHI::UpdateContext()
+void FNVVolumetricLightingRHI::UpdateContext(const NvVl::ContextDesc& InContextDesc)
 {
-	if (bNeedUpdateContext || Context == nullptr)
+	if (Context == nullptr || FMemory::Memcmp(&InContextDesc, &ContextDesc, sizeof(NvVl::ContextDesc)) != 0)
 	{
+		ContextDesc = InContextDesc;
+
 		ReleaseContext();
 
 		NvVl::Status NvVlStatus = NvVl::CreateContext(Context, &PlatformDesc, &ContextDesc);
 		check(NvVlStatus == NvVl::Status::OK);
-
-		bNeedUpdateContext = false;
-	}
-}
-
-void FNVVolumetricLightingRHI::UpdateFrameBuffer(int32 InBufferSizeX, int32 InBufferSizeY, uint16 InNumSamples)
-{
-	if (ContextDesc.framebuffer.uWidth != InBufferSizeX
-	||  ContextDesc.framebuffer.uHeight != InBufferSizeY
-	||  ContextDesc.framebuffer.uSamples != InNumSamples)
-	{
-		ContextDesc.framebuffer.uWidth = InBufferSizeX;
-		ContextDesc.framebuffer.uHeight = InBufferSizeY;
-		ContextDesc.framebuffer.uSamples = InNumSamples;
-
-		bNeedUpdateContext = true;
-	}
-}
-
-void FNVVolumetricLightingRHI::UpdateStereoMode(bool IsStereo)
-{
-	if (ContextDesc.bStereoEnabled != IsStereo)
-	{
-		ContextDesc.bStereoEnabled = IsStereo;
-		bNeedUpdateContext = true;
-	}
-}
-
-void FNVVolumetricLightingRHI::UpdateMRSLevel(int32 InLevel)
-{
-	InLevel = FMath::Clamp(InLevel, 0, (int32)NvVl::MRSConfiguration::COUNT-1);
-
-	if (ContextDesc.eMultiResConfig != (NvVl::MRSConfiguration)InLevel)
-	{
-		ContextDesc.eMultiResConfig = (NvVl::MRSConfiguration)InLevel;
-
-		bNeedUpdateContext = true;
-	}
-}
-
-void FNVVolumetricLightingRHI::UpdateProjectionMode(bool IsReversedZ)
-{
-	if (ContextDesc.bReversedZ != IsReversedZ)
-	{
-		ContextDesc.bReversedZ = IsReversedZ;
-		bNeedUpdateContext = true;
-	}
-}
-
-void FNVVolumetricLightingRHI::UpdateDownsampleMode(uint32 InMode)
-{
-	if (ContextDesc.eDownsampleMode != (NvVl::DownsampleMode)InMode)
-	{
-		ContextDesc.eDownsampleMode = (NvVl::DownsampleMode)InMode;
-		bNeedUpdateContext = true;
-	}
-}
-
-void FNVVolumetricLightingRHI::UpdateMsaaMode(uint32 InMode)
-{
-	if (ContextDesc.eInternalSampleMode != (NvVl::MultisampleMode)InMode)
-	{
-		ContextDesc.eInternalSampleMode = (NvVl::MultisampleMode)InMode;
-		bNeedUpdateContext = true;
-	}
-}
-
-void FNVVolumetricLightingRHI::UpdateFilterMode(uint32 InMode)
-{
-	if (ContextDesc.eFilterMode != (NvVl::FilterMode)InMode)
-	{
-		ContextDesc.eFilterMode = (NvVl::FilterMode)InMode;
-		bNeedUpdateContext = true;
 	}
 }
 
 void FNVVolumetricLightingRHI::BeginAccumulation(FTextureRHIParamRef SceneDepthTextureRHI, const TArray<NvVl::ViewerDesc>& ViewerDescs, const NvVl::MediumDesc& MediumDesc, NvVl::DebugFlags DebugFlags)
 {
-	UpdateContext();
 	GDynamicRHI->GetPlatformShaderResource(SceneDepthTextureRHI, SceneDepthSRV);
 	const NvVl::ViewerDesc* ppViewerDesc[2] = { nullptr };
 	for(int32 i = 0; i < ViewerDescs.Num(); i++)

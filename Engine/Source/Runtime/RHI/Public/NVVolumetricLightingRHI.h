@@ -26,17 +26,9 @@ public:
 	/** Shutdown the RHI; */
 	void Shutdown();
 
-	void UpdateContext();
+	void UpdateContext(const NvVl::ContextDesc& InContextDesc);
 	void ReleaseContext();
-
-	void UpdateFrameBuffer(int32 InBufferSizeX, int32 InBufferSizeY, uint16 InNumSamples);
-	void UpdateDownsampleMode(uint32 InMode);
-	void UpdateMsaaMode(uint32 InMode);
-	void UpdateFilterMode(uint32 InMode);
 	void UpdateRendering(bool Enabled);
-	void UpdateStereoMode(bool IsStereo);
-	void UpdateMRSLevel(int32 InLevel);
-	void UpdateProjectionMode(bool IsReversedZ);
 
 	// SeparateTranslucency
 	void SetSeparateTranslucencyPostprocessDesc(const NvVl::PostprocessDesc& InPostprocessDesc);
@@ -54,7 +46,6 @@ public:
 private:
 
 	HMODULE ModuleHandle;
-	bool bNeedUpdateContext;
 	bool bEnableRendering;
 	bool bEnableSeparateTranslucency;
 

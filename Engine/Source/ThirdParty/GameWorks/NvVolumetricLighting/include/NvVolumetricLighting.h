@@ -290,13 +290,13 @@ enum class UpsampleQuality
 	COUNT
 };
 
-enum class MRSConfiguration
+enum class VRProjectConfiguration
 {
 	UNKNOWN = -1,
 	NONE,			//!< No MRS
-	Conservative,
-	Aggressive,
-	SuperAggressive,
+	CONSERVATIVE,
+	AGGRESSIVE,
+	SUPERAGGRESSIVE,
     COUNT
 };
 
@@ -336,9 +336,11 @@ struct ContextDesc
 	DownsampleMode eDownsampleMode;			//!< Target resolution of internal buffer
 	MultisampleMode eInternalSampleMode;	//!< Target sample rate of internal buffer
 	FilterMode eFilterMode;					//!< Type of filtering to do on the output
-	MRSConfiguration eMultiResConfig;		//!< MRS configuration
 	bool bStereoEnabled;					//!< Stereo rendering
+	bool bSinglePassStereo;					//!< Enable Single Pass Stereo
 	bool bReversedZ;						//!< Reversed z projection transform for view frustum (0 far, 1 near)
+	VRProjectConfiguration eLensMatchedConfig;		//!< LMS configuration
+	VRProjectConfiguration eMultiResConfig;			//!< MRS configuration
 };
 
 //! Viewer Camera/Framebuffer Description
@@ -351,10 +353,8 @@ struct ViewerDesc
 	uint32_t uViewportTopLeftY;	//!< Viewport Top left Y position
 	uint32_t uViewportWidth;	//!< Viewport Width (may differ from framebuffer)
 	uint32_t uViewportHeight;	//!< Viewport Height (may differ from framebuffer)
-	uint32_t uNonMultiResViewportTopLeftX;	//!< Non MultiRes Viewport Top left X position
-	uint32_t uNonMultiResViewportTopLeftY;	//!< Non MultiRes Viewport Top left Y position
-	uint32_t uNonMultiResViewportWidth;		//!< Non MultiRes Viewport Width (may differ from framebuffer)
-	uint32_t uNonMultiResViewportHeight;	//!< Non MultiRes Viewport Height (may differ from framebuffer)
+	uint32_t uNonVRProjectViewportWidth;		//!< Viewport Width (may differ from framebuffer) without vr projection scaling
+	uint32_t uNonVRProjectViewportHeight;		//!< Viewport Height (may differ from framebuffer) without vr projection scaling
 };
 
 //! Describes one component of the phase function
