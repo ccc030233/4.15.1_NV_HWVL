@@ -26,6 +26,12 @@ static TAutoConsoleVariable<int32> CVarNvVlEnable(
 	TEXT("  1: on\n"),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<float> CVarNvVlFarClip(
+	TEXT("r.NvVl.FarClip"),
+	1000.0f,
+	TEXT("Adjust the far clip distance\n"),
+	ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<float> CVarNvVlScatterScale(
 	TEXT("r.NvVl.ScatterScale"),
 	10.0f,
@@ -42,7 +48,7 @@ static TAutoConsoleVariable<int32> CVarNvVlFog(
 
 static TAutoConsoleVariable<int32> CVarNvVlSPS(
 	TEXT("r.NvVl.SPS"),
-	0,
+	1,
 	TEXT("Enable Single Pass Stereo\n")
 	TEXT("  0: off\n")
 	TEXT("  1: on\n"),
@@ -76,6 +82,8 @@ static FORCEINLINE FVector GetOpticalDepth(const FVector& InValue)
 	return FVector(GetOpticalDepth(InValue.X), GetOpticalDepth(InValue.Y), GetOpticalDepth(InValue.Z));
 }
 
+#define OPTICAL_DEPTH(x)	GetOpticalDepth(RemapTransmittance(FinalPostProcessSettings.TransmittanceRange, FVector(FinalPostProcessSettings.##x##Color * FinalPostProcessSettings.##x##Transmittance)))
+
 void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList)
 {
 	if (GNVVolumetricLightingRHI == nullptr)
@@ -105,11 +113,15 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		NvVlViewerDesc.mProj = *reinterpret_cast<const NvcMat44*>(&ProjMatrix.M[0][0]);
 		FMatrix ViewProjMatrix = View.ViewMatrices.GetViewProjectionMatrix();
 		NvVlViewerDesc.mViewProj = *reinterpret_cast<const NvcMat44*>(&ViewProjMatrix.M[0][0]);
+		NvVlViewerDesc.fZNear = GNearClippingPlane;
+		NvVlViewerDesc.fZFar = CVarNvVlFarClip.GetValueOnRenderThread();
 		NvVlViewerDesc.vEyePosition = *reinterpret_cast<const NvcVec3 *>(&View.ViewLocation);
 		NvVlViewerDesc.uViewportTopLeftX = View.ViewRect.Min.X;
 		NvVlViewerDesc.uViewportTopLeftY = View.ViewRect.Min.Y;
 		NvVlViewerDesc.uViewportWidth = View.ViewRect.Width();
 		NvVlViewerDesc.uViewportHeight = View.ViewRect.Height();
+		NvVlViewerDesc.uNonVRProjectViewportWidth = View.ViewRect.Width();
+		NvVlViewerDesc.uNonVRProjectViewportHeight = View.ViewRect.Height();
 		ViewerDescs.Add(NvVlViewerDesc);
 	}
 
@@ -118,53 +130,62 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	const FNVVolumetricLightingProperties& Properties = Scene->VolumetricLightingProperties;
 	const FFinalPostProcessSettings& FinalPostProcessSettings = View.FinalPostProcessSettings;
 
-	FVector Absorption = GetOpticalDepth(RemapTransmittance(FinalPostProcessSettings.TransmittanceRange, FVector(FinalPostProcessSettings.AbsorptionColor * FinalPostProcessSettings.AbsorptionTransmittance)));
+	FVector Absorption = OPTICAL_DEPTH(Absorption);
 	NvVlMediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
 	NvVlMediumDesc.uNumPhaseTerms = 0;
 	// Rayleigh
-	if (FinalPostProcessSettings.RayleighTransmittance < 1.0f)
+	if (FinalPostProcessSettings.bRayleigh)
 	{
 		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::RAYLEIGH;
-		FVector Density = GetOpticalDepth(RemapTransmittance(FinalPostProcessSettings.TransmittanceRange, FinalPostProcessSettings.RayleighTransmittance)) * FVector(5.96f, 13.24f, 33.1f);
+		FVector Density = CVarNvVlScatterScale.GetValueOnRenderThread() * FVector(0.58f, 1.36f, 3.31f) * 0.00001f;
 		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
 		NvVlMediumDesc.uNumPhaseTerms++;
 	}
 
+	// Simple Approach
 	// Mie
-	if(FinalPostProcessSettings.MiePhase != EMiePhase::MIE_NONE)
+	if (FinalPostProcessSettings.MieBlendFactor > 0.0f && (FinalPostProcessSettings.MieTransmittance < 1.0f || FinalPostProcessSettings.MieColor != FLinearColor::White))
 	{
-		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = FinalPostProcessSettings.MiePhase == EMiePhase::MIE_HAZY ? NvVl::PhaseFunctionType::MIE_HAZY : NvVl::PhaseFunctionType::MIE_MURKY;
-		FVector Density = GetOpticalDepth(RemapTransmittance(FinalPostProcessSettings.TransmittanceRange, FVector(FinalPostProcessSettings.MieColor * FinalPostProcessSettings.MieTransmittance)));
+		float BlendMieHazy = 1.0f - FMath::Abs(1.0f - 2 * FinalPostProcessSettings.MieBlendFactor);
+		float BlendMieMurky = FMath::Max(0.0f, 2.0f * FinalPostProcessSettings.MieBlendFactor - 1.0f);
+		
+		FVector MieDensity = OPTICAL_DEPTH(Mie);
+		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::MIE_HAZY;
+		FVector Density = BlendMieHazy * MieDensity;
+		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+		NvVlMediumDesc.uNumPhaseTerms++;
+
+		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::MIE_MURKY;
+		Density = BlendMieMurky * MieDensity;
 		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
 		NvVlMediumDesc.uNumPhaseTerms++;
 	}
-
+	else
+	// Three-Variable Approach
 	// HG
-	const FHGScatteringTerm* HGTerms[NvVl::MAX_PHASE_TERMS] = {
-		&FinalPostProcessSettings.HGScattering1Term,
-		&FinalPostProcessSettings.HGScattering2Term,
-		&FinalPostProcessSettings.HGScattering3Term,
-		&FinalPostProcessSettings.HGScattering4Term,
-	};
-
-	for(int32 TermIndex = 0; TermIndex < NvVl::MAX_PHASE_TERMS; TermIndex++)
 	{
-		const float Transmittance = HGTerms[TermIndex]->HGTransmittance;
-		const float Eccentricity = HGTerms[TermIndex]->HGEccentricity;
-		const FLinearColor& Color = HGTerms[TermIndex]->HGColor;
-		if (Transmittance < 1.0f || Color != FLinearColor::White)
+		if (FinalPostProcessSettings.HGTransmittance < 1.0f || FinalPostProcessSettings.HGColor != FLinearColor::White)
 		{
-			int32 PhaseTermsIndex = NvVlMediumDesc.uNumPhaseTerms + TermIndex;
-			NvVlMediumDesc.PhaseTerms[PhaseTermsIndex].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
-			FVector Density = GetOpticalDepth(RemapTransmittance(FinalPostProcessSettings.TransmittanceRange, FVector(Color * Transmittance)));
-			NvVlMediumDesc.PhaseTerms[PhaseTermsIndex].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
-			NvVlMediumDesc.PhaseTerms[PhaseTermsIndex].fEccentricity = Eccentricity;
+			FVector HGDensity = OPTICAL_DEPTH(HG);
+			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
+			FVector Density = (1.0f - FinalPostProcessSettings.HGEccentricityRatio) * HGDensity;
+			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].fEccentricity = FinalPostProcessSettings.HGEccentricity1;
 			NvVlMediumDesc.uNumPhaseTerms++;
 
-			if (NvVlMediumDesc.uNumPhaseTerms >= NvVl::MAX_PHASE_TERMS)
-			{
-				break;
-			}
+			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
+			Density = FinalPostProcessSettings.HGEccentricityRatio * HGDensity;
+			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].fEccentricity = FinalPostProcessSettings.HGEccentricity2;
+			NvVlMediumDesc.uNumPhaseTerms++;
+		}
+
+		if (FinalPostProcessSettings.IsotropicTransmittance < 1.0f || FinalPostProcessSettings.IsotropicColor != FLinearColor::White)
+		{
+			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::ISOTROPIC;
+			FVector Density = OPTICAL_DEPTH(Isotropic);
+			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
+			NvVlMediumDesc.uNumPhaseTerms++;
 		}
 	}
 
@@ -190,7 +211,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		GNVVolumetricLightingRHI->UpdateContext(NvVlContextDesc);
 
 		int32 DebugMode = FMath::Clamp((int32)CVarNvVlDebugMode.GetValueOnRenderThread(), 0, 2);
-		RHICmdList.BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDescs, NvVlMediumDesc, (Nv::VolumetricLighting::DebugFlags)DebugMode); //SceneContext.GetActualDepthTexture()?
+		RHICmdList.BeginAccumulation(SceneContext.GetSceneDepthTexture(), ViewerDescs, NvVlMediumDesc, (Nv::VolumetricLighting::DebugFlags)DebugMode);
 	}
 }
 
@@ -207,6 +228,107 @@ void GetLightMatrix(const FWholeSceneProjectedShadowInitializer& Initializer, fl
 	SubjectAndReceiverMatrix = WorldToFace * FShadowProjectionMatrix(MinSubjectZ, MaxSubjectZ, Initializer.WAxis);
 }
 
+void GetLightDesc(const FLightSceneInfo* LightSceneInfo, const FVector& PreShadowTranslation, const FMatrix& SubjectAndReceiverMatrix, float MinSubjectZ, float MaxSubjectZ)
+{
+	FMemory::Memzero(NvVlLightDesc);
+
+	FVector LightPosition = LightSceneInfo->Proxy->GetOrigin();
+	FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
+	LightDirection.Normalize();
+
+	FMatrix LightViewProj;
+	if (LightSceneInfo->Proxy->GetLightType() == LightType_Point)
+	{
+		LightViewProj = FTranslationMatrix(-LightPosition);
+	}
+	else
+	{
+		LightViewProj = FTranslationMatrix(PreShadowTranslation) * SubjectAndReceiverMatrix;
+	}
+
+    FMatrix LightViewProjInv = LightViewProj.InverseFast();
+    NvVlLightDesc.mLightToWorld = *reinterpret_cast<const NvcMat44*>(&LightViewProjInv.M[0][0]);
+
+    FVector Intensity = LightSceneInfo->Proxy->GetNvVlIntensity();
+    NvVlLightDesc.vIntensity = *reinterpret_cast<const NvcVec3 *>(&Intensity);
+
+	switch (LightSceneInfo->Proxy->GetLightType())
+	{
+		case LightType_Point:
+		{
+			NvVlLightDesc.eType = NvVl::LightType::OMNI;
+			NvVlLightDesc.Omni.fZNear = MinSubjectZ;
+			NvVlLightDesc.Omni.fZFar = MaxSubjectZ;
+			NvVlLightDesc.Omni.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
+			NvVlLightDesc.Omni.eAttenuationMode = (NvVl::AttenuationMode)LightSceneInfo->Proxy->GetNvVlAttenuationMode();
+			const FVector4& AttenuationFactors = LightSceneInfo->Proxy->GetNvVlAttenuationFactors();
+			if (NvVlLightDesc.Omni.eAttenuationMode == NvVl::AttenuationMode::INV_POLYNOMIAL)
+			{
+				float InvRadius = 1.0f / FMath::Max(0.00001f, AttenuationFactors.W);
+				NvVlLightDesc.Omni.fAttenuationFactors[0] = 1.0f;
+				NvVlLightDesc.Omni.fAttenuationFactors[1] = 2.0f * InvRadius;
+				NvVlLightDesc.Omni.fAttenuationFactors[2] = InvRadius * InvRadius;
+			}
+			else
+			{
+				NvVlLightDesc.Omni.fAttenuationFactors[0] = AttenuationFactors.X;
+				NvVlLightDesc.Omni.fAttenuationFactors[1] = AttenuationFactors.Y;
+				NvVlLightDesc.Omni.fAttenuationFactors[2] = AttenuationFactors.Z;
+			}
+			NvVlLightDesc.Omni.fAttenuationFactors[3] = 0.0f;
+		}
+		break;
+		case LightType_Spot:
+		{
+			NvVlLightDesc.eType = NvVl::LightType::SPOTLIGHT;
+			NvVlLightDesc.Spotlight.fZNear = MinSubjectZ;
+			NvVlLightDesc.Spotlight.fZFar = MaxSubjectZ;
+
+			NvVlLightDesc.Spotlight.eFalloffMode = (NvVl::SpotlightFalloffMode)LightSceneInfo->Proxy->GetNvVlFalloffMode();
+			const FVector2D& AngleAndPower = LightSceneInfo->Proxy->GetNvVlFalloffAngleAndPower();
+			NvVlLightDesc.Spotlight.fFalloff_CosTheta = FMath::Cos(AngleAndPower.X);
+			NvVlLightDesc.Spotlight.fFalloff_Power = AngleAndPower.Y;
+            
+			NvVlLightDesc.Spotlight.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
+			NvVlLightDesc.Spotlight.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
+			NvVlLightDesc.Spotlight.eAttenuationMode = (NvVl::AttenuationMode)LightSceneInfo->Proxy->GetNvVlAttenuationMode();
+			const FVector4& AttenuationFactors = LightSceneInfo->Proxy->GetNvVlAttenuationFactors();
+			if (NvVlLightDesc.Spotlight.eAttenuationMode == NvVl::AttenuationMode::INV_POLYNOMIAL)
+			{
+				float InvRadius = 1.0f / FMath::Max(0.00001f, AttenuationFactors.W);
+				NvVlLightDesc.Spotlight.fAttenuationFactors[0] = 1.0f;
+				NvVlLightDesc.Spotlight.fAttenuationFactors[1] = 2.0f * InvRadius;
+				NvVlLightDesc.Spotlight.fAttenuationFactors[2] = InvRadius * InvRadius;
+			}
+			else
+			{
+				NvVlLightDesc.Spotlight.fAttenuationFactors[0] = AttenuationFactors.X;
+				NvVlLightDesc.Spotlight.fAttenuationFactors[1] = AttenuationFactors.Y;
+				NvVlLightDesc.Spotlight.fAttenuationFactors[2] = AttenuationFactors.Z;
+			}
+			NvVlLightDesc.Spotlight.fAttenuationFactors[3] = 0.0f;
+		}
+		break;
+		default:
+		case LightType_Directional:
+		{
+			NvVlLightDesc.eType = NvVl::LightType::DIRECTIONAL;
+			NvVlLightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
+		}
+	}
+}
+
+void GetVolumeDesc(const FSceneRenderTargets& SceneContext, const FLightSceneInfo* LightSceneInfo)
+{
+	FMemory::Memzero(NvVlVolumeDesc);
+	{
+		NvVlVolumeDesc.fTargetRayResolution = LightSceneInfo->Proxy->GetNvVlTargetRayResolution();
+		NvVlVolumeDesc.uMaxMeshResolution = SceneContext.GetShadowDepthTextureResolution().X;
+		NvVlVolumeDesc.fDepthBias = LightSceneInfo->Proxy->GetNvVlDepthBias();
+		NvVlVolumeDesc.eTessQuality = (NvVl::TessellationQuality)LightSceneInfo->Proxy->GetNvVlTessQuality();
+	}
+}
+
 void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommandListImmediate& RHICmdList, const FLightSceneInfo* LightSceneInfo)
 {
 	if (GNVVolumetricLightingRHI == nullptr || !GNVVolumetricLightingRHI->IsRendering())
@@ -218,10 +340,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	SCOPED_GPU_STAT(RHICmdList, Stat_GPU_RenderVolume);
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
-
-	FVector LightPosition = LightSceneInfo->Proxy->GetOrigin();
-	FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
-	LightDirection.Normalize();
 
 	float MinSubjectZ = 0, MaxSubjectZ = 0;
 	FVector PreShadowTranslation;
@@ -244,16 +362,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		}
 	}
 
-	FMatrix LightViewProj;
-	if (LightSceneInfo->Proxy->GetLightType() == LightType_Point)
-	{
-		LightViewProj = FTranslationMatrix(-LightPosition);
-	}
-	else
-	{
-		LightViewProj = FTranslationMatrix(PreShadowTranslation) * SubjectAndReceiverMatrix;
-	}
-
 	FMemory::Memzero(NvVlShadowMapDesc);
 	FIntPoint Resolution = SceneContext.GetShadowDepthTextureResolution();
 
@@ -272,66 +380,9 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	NvVlShadowMapDesc.Elements[0].uHeight = NvVlShadowMapDesc.uHeight;
 	NvVlShadowMapDesc.Elements[0].mArrayIndex = 0;
 
-	FMemory::Memzero(NvVlLightDesc);
+	GetLightDesc(LightSceneInfo, PreShadowTranslation, SubjectAndReceiverMatrix, MinSubjectZ, MaxSubjectZ);
 
-	FVector Intensity = LightSceneInfo->Proxy->GetNvVlIntensity();
-	NvVlLightDesc.vIntensity = *reinterpret_cast<const NvcVec3 *>(&Intensity);
-
-	FMatrix LightViewProjInv = LightViewProj.InverseFast();
-	NvVlLightDesc.mLightToWorld = *reinterpret_cast<const NvcMat44*>(&LightViewProjInv.M[0][0]);
-
-	switch (LightSceneInfo->Proxy->GetLightType())
-	{
-		case LightType_Point:
-		{
-			NvVlLightDesc.eType = NvVl::LightType::OMNI;
-			NvVlLightDesc.Omni.fZNear = MinSubjectZ;
-			NvVlLightDesc.Omni.fZFar = MaxSubjectZ;
-			NvVlLightDesc.Omni.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
-			NvVlLightDesc.Omni.eAttenuationMode = (NvVl::AttenuationMode)LightSceneInfo->Proxy->GetNvVlAttenuationMode();
-			const FVector4& AttenuationFactors = LightSceneInfo->Proxy->GetNvVlAttenuationFactors();
-			NvVlLightDesc.Omni.fAttenuationFactors[0] = AttenuationFactors.X;
-			NvVlLightDesc.Omni.fAttenuationFactors[1] = AttenuationFactors.Y;
-			NvVlLightDesc.Omni.fAttenuationFactors[2] = AttenuationFactors.Z;
-			NvVlLightDesc.Omni.fAttenuationFactors[3] = AttenuationFactors.W;
-		}
-		break;
-		case LightType_Spot:
-		{
-			NvVlLightDesc.eType = NvVl::LightType::SPOTLIGHT;
-			NvVlLightDesc.Spotlight.fZNear = MinSubjectZ;
-			NvVlLightDesc.Spotlight.fZFar = MaxSubjectZ;
-
-			NvVlLightDesc.Spotlight.eFalloffMode = (NvVl::SpotlightFalloffMode)LightSceneInfo->Proxy->GetNvVlFalloffMode();
-			const FVector2D& AngleAndPower = LightSceneInfo->Proxy->GetNvVlFalloffAngleAndPower();
-			NvVlLightDesc.Spotlight.fFalloff_CosTheta = FMath::Cos(AngleAndPower.X);
-			NvVlLightDesc.Spotlight.fFalloff_Power = AngleAndPower.Y;
-            
-			NvVlLightDesc.Spotlight.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
-			NvVlLightDesc.Spotlight.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
-			NvVlLightDesc.Spotlight.eAttenuationMode = (NvVl::AttenuationMode)LightSceneInfo->Proxy->GetNvVlAttenuationMode();
-			const FVector4& AttenuationFactors = LightSceneInfo->Proxy->GetNvVlAttenuationFactors();
-			NvVlLightDesc.Spotlight.fAttenuationFactors[0] = AttenuationFactors.X;
-			NvVlLightDesc.Spotlight.fAttenuationFactors[1] = AttenuationFactors.Y;
-			NvVlLightDesc.Spotlight.fAttenuationFactors[2] = AttenuationFactors.Z;
-			NvVlLightDesc.Spotlight.fAttenuationFactors[3] = AttenuationFactors.W;
-		}
-		break;
-		default:
-		case LightType_Directional:
-		{
-			NvVlLightDesc.eType = NvVl::LightType::DIRECTIONAL;
-			NvVlLightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
-		}
-	}
-
-	FMemory::Memzero(NvVlVolumeDesc);
-	{
-		NvVlVolumeDesc.fTargetRayResolution = LightSceneInfo->Proxy->GetNvVlTargetRayResolution();
-		NvVlVolumeDesc.uMaxMeshResolution = NvVlShadowMapDesc.uWidth;
-		NvVlVolumeDesc.fDepthBias = LightSceneInfo->Proxy->GetNvVlDepthBias();
-		NvVlVolumeDesc.eTessQuality = (NvVl::TessellationQuality)LightSceneInfo->Proxy->GetNvVlTessQuality();
-	}
+	GetVolumeDesc(SceneContext, LightSceneInfo);
 
 	TArray<FTextureRHIParamRef> ShadowDepthTextures;
 	RHICmdList.RenderVolume(ShadowDepthTextures, NvVlShadowMapDesc, NvVlLightDesc, NvVlVolumeDesc);
@@ -348,20 +399,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	SCOPED_GPU_STAT(RHICmdList, Stat_GPU_RenderVolume);
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
-
-	FVector LightPosition = LightSceneInfo->Proxy->GetOrigin();
-	FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
-	LightDirection.Normalize();
-
-	FMatrix LightViewProj;
-	if (LightSceneInfo->Proxy->GetLightType() == LightType_Point)
-	{
-		LightViewProj = FTranslationMatrix(-LightPosition);
-	}
-	else
-	{
-		LightViewProj = FTranslationMatrix(ShadowInfo->PreShadowTranslation) * ShadowInfo->SubjectAndReceiverMatrix;
-	}
 
 	FMemory::Memzero(NvVlShadowMapDesc);
 	uint32 ShadowmapWidth = 0, ShadowmapHeight = 0;
@@ -432,61 +469,9 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		ShadowDepthTextures.Add(ShadowDepthTexture);
 	}
 
-	FMemory::Memzero(NvVlLightDesc);
+	GetLightDesc(LightSceneInfo, ShadowInfo->PreShadowTranslation, ShadowInfo->SubjectAndReceiverMatrix, ShadowInfo->MinSubjectZ, ShadowInfo->MaxSubjectZ);
 
-	FVector Intensity = LightSceneInfo->Proxy->GetNvVlIntensity();
-	NvVlLightDesc.vIntensity = *reinterpret_cast<const NvcVec3 *>(&Intensity);
-
-	FMatrix LightViewProjInv = LightViewProj.InverseFast();
-	NvVlLightDesc.mLightToWorld = *reinterpret_cast<const NvcMat44*>(&LightViewProjInv.M[0][0]);
-
-	switch (LightSceneInfo->Proxy->GetLightType())
-	{
-		case LightType_Point:
-		{
-			NvVlLightDesc.eType = NvVl::LightType::OMNI;
-			NvVlLightDesc.Omni.fZNear = ShadowInfo->MinSubjectZ;
-			NvVlLightDesc.Omni.fZFar = ShadowInfo->MaxSubjectZ;
-			NvVlLightDesc.Omni.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
-			NvVlLightDesc.Omni.eAttenuationMode = (NvVl::AttenuationMode)LightSceneInfo->Proxy->GetNvVlAttenuationMode();
-			const FVector4& AttenuationFactors = LightSceneInfo->Proxy->GetNvVlAttenuationFactors();
-			NvVlLightDesc.Omni.fAttenuationFactors[0] = AttenuationFactors.X;
-			NvVlLightDesc.Omni.fAttenuationFactors[1] = AttenuationFactors.Y;
-			NvVlLightDesc.Omni.fAttenuationFactors[2] = AttenuationFactors.Z;
-			NvVlLightDesc.Omni.fAttenuationFactors[3] = AttenuationFactors.W;
-		}
-		break;
-		case LightType_Spot:
-		default:
-		{
-			NvVlLightDesc.eType = NvVl::LightType::SPOTLIGHT;
-			NvVlLightDesc.Spotlight.fZNear = ShadowInfo->MinSubjectZ;
-			NvVlLightDesc.Spotlight.fZFar = ShadowInfo->MaxSubjectZ;
-
-			NvVlLightDesc.Spotlight.eFalloffMode = (NvVl::SpotlightFalloffMode)LightSceneInfo->Proxy->GetNvVlFalloffMode();
-			const FVector2D& AngleAndPower = LightSceneInfo->Proxy->GetNvVlFalloffAngleAndPower();
-			NvVlLightDesc.Spotlight.fFalloff_CosTheta = FMath::Cos(AngleAndPower.X);
-			NvVlLightDesc.Spotlight.fFalloff_Power = AngleAndPower.Y;
-            
-			NvVlLightDesc.Spotlight.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
-			NvVlLightDesc.Spotlight.vPosition = *reinterpret_cast<const NvcVec3 *>(&LightPosition);
-			NvVlLightDesc.Spotlight.eAttenuationMode = (NvVl::AttenuationMode)LightSceneInfo->Proxy->GetNvVlAttenuationMode();
-			const FVector4& AttenuationFactors = LightSceneInfo->Proxy->GetNvVlAttenuationFactors();
-			NvVlLightDesc.Spotlight.fAttenuationFactors[0] = AttenuationFactors.X;
-			NvVlLightDesc.Spotlight.fAttenuationFactors[1] = AttenuationFactors.Y;
-			NvVlLightDesc.Spotlight.fAttenuationFactors[2] = AttenuationFactors.Z;
-			NvVlLightDesc.Spotlight.fAttenuationFactors[3] = AttenuationFactors.W;
-		}
-		break;
-	}
-
-	FMemory::Memzero(NvVlVolumeDesc);
-	{
-		NvVlVolumeDesc.fTargetRayResolution = LightSceneInfo->Proxy->GetNvVlTargetRayResolution();
-		NvVlVolumeDesc.uMaxMeshResolution = SceneContext.GetShadowDepthTextureResolution().X;
-		NvVlVolumeDesc.fDepthBias = LightSceneInfo->Proxy->GetNvVlDepthBias();
-		NvVlVolumeDesc.eTessQuality = (NvVl::TessellationQuality)LightSceneInfo->Proxy->GetNvVlTessQuality();
-	}
+	GetVolumeDesc(SceneContext, LightSceneInfo);
 
 	RHICmdList.RenderVolume(ShadowDepthTextures, NvVlShadowMapDesc, NvVlLightDesc, NvVlVolumeDesc);
 }
@@ -503,13 +488,6 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 	SCOPED_GPU_STAT(RHICmdList, Stat_GPU_RenderVolume);
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
-
-	FVector LightDirection = LightSceneInfo->Proxy->GetDirection();
-	LightDirection.Normalize();
-
-	FMatrix LightViewProj;
-	
-	LightViewProj = FTranslationMatrix(ShadowInfos[0]->PreShadowTranslation) * ShadowInfos[0]->SubjectAndReceiverMatrix;
 
 	FMemory::Memzero(NvVlShadowMapDesc);
 	TArray<FTextureRHIParamRef> ShadowDepthTextures;
@@ -571,24 +549,9 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingRenderVolume(FRHICommand
 		}
 	}
 
-	FMemory::Memzero(NvVlLightDesc);
+	GetLightDesc(LightSceneInfo, ShadowInfos[0]->PreShadowTranslation, ShadowInfos[0]->SubjectAndReceiverMatrix, 0, 0);
 
-	FVector Intensity = LightSceneInfo->Proxy->GetNvVlIntensity();
-	NvVlLightDesc.vIntensity = *reinterpret_cast<const NvcVec3 *>(&Intensity);
-
-	FMatrix LightViewProjInv = LightViewProj.InverseFast();
-	NvVlLightDesc.mLightToWorld = *reinterpret_cast<const NvcMat44*>(&LightViewProjInv.M[0][0]);
-
-	NvVlLightDesc.eType = NvVl::LightType::DIRECTIONAL;
-	NvVlLightDesc.Directional.vDirection = *reinterpret_cast<const NvcVec3 *>(&LightDirection);
-
-	FMemory::Memzero(NvVlVolumeDesc);
-	{
-		NvVlVolumeDesc.fTargetRayResolution = LightSceneInfo->Proxy->GetNvVlTargetRayResolution();
-		NvVlVolumeDesc.uMaxMeshResolution = SceneContext.GetShadowDepthTextureResolution().X;
-		NvVlVolumeDesc.fDepthBias = LightSceneInfo->Proxy->GetNvVlDepthBias();
-		NvVlVolumeDesc.eTessQuality = (NvVl::TessellationQuality)LightSceneInfo->Proxy->GetNvVlTessQuality();
-	}
+	GetVolumeDesc(SceneContext, LightSceneInfo);
 
 	RHICmdList.RenderVolume(ShadowDepthTextures, NvVlShadowMapDesc, NvVlLightDesc, NvVlVolumeDesc);
 }

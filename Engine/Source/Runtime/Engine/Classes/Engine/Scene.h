@@ -82,17 +82,6 @@ struct FWeightedBlendables
 
 // NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 UENUM()
-namespace EMiePhase
-{
-	enum Type
-	{
-		MIE_NONE UMETA(DisplayName="None"),
-		MIE_HAZY UMETA(DisplayName="Mie Hazy"),
-		MIE_MURKY UMETA(DisplayName="Mie Murky"),
-	};
-}
-
-UENUM()
 namespace EFogMode
 {
 	enum Type
@@ -102,31 +91,6 @@ namespace EFogMode
 		FOG_FULL UMETA(DisplayName="Full"),
 	};
 }
-
-USTRUCT()
-struct FHGScatteringTerm
-{
-	GENERATED_USTRUCT_BODY()
-
-	/** Color distribution for Henyey-Greenstein scattering. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=HGScatteringPhase, meta=(HideAlphaChannel))
-	FLinearColor HGColor;
-
-	/** Transmittance for Henyey-Greenstein scattering. Recommand 0.99. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=HGScatteringPhase, meta=(ClampMin = "0.0", ClampMax = "1.0"))
-	float HGTransmittance;
-
-	/** Eccentricity for Henyey-Greenstein scattering. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=HGScatteringPhase, meta=(ClampMin = "-1.0", ClampMax = "1.0"))
-	float HGEccentricity;
-
-	FHGScatteringTerm()
-		: HGColor(FLinearColor::White)
-		, HGTransmittance(1.0f)
-		, HGEccentricity(0.0f)
-	{
-	}
-};
 // NVCHANGE_END: Nvidia Volumetric Lighting
 
 /** To be able to use struct PostProcessSettings. */
@@ -544,10 +508,10 @@ struct FPostProcessSettings
 	uint32 bOverride_TransmittanceRange:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_RayleighTransmittance:1;
+	uint32 bOverride_Rayleigh:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_MiePhase:1;
+	uint32 bOverride_MieBlendFactor:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_MieColor:1;
@@ -556,19 +520,31 @@ struct FPostProcessSettings
 	uint32 bOverride_MieTransmittance:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_HGScattering1Term:1;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_HGScattering2Term:1;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_HGScattering3Term:1;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_HGScattering4Term:1;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_AbsorptionColor:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_AbsorptionTransmittance:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_HGColor:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_HGTransmittance:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_HGEccentricity1:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_HGEccentricity2:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_HGEccentricityRatio:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_IsotropicColor:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint32 bOverride_IsotropicTransmittance:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_FogMode:1;
@@ -1136,38 +1112,55 @@ struct FPostProcessSettings
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_AbsorptionColor"))
 	FLinearColor AbsorptionColor;
 
-	/** Transmittance for absorpsive component. Recommand 0.95. */
+	/** Transmittance for absorpsive component. */
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_AbsorptionTransmittance"))
 	float AbsorptionTransmittance;
 
-	/** Transmittance for Rayleigh scattering. Recommand 0.99. Default optical depth is [5.96x10^-6, 1.324x10^-5, 3.31x10^-5] * 100 unit/m. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_RayleighTransmittance"))
-	float RayleighTransmittance;
+	/** Rayleigh term. Optical depth is [5.96x10^-6, 1.324x10^-5, 3.31x10^-5] * 100 unit/m. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_Rayleigh"))
+	uint32 bRayleigh : 1;
 
-	/** Mie phase type: HAZY and MURKY. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, AdvancedDisplay, meta=(editcondition = "bOverride_MiePhase"))
-	TEnumAsByte<EMiePhase::Type> MiePhase;
+	/** No Mie effect (0) to a Mie-Hazy effect (0.5) to a fully Mie-Murky effect (1). */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_MieBlendFactor"))
+	float MieBlendFactor;
 
-	/** Color distribution for Mie scattering. */
+	/** Color distribution for Mie term. */
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_MieColor"))
 	FLinearColor MieColor;
 
-	/** Transmittance for Mie scattering. Recommand 0.97. */
+	/** Transmittance for Mie term. */
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_MieTransmittance"))
 	float MieTransmittance;
 
-	/** Henyey-Greenstein scattering. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_HGScattering1Term", DisplayName = "#1 HG Scattering Term"))
-	FHGScatteringTerm	HGScattering1Term;
+	/** Color distribution for Henyey-Greenstein term. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_HGColor"))
+	FLinearColor HGColor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_HGScattering2Term", DisplayName = "#2 HG Scattering Term"))
-	FHGScatteringTerm	HGScattering2Term;
+	/** Transmittance for Henyey-Greenstein term. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_HGTransmittance"))
+	float HGTransmittance;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_HGScattering3Term", DisplayName = "#3 HG Scattering Term"))
-	FHGScatteringTerm	HGScattering3Term;
+	/** Eccentricity for the first Henyey-Greenstein term. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "-1.0", ClampMax = "1.0", editcondition = "bOverride_HGEccentricity1"))
+	float HGEccentricity1;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_HGScattering4Term", DisplayName = "#4 HG Scattering Term"))
-	FHGScatteringTerm	HGScattering4Term;
+	/** Eccentricity for the second Henyey-Greenstein term. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "-1.0", ClampMax = "1.0", editcondition = "bOverride_HGEccentricity2"))
+	float HGEccentricity2;
+
+	/** the ratio of the optical thickness that each term represents 
+	 * (where 0 would mean it's all applied to the first HG term, 1 meaning it's all applied to the second term, and 0.5 meaning it's split evenly between the two). 
+	 */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_HGEccentricityRatio"))
+	float HGEccentricityRatio;
+
+	/** Color distribution for Isotropic scattering. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_IsotropicColor"))
+	FLinearColor IsotropicColor;
+
+	/** Transmittance for Isotropic scattering. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_IsotropicTransmittance"))
+	float IsotropicTransmittance;
 
 	/** Fog mode based on the scattering. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_FogMode"))
@@ -1426,20 +1419,23 @@ struct FPostProcessSettings
 
 		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 		TransmittanceRange = 0.0001f;
-		RayleighTransmittance = 1.0f;
-		MiePhase = EMiePhase::MIE_NONE;
+		bRayleigh = false;
+		MieBlendFactor = 0.0f;
 		MieColor = FLinearColor::White;
 		MieTransmittance = 1.0f;
 		AbsorptionColor = FLinearColor::White;
 		AbsorptionTransmittance = 1.0f;
+		HGColor = FLinearColor::White;
+		HGTransmittance = 1.0f;
+		HGEccentricity1 = 0.0f;
+		HGEccentricity2 = 0.0f;
+		HGEccentricityRatio = 0.0f;
+		IsotropicColor = FLinearColor::White;
+		IsotropicTransmittance = 1.0f;
 		FogMode = EFogMode::FOG_NONE;
 		FogIntensity = 0.0f;
 		FogColor = FLinearColor::White;
 		MultiScatter = 0.000001f;
-		HGScattering1Term = FHGScatteringTerm();
-		HGScattering2Term = FHGScatteringTerm();
-		HGScattering3Term = FHGScatteringTerm();
-		HGScattering4Term = FHGScatteringTerm();
 		// NVCHANGE_END: Nvidia Volumetric Lighting
 	}
 

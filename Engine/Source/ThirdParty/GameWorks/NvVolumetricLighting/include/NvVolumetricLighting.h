@@ -348,6 +348,8 @@ struct ViewerDesc
 {
 	NvcMat44 mProj;		        //!< Camera projection transform
 	NvcMat44 mViewProj;	        //!< Camera view-proj transform
+	float fZNear;				//!< World-space distance to camera near view plane
+	float fZFar;				//!< World-space distance to camera far view plane
 	NvcVec3 vEyePosition;	    //!< Camera position in world-space
 	uint32_t uViewportTopLeftX;	//!< Viewport Top left X position
 	uint32_t uViewportTopLeftY;	//!< Viewport Top left Y position
