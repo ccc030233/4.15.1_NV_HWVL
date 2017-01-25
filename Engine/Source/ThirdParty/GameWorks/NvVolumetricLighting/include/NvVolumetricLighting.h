@@ -290,22 +290,30 @@ enum class UpsampleQuality
 	COUNT
 };
 
+enum class HMDDeviceType
+{
+	UNKNOWN = -1,
+	OCULUSRIFT,		//!< Oculus Rift
+	STEAMVR,		//!< HTC Vive
+	COUNT
+};
+
 enum class VRProjectConfiguration
 {
 	UNKNOWN = -1,
-	NONE,			//!< No MRS
+	NONE,
 	CONSERVATIVE,
+	BALANCED,
 	AGGRESSIVE,
-	SUPERAGGRESSIVE,
     COUNT
 };
 
 enum class StereoscopicPass
 {
 	UNKNOWN = -1,
-	FULL,
-	LEFTEYE,
-	RIGHTEYE,
+	FULL,			//!< Apply the full screen in mono or both Left and Right eyes screen in stereo
+	LEFTEYE,		//!< The screen from Left-eye was applied in stereo
+	RIGHTEYE,		//!< The screen from Right-eye was applied in stereo
 };
 
 //! Platform-specific parameters
@@ -339,6 +347,7 @@ struct ContextDesc
 	bool bStereoEnabled;					//!< Stereo rendering
 	bool bSinglePassStereo;					//!< Enable Single Pass Stereo
 	bool bReversedZ;						//!< Reversed z projection transform for view frustum (0 far, 1 near)
+	HMDDeviceType	eHMDDevice;						//!< HMD device type
 	VRProjectConfiguration eLensMatchedConfig;		//!< LMS configuration
 	VRProjectConfiguration eMultiResConfig;			//!< MRS configuration
 };

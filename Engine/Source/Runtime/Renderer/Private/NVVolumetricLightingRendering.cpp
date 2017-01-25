@@ -28,7 +28,7 @@ static TAutoConsoleVariable<int32> CVarNvVlEnable(
 
 static TAutoConsoleVariable<float> CVarNvVlFarClip(
 	TEXT("r.NvVl.FarClip"),
-	1000.0f,
+	1500.0f,
 	TEXT("Adjust the far clip distance\n"),
 	ECVF_RenderThreadSafe);
 
