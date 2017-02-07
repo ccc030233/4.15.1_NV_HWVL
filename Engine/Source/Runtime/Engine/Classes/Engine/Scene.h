@@ -508,7 +508,7 @@ struct FPostProcessSettings
 	uint32 bOverride_TransmittanceRange:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_Rayleigh:1;
+	uint32 bOverride_RayleighTransmittance:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_MieBlendFactor:1;
@@ -1116,9 +1116,9 @@ struct FPostProcessSettings
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_AbsorptionTransmittance"))
 	float AbsorptionTransmittance;
 
-	/** Rayleigh term. Optical depth is [5.96x10^-6, 1.324x10^-5, 3.31x10^-5] * 100 unit/m. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_Rayleigh"))
-	uint32 bRayleigh : 1;
+	/** Rayleigh term. Rayleigh color is locked as [5.8f, 13.6f, 33.1f]. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_RayleighTransmittance"))
+	float RayleighTransmittance;
 
 	/** No Mie effect (0) to a Mie-Hazy effect (0.5) to a fully Mie-Murky effect (1). */
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_MieBlendFactor"))
@@ -1419,7 +1419,7 @@ struct FPostProcessSettings
 
 		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 		TransmittanceRange = 0.0001f;
-		bRayleigh = false;
+		RayleighTransmittance = 1.0f;
 		MieBlendFactor = 0.0f;
 		MieColor = FLinearColor::White;
 		MieTransmittance = 1.0f;

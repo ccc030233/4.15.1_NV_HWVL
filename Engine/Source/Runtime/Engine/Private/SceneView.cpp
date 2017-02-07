@@ -1322,6 +1322,8 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_PP(ScreenSpaceReflectionMaxRoughness);
 		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
+		LERP_PP(TransmittanceRange);
+		LERP_PP(RayleighTransmittance);
 		LERP_PP(MieBlendFactor);
 		LERP_PP(MieColor);
 		LERP_PP(MieTransmittance);
@@ -1409,16 +1411,6 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		}
 		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
-		if (Src.bOverride_TransmittanceRange)
-		{
-			Dest.TransmittanceRange = Src.TransmittanceRange;
-		}
-
-		if (Src.bOverride_Rayleigh)
-		{
-			Dest.bRayleigh = Src.bRayleigh;
-		}
-
 		if (Src.bOverride_FogMode)
 		{
 			Dest.FogMode = Src.FogMode;

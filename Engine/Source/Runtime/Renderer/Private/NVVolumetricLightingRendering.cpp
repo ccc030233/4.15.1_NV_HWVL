@@ -26,15 +26,9 @@ static TAutoConsoleVariable<int32> CVarNvVlEnable(
 	TEXT("  1: on\n"),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<float> CVarNvVlFarClip(
-	TEXT("r.NvVl.FarClip"),
-	1500.0f,
-	TEXT("Adjust the far clip distance\n"),
-	ECVF_RenderThreadSafe);
-
 static TAutoConsoleVariable<float> CVarNvVlScatterScale(
 	TEXT("r.NvVl.ScatterScale"),
-	10.0f,
+	1.0f,
 	TEXT("Scattering Scale\n"),
 	ECVF_RenderThreadSafe);
 
@@ -64,12 +58,7 @@ static NvVl::PostprocessDesc NvVlPostprocessDesc;
 
 static FORCEINLINE float RemapTransmittance(const float Range, const float InValue)
 {
-	return InValue * (1.0f - (1.0f - Range)) + (1.0f - Range);
-}
-
-static FORCEINLINE FVector RemapTransmittance(const float Range, const FVector& InValue)
-{
-	return FVector(RemapTransmittance(Range, InValue.X), RemapTransmittance(Range, InValue.Y), RemapTransmittance(Range, InValue.Z));
+	return InValue * Range + (1.0f - Range);
 }
 
 static FORCEINLINE float GetOpticalDepth(const float InValue)
@@ -77,12 +66,8 @@ static FORCEINLINE float GetOpticalDepth(const float InValue)
 	return -FMath::Loge(InValue) * CVarNvVlScatterScale.GetValueOnRenderThread();
 }
 
-static FORCEINLINE FVector GetOpticalDepth(const FVector& InValue)
-{
-	return FVector(GetOpticalDepth(InValue.X), GetOpticalDepth(InValue.Y), GetOpticalDepth(InValue.Z));
-}
-
-#define OPTICAL_DEPTH(x)	GetOpticalDepth(RemapTransmittance(FinalPostProcessSettings.TransmittanceRange, FVector(FinalPostProcessSettings.##x##Color * FinalPostProcessSettings.##x##Transmittance)))
+#define OPTICAL_DEPTH(x)	(GetOpticalDepth(RemapTransmittance(FinalPostProcessSettings.TransmittanceRange, FinalPostProcessSettings.##x##Transmittance)))
+#define DENSITY(x)			(OPTICAL_DEPTH(x) * FinalPostProcessSettings.##x##Color)
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList)
 {
@@ -113,8 +98,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		NvVlViewerDesc.mProj = *reinterpret_cast<const NvcMat44*>(&ProjMatrix.M[0][0]);
 		FMatrix ViewProjMatrix = View.ViewMatrices.GetViewProjectionMatrix();
 		NvVlViewerDesc.mViewProj = *reinterpret_cast<const NvcMat44*>(&ViewProjMatrix.M[0][0]);
-		NvVlViewerDesc.fZNear = GNearClippingPlane;
-		NvVlViewerDesc.fZFar = CVarNvVlFarClip.GetValueOnRenderThread();
+		NvVlViewerDesc.fZNear = NvVlViewerDesc.fZFar = GNearClippingPlane; // UE4 z near equals with z far, far = 1000000 unit internally
 		NvVlViewerDesc.vEyePosition = *reinterpret_cast<const NvcVec3 *>(&View.ViewLocation);
 		NvVlViewerDesc.uViewportTopLeftX = View.ViewRect.Min.X;
 		NvVlViewerDesc.uViewportTopLeftY = View.ViewRect.Min.Y;
@@ -130,14 +114,14 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	const FNVVolumetricLightingProperties& Properties = Scene->VolumetricLightingProperties;
 	const FFinalPostProcessSettings& FinalPostProcessSettings = View.FinalPostProcessSettings;
 
-	FVector Absorption = OPTICAL_DEPTH(Absorption);
+	FVector Absorption = DENSITY(Absorption);
 	NvVlMediumDesc.vAbsorption = *reinterpret_cast<const NvcVec3 *>(&Absorption);
 	NvVlMediumDesc.uNumPhaseTerms = 0;
 	// Rayleigh
-	if (FinalPostProcessSettings.bRayleigh)
+	if (FinalPostProcessSettings.RayleighTransmittance < 1.0f)
 	{
 		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::RAYLEIGH;
-		FVector Density = CVarNvVlScatterScale.GetValueOnRenderThread() * FVector(0.58f, 1.36f, 3.31f) * 0.00001f;
+		FVector Density = OPTICAL_DEPTH(Rayleigh) * FVector(5.8f, 13.6f, 33.1f) * 0.01f;
 		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
 		NvVlMediumDesc.uNumPhaseTerms++;
 	}
@@ -149,7 +133,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		float BlendMieHazy = 1.0f - FMath::Abs(1.0f - 2 * FinalPostProcessSettings.MieBlendFactor);
 		float BlendMieMurky = FMath::Max(0.0f, 2.0f * FinalPostProcessSettings.MieBlendFactor - 1.0f);
 		
-		FVector MieDensity = OPTICAL_DEPTH(Mie);
+		FVector MieDensity = DENSITY(Mie);
 		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::MIE_HAZY;
 		FVector Density = BlendMieHazy * MieDensity;
 		NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
@@ -166,7 +150,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	{
 		if (FinalPostProcessSettings.HGTransmittance < 1.0f || FinalPostProcessSettings.HGColor != FLinearColor::White)
 		{
-			FVector HGDensity = OPTICAL_DEPTH(HG);
+			FVector HGDensity = DENSITY(HG);
 			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
 			FVector Density = (1.0f - FinalPostProcessSettings.HGEccentricityRatio) * HGDensity;
 			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
@@ -183,7 +167,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		if (FinalPostProcessSettings.IsotropicTransmittance < 1.0f || FinalPostProcessSettings.IsotropicColor != FLinearColor::White)
 		{
 			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::ISOTROPIC;
-			FVector Density = OPTICAL_DEPTH(Isotropic);
+			FVector Density = DENSITY(Isotropic);
 			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].vDensity = *reinterpret_cast<const NvcVec3 *>(&Density);
 			NvVlMediumDesc.uNumPhaseTerms++;
 		}
