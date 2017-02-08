@@ -55,22 +55,12 @@ void FNVVolumetricLightingRHI::Init()
 
 	NvVl::OpenLibrary();
 
-    ContextDesc.framebuffer.uWidth = 0;
-    ContextDesc.framebuffer.uHeight = 0;
-    ContextDesc.framebuffer.uSamples = 0;
-    ContextDesc.eDownsampleMode = NvVl::DownsampleMode::FULL;
-    ContextDesc.eInternalSampleMode = NvVl::MultisampleMode::SINGLE;
-    ContextDesc.eFilterMode = NvVl::FilterMode::NONE;
+	FMemory::Memzero(ContextDesc);
 	ContextDesc.bReversedZ = true;
-	ContextDesc.eMultiResConfig = NvVl::VRProjectConfiguration::NONE;
-	ContextDesc.eLensMatchedConfig = NvVl::VRProjectConfiguration::NONE;
-	ContextDesc.bStereoEnabled = false;
-	ContextDesc.bSinglePassStereo = false;
 
 	check(GDynamicRHI);
 	GDynamicRHI->GetPlatformDesc(PlatformDesc);
 	GDynamicRHI->GetPlatformRenderCtx(RenderCtx);
-
 }
 
 void FNVVolumetricLightingRHI::ReleaseContext()
