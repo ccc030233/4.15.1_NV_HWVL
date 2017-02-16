@@ -128,7 +128,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 
 	// Simple Approach
 	// Mie
-	if (FinalPostProcessSettings.MieBlendFactor > 0.0f && (FinalPostProcessSettings.MieTransmittance < 1.0f || FinalPostProcessSettings.MieColor != FLinearColor::White))
+	if (FinalPostProcessSettings.MieBlendFactor > 0.0f && (FinalPostProcessSettings.MieTransmittance < 1.0f && FinalPostProcessSettings.MieColor != FLinearColor::Black))
 	{
 		float BlendMieHazy = 1.0f - FMath::Abs(1.0f - 2 * FinalPostProcessSettings.MieBlendFactor);
 		float BlendMieMurky = FMath::Max(0.0f, 2.0f * FinalPostProcessSettings.MieBlendFactor - 1.0f);
@@ -148,7 +148,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 	// Three-Variable Approach
 	// HG
 	{
-		if (FinalPostProcessSettings.HGTransmittance < 1.0f || FinalPostProcessSettings.HGColor != FLinearColor::White)
+		if (FinalPostProcessSettings.HGTransmittance < 1.0f && FinalPostProcessSettings.HGColor != FLinearColor::Black)
 		{
 			FVector HGDensity = DENSITY(HG);
 			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::HENYEYGREENSTEIN;
@@ -164,7 +164,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 			NvVlMediumDesc.uNumPhaseTerms++;
 		}
 
-		if (FinalPostProcessSettings.IsotropicTransmittance < 1.0f || FinalPostProcessSettings.IsotropicColor != FLinearColor::White)
+		if (FinalPostProcessSettings.IsotropicTransmittance < 1.0f && FinalPostProcessSettings.IsotropicColor != FLinearColor::Black)
 		{
 			NvVlMediumDesc.PhaseTerms[NvVlMediumDesc.uNumPhaseTerms].ePhaseFunc = NvVl::PhaseFunctionType::ISOTROPIC;
 			FVector Density = DENSITY(Isotropic);
@@ -580,7 +580,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingApplyLighting(FRHIComman
 
 	FVector FogLight = FinalPostProcessSettings.FogColor * FinalPostProcessSettings.FogIntensity;
     NvVlPostprocessDesc.vFogLight = *reinterpret_cast<const NvcVec3 *>(&FogLight);
-    NvVlPostprocessDesc.fMultiscatter = FinalPostProcessSettings.MultiScatter;
+    NvVlPostprocessDesc.fMultiscatter = OPTICAL_DEPTH(Fog);
 	NvVlPostprocessDesc.eStereoPass = NvVl::StereoscopicPass::FULL;
 
 	if (!SceneContext.IsSeparateTranslucencyActive(Views[0]))

@@ -556,7 +556,7 @@ struct FPostProcessSettings
 	uint32 bOverride_FogColor:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_MultiScatter:1;
+	uint32 bOverride_FogTransmittance:1;
 	// NVCHANGE_END: Nvidia Volumetric Lighting
 	// -----------------------------------------------------------------------
 
@@ -1174,8 +1174,9 @@ struct FPostProcessSettings
 	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_FogColor"))
 	FLinearColor FogColor;
 
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_MultiScatter"))
-	float MultiScatter;
+	/** Transmittance for the fog. */
+	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_FogTransmittance"))
+	float FogTransmittance;
 	// NVCHANGE_END: Nvidia Volumetric Lighting
 
 	// Note: Adding properties before this line require also changes to the OverridePostProcessSettings() function and 
@@ -1421,21 +1422,21 @@ struct FPostProcessSettings
 		TransmittanceRange = 0.0001f;
 		RayleighTransmittance = 1.0f;
 		MieBlendFactor = 0.0f;
-		MieColor = FLinearColor::White;
+		MieColor = FLinearColor::Black;
 		MieTransmittance = 1.0f;
-		AbsorptionColor = FLinearColor::White;
+		AbsorptionColor = FLinearColor::Black;
 		AbsorptionTransmittance = 1.0f;
-		HGColor = FLinearColor::White;
+		HGColor = FLinearColor::Black;
 		HGTransmittance = 1.0f;
 		HGEccentricity1 = 0.0f;
 		HGEccentricity2 = 0.0f;
 		HGEccentricityRatio = 0.0f;
-		IsotropicColor = FLinearColor::White;
+		IsotropicColor = FLinearColor::Black;
 		IsotropicTransmittance = 1.0f;
 		FogMode = EFogMode::FOG_NONE;
 		FogIntensity = 0.0f;
-		FogColor = FLinearColor::White;
-		MultiScatter = 0.000001f;
+		FogColor = FLinearColor::Black;
+		FogTransmittance = 1.0f;
 		// NVCHANGE_END: Nvidia Volumetric Lighting
 	}
 
