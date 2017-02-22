@@ -638,4 +638,39 @@ void FRHICommandPopEvent<CmdListType>::Execute(FRHICommandListBase& CmdList)
 template struct FRHICommandPopEvent<ECmdList::EGfx>;
 template struct FRHICommandPopEvent<ECmdList::ECompute>;
 
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+void FRHICommandBeginAccumulation::Execute(FRHICommandListBase& CmdList)
+{
+	if (GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI->BeginAccumulation(SceneDepthTextureRHI, ViewerDescs, MediumDesc, DebugFlags);
+	}
+}
 
+void FRHICommandRenderVolume::Execute(FRHICommandListBase& CmdList)
+{
+	if (GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI->RenderVolume(ShadowMapTextures, ShadowMapDesc, LightDesc, VolumeDesc);
+	}
+}
+
+void FRHICommandEndAccumulation::Execute(FRHICommandListBase& CmdList)
+{
+	if (GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI->EndAccumulation();
+	}
+}
+
+void FRHICommandApplyLighting::Execute(FRHICommandListBase& CmdList)
+{
+	if (GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI->ApplyLighting(SceneColorSurfaceRHI, PostprocessDesc);
+	}
+}
+
+#endif
+// NVCHANGE_END: Nvidia Volumetric Lighting

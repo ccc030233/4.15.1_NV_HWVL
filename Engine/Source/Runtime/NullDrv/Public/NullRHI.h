@@ -841,7 +841,15 @@ public:
 	{ 
 		return nullptr; 
 	}
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void ClearStateCache() final override {};
+	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override {};
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) final override {};
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) final override {};
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) final override {};
+#endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 private:
 
 	/** Allocates a static buffer for RHI functions to return as a write destination. */

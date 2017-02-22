@@ -2004,7 +2004,11 @@ public:
 	float DynamicIndirectShadowsSelfShadowingIntensity;
 
 	FReadOnlyCVARCache ReadOnlyCVARCache;
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	struct FNVVolumetricLightingProperties*	VolumetricLightingProperties;
+#endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 #if WITH_EDITOR
 	/** Editor Pixel inspector */
 	FPixelInspectorData PixelInspectorData;
@@ -2132,7 +2136,11 @@ public:
 	}
 
 	virtual void UpdateSceneSettings(AWorldSettings* WorldSettings) override;
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings) override;
+#endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 	/**
 	 * Sets the FX system associated with the scene.
 	 */

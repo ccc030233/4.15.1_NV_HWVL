@@ -496,7 +496,16 @@ public:
 	virtual void RHIEnableDepthBoundsTest(bool bEnable, float MinDepth, float MaxDepth) final override;
 	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override;
 	virtual void RHIPopEvent() final override;
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+	// OpenGL TODO
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void ClearStateCache() final override {};
+	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override {};
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) final override {};
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) final override {};
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) final override {};
+#endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 	void Cleanup();
 
 	void PurgeFramebufferFromCaches(GLuint Framebuffer);

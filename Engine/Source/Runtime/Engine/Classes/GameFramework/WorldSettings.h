@@ -271,6 +271,97 @@ private:
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+UENUM()
+namespace EDownsampleMode
+{
+	enum Type
+	{
+		FULL,
+		HALF,
+		QUARTER,
+	};
+}
+
+UENUM()
+namespace EFilterMode
+{
+	enum Type
+	{
+		NONE,
+		TEMPORAL,
+	};
+}
+
+UENUM()
+namespace MultisampleMode
+{
+	enum Type
+	{
+		SINGLE,
+		MSAA_2x,
+		MSAA_4x,
+	};
+}
+
+UENUM()
+namespace EUpsampleQuality
+{
+	enum Type
+	{
+		POINT,
+		BILINEAR,
+		BILATERAL,
+	};
+}
+
+USTRUCT()
+struct ENGINE_API FNVVolumetricLightingProperties
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Target resolution of internal buffer. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ContextProperties)
+	TEnumAsByte<EDownsampleMode::Type> DownsampleMode;
+
+	/** Target sample rate of internal buffer. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ContextProperties)
+	TEnumAsByte<MultisampleMode::Type> MsaaMode;
+
+	/** Type of filtering to do on the output. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ContextProperties)
+	TEnumAsByte<EFilterMode::Type> FilterMode;
+
+	/** Quality of upsampling to use */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties)
+	TEnumAsByte<EUpsampleQuality::Type> UpsampleQuality;
+
+	/** Blend factor to use for compositing */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties)
+	float Blendfactor;
+	
+	/** Weight of pixel history smoothing (0.0 for off) for Temporal AA mode */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties, meta=(ClampMin = "0.0"))
+	float TemporalFactor;
+	
+	/** Threshold of frame movement to use temporal history for Temporal AA mode */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=PostprocessProperties)
+	float FilterThreshold;
+
+	FNVVolumetricLightingProperties()
+		: DownsampleMode(EDownsampleMode::FULL)
+		, MsaaMode(MultisampleMode::SINGLE)
+		, FilterMode(EFilterMode::NONE)
+		, UpsampleQuality(EUpsampleQuality::BILINEAR)
+		, Blendfactor(1.0f)
+		, TemporalFactor(0.95f)
+		, FilterThreshold(0.2f)
+	{
+
+	}
+};
+// NVCHANGE_END: Nvidia Volumetric Lighting
+
 /**
  * Actor containing all script accessible world properties.
  */
@@ -532,6 +623,12 @@ class ENGINE_API AWorldSettings : public AInfo, public IInterface_AssetUserData
 	 */
 	UPROPERTY()
 	TArray<struct FNetViewer> ReplicationViewers;
+
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+	/** Global properties for volumetric lighting. */
+	UPROPERTY(EditAnywhere, Category=NVVolumetricLighting)
+	struct FNVVolumetricLightingProperties VolumetricLightingProperties;
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 
 	// ************************************
 
