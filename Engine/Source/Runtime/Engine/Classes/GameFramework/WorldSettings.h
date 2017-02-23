@@ -626,7 +626,7 @@ class ENGINE_API AWorldSettings : public AInfo, public IInterface_AssetUserData
 
 	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	/** Global properties for volumetric lighting. */
-	UPROPERTY(EditAnywhere, Category=NVVolumetricLighting)
+	UPROPERTY(EditAnywhere, Category=NvidiaVolumetricLighting)
 	struct FNVVolumetricLightingProperties VolumetricLightingProperties;
 	// NVCHANGE_END: Nvidia Volumetric Lighting
 

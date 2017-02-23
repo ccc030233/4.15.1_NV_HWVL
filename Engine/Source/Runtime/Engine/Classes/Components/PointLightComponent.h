@@ -75,15 +75,15 @@ class ENGINE_API UPointLightComponent : public ULightComponent
 
 	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	/** Light falloff equation. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting)
 	TEnumAsByte<EAttenuationMode::Type> AttenuationMode;
 
 	/** Attenuation factors for polynomial mode. f(x) = 1-(A+Bx+Cx^2). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting)
 	FVector AttenuationFactors;
 
 	/** Attenuation radius for inverse-polynomial mode. f(x) = 1/(1+(2/r)x+(1/r^2)x^2). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting, meta=(ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting, meta=(ClampMin = "0.0"))
 	float AttenuationFactor;
 	// NVCHANGE_END: Nvidia Volumetric Lighting
 

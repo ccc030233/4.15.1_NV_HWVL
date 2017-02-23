@@ -54,15 +54,15 @@ class ENGINE_API USpotLightComponent : public UPointLightComponent
 
 	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	/** Equation to use for angular falloff */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting)
 	TEnumAsByte<EFalloffMode::Type> FalloffMode;
 
 	/** falloff angle (Degrees.) */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting, meta=(UIMin = "1.0", UIMax = "80.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting, meta=(UIMin = "1.0", UIMax = "80.0"))
 	float FalloffAngle;
 
 	/** falloff power */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting)
 	float FalloffPower;
 	// NVCHANGE_END: Nvidia Volumetric Lighting
 

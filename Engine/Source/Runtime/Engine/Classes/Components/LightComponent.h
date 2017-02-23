@@ -211,29 +211,29 @@ class ENGINE_API ULightComponent : public ULightComponentBase
 
 	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	/** If enable the nvidia volumetric lighting for this light */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting)
 	uint32 bEnableVolumetricLighting:1;
 
 	/** If true, use the custom volumetric lighting color/intensity, if false, use the light color/intensity. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting)
 	uint32 bUseVolumetricLightingColor:1;
 
-	UPROPERTY(BlueprintReadOnly, interp, Category=NVVolumetricLighting, meta=(UIMin = "0.0", UIMax = "20.0"))
+	UPROPERTY(BlueprintReadOnly, interp, Category=NvidiaVolumetricLighting, meta=(UIMin = "0.0", UIMax = "20.0"))
 	float VolumetricLightingIntensity;
 
-	UPROPERTY(BlueprintReadOnly, interp, Category=NVVolumetricLighting, meta=(HideAlphaChannel))
+	UPROPERTY(BlueprintReadOnly, interp, Category=NvidiaVolumetricLighting, meta=(HideAlphaChannel))
 	FColor VolumetricLightingColor;
 
 	/** Target minimum ray width in pixels */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting)
 	float TargetRayResolution;
 
 	/** Amount to bias ray geometry depth */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting)
 	float DepthBias;
 
 	/** Quality level of tessellation to use */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NVVolumetricLighting)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=NvidiaVolumetricLighting)
 	TEnumAsByte<ETessellationQuality::Type> TessQuality;
 	// NVCHANGE_END: Nvidia Volumetric Lighting
 public:
