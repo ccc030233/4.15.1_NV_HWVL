@@ -9,6 +9,8 @@
 
 #include "NVVolumetricLightingRHI.h"
 
+#define VRWORKS_SUPPORT	0
+
 static TAutoConsoleVariable<int32> CVarNvVlDebugMode(
 	TEXT("r.NvVl.DebugMode"),
 	0,
@@ -104,8 +106,13 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		NvVlViewerDesc.uViewportTopLeftY = View.ViewRect.Min.Y;
 		NvVlViewerDesc.uViewportWidth = View.ViewRect.Width();
 		NvVlViewerDesc.uViewportHeight = View.ViewRect.Height();
+#if VRWORKS_SUPPORT
+		NvVlViewerDesc.uNonVRProjectViewportWidth = View.NonVRProjectViewRect.Width();
+		NvVlViewerDesc.uNonVRProjectViewportHeight = View.NonVRProjectViewRect.Height();
+#else
 		NvVlViewerDesc.uNonVRProjectViewportWidth = View.ViewRect.Width();
 		NvVlViewerDesc.uNonVRProjectViewportHeight = View.ViewRect.Height();
+#endif
 		ViewerDescs.Add(NvVlViewerDesc);
 	}
 
@@ -187,11 +194,21 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		NvVlContextDesc.framebuffer.uHeight = BufferSize.Y;
 		NvVlContextDesc.framebuffer.uSamples = 1;
 		NvVlContextDesc.bStereoEnabled = Views.Num() > 1;
+#if VRWORKS_SUPPORT
+		NvVlContextDesc.bSinglePassStereo = (CVarNvVlSPS.GetValueOnRenderThread() != 0) && View.bAllowSinglePassStereo;
+#else
 		NvVlContextDesc.bSinglePassStereo = CVarNvVlSPS.GetValueOnRenderThread() != 0;
+#endif
 		NvVlContextDesc.bReversedZ = (int32)ERHIZBuffer::IsInverted != 0;
 		NvVlContextDesc.eDownsampleMode = (NvVl::DownsampleMode)Properties.DownsampleMode.GetValue();
 		NvVlContextDesc.eInternalSampleMode = (NvVl::MultisampleMode)Properties.MsaaMode.GetValue();
 		NvVlContextDesc.eFilterMode = (NvVl::FilterMode)Properties.FilterMode.GetValue();
+#if VRWORKS_SUPPORT
+		NvVlContextDesc.eHMDDevice = NvVl::HMDDeviceType::STEAMVR; //TODO - Device check on runtime?
+		NvVlContextDesc.eMultiResConfig = (NvVl::VRProjectConfiguration)FMath::Clamp(View.MultiResLevel, 0, (int32)NvVl::VRProjectConfiguration::COUNT-1);
+		NvVlContextDesc.eLensMatchedConfig = (NvVl::VRProjectConfiguration)FMath::Clamp(View.LensMatchedShadingLevel, 0, (int32)NvVl::VRProjectConfiguration::COUNT-1);
+#endif
+
 		GNVVolumetricLightingRHI->UpdateContext(NvVlContextDesc);
 
 		int32 DebugMode = FMath::Clamp((int32)CVarNvVlDebugMode.GetValueOnRenderThread(), 0, 2);
