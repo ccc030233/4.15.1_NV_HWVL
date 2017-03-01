@@ -1105,77 +1105,77 @@ struct FPostProcessSettings
 
 	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	/** Range of the transmittance, the transmittance will be remapped to [1.0 - Range, 1). */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_TransmittanceRange"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_TransmittanceRange"))
 	float TransmittanceRange;
 
 	/** Absorpsive component of the medium. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_AbsorptionColor"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_AbsorptionColor"))
 	FLinearColor AbsorptionColor;
 
 	/** Transmittance for absorpsive component. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_AbsorptionTransmittance"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_AbsorptionTransmittance"))
 	float AbsorptionTransmittance;
 
 	/** Rayleigh term. Rayleigh color is locked as [5.8f, 13.6f, 33.1f]. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_RayleighTransmittance"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_RayleighTransmittance"))
 	float RayleighTransmittance;
 
 	/** No Mie effect (0) to a Mie-Hazy effect (0.5) to a fully Mie-Murky effect (1). */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_MieBlendFactor"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_MieBlendFactor"))
 	float MieBlendFactor;
 
 	/** Color distribution for Mie term. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_MieColor"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_MieColor"))
 	FLinearColor MieColor;
 
 	/** Transmittance for Mie term. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_MieTransmittance"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_MieTransmittance"))
 	float MieTransmittance;
 
 	/** Color distribution for Henyey-Greenstein term. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_HGColor"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_HGColor"))
 	FLinearColor HGColor;
 
 	/** Transmittance for Henyey-Greenstein term. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_HGTransmittance"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_HGTransmittance"))
 	float HGTransmittance;
 
 	/** Eccentricity for the first Henyey-Greenstein term. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "-1.0", ClampMax = "1.0", editcondition = "bOverride_HGEccentricity1"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "-1.0", ClampMax = "1.0", editcondition = "bOverride_HGEccentricity1"))
 	float HGEccentricity1;
 
 	/** Eccentricity for the second Henyey-Greenstein term. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "-1.0", ClampMax = "1.0", editcondition = "bOverride_HGEccentricity2"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "-1.0", ClampMax = "1.0", editcondition = "bOverride_HGEccentricity2"))
 	float HGEccentricity2;
 
 	/** the ratio of the optical thickness that each term represents 
 	 * (where 0 would mean it's all applied to the first HG term, 1 meaning it's all applied to the second term, and 0.5 meaning it's split evenly between the two). 
 	 */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_HGEccentricityRatio"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_HGEccentricityRatio"))
 	float HGEccentricityRatio;
 
 	/** Color distribution for Isotropic scattering. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_IsotropicColor"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_IsotropicColor"))
 	FLinearColor IsotropicColor;
 
 	/** Transmittance for Isotropic scattering. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_IsotropicTransmittance"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_IsotropicTransmittance"))
 	float IsotropicTransmittance;
 
 	/** Fog mode based on the scattering. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(editcondition = "bOverride_FogMode"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(editcondition = "bOverride_FogMode"))
 	TEnumAsByte<EFogMode::Type> FogMode;
 
 	/** Brightness multiplier of the fog. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(UIMin = "0.0", UIMax = "100000.0", editcondition = "bOverride_FogIntensity"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(UIMin = "0.0", UIMax = "100000.0", editcondition = "bOverride_FogIntensity"))
 	float FogIntensity;
 
 	/** Filter color of the fog. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_FogColor"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(HideAlphaChannel, editcondition = "bOverride_FogColor"))
 	FLinearColor FogColor;
 
 	/** Transmittance for the fog. */
-	UPROPERTY(interp, BlueprintReadWrite, Category=NVVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_FogTransmittance"))
+	UPROPERTY(interp, BlueprintReadWrite, Category=NvidiaVolumetricLighting, meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_FogTransmittance"))
 	float FogTransmittance;
 	// NVCHANGE_END: Nvidia Volumetric Lighting
 
