@@ -15,8 +15,8 @@ How to Use
 ----------
 
 * NVIDIA Volumetric Lighting only supports DirectX 11 by now.
-* Please see the *MediumDesign.pdf* and *UE4_VL_Overview.pdf*.
-* There is a *NvVlSamples* project. You could find out how the authoring works.
+* Please see the **MediumDesign.pdf** and **UE4_VL_Overview.pdf**.
+* There is a **NvVlSamples** project. You could find out how the authoring works.
 
 
 Unreal Engine
