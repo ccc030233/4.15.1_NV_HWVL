@@ -582,10 +582,11 @@ void FD3D11DynamicRHI::ClearStateCache()
 	NumUAVs = 0;
 }
 
-void FD3D11DynamicRHI::GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc)
+bool FD3D11DynamicRHI::GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc)
 {
 	PlatformDesc.platform = NvVl::PlatformName::D3D11;
     PlatformDesc.d3d11.pDevice = Direct3DDevice;
+	return true;
 }
 
 void FD3D11DynamicRHI::GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx)

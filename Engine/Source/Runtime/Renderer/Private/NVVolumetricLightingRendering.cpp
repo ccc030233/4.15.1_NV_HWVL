@@ -101,7 +101,7 @@ void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICo
 		FMatrix ViewProjMatrix = View.ViewMatrices.GetViewProjectionMatrix();
 		NvVlViewerDesc.mViewProj = *reinterpret_cast<const NvcMat44*>(&ViewProjMatrix.M[0][0]);
 		NvVlViewerDesc.fZNear = NvVlViewerDesc.fZFar = GNearClippingPlane; // UE4 z near equals with z far, far = 1000000 unit internally
-		NvVlViewerDesc.vEyePosition = *reinterpret_cast<const NvcVec3 *>(&View.ViewLocation);
+		NvVlViewerDesc.vEyePosition = *reinterpret_cast<const NvcVec3 *>(&View.ViewMatrices.GetViewOrigin());
 		NvVlViewerDesc.uViewportTopLeftX = View.ViewRect.Min.X;
 		NvVlViewerDesc.uViewportTopLeftY = View.ViewRect.Min.Y;
 		NvVlViewerDesc.uViewportWidth = View.ViewRect.Width();

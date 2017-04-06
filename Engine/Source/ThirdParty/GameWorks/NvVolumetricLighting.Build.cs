@@ -8,12 +8,11 @@ public class NvVolumetricLighting : ModuleRules
     public NvVolumetricLighting(TargetInfo Target)
 	{
 		Type = ModuleType.External;
-
-        Definitions.Add("WITH_NVVOLUMETRICLIGHTING=1");
-		
+	
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
-			Definitions.Add("NV_PLATFORM_D3D11=1");
+            Definitions.Add("WITH_NVVOLUMETRICLIGHTING=1");
+            Definitions.Add("NV_PLATFORM_D3D11=1");
 
             if (Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT)
             {

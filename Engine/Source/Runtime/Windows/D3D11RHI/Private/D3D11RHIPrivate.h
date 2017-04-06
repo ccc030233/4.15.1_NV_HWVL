@@ -520,7 +520,7 @@ public:
 	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 #if WITH_NVVOLUMETRICLIGHTING
 	virtual void ClearStateCache() final override;
-	virtual void GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override;
+	virtual bool GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override;
 	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) final override;
 	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) final override;
 	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) final override;

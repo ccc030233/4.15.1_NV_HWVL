@@ -45,6 +45,7 @@ public:
 	void ApplyLighting(FTextureRHIParamRef SceneColorSurfaceRHI, const NvVl::PostprocessDesc& PostprocessDesc);
 private:
 
+	bool bSupportedRHI;
 	bool bEnableRendering;
 	bool bEnableSeparateTranslucency;
 
