@@ -36,6 +36,7 @@ FNVVolumetricLightingRHI::FNVVolumetricLightingRHI()
 	, Context(NULL)
 	, RenderCtx(NULL)
 	, SceneDepthSRV(NULL)
+	, bSupportedRHI(false)
 	, bEnableRendering(false)
 	, bEnableSeparateTranslucency(false)
 {
@@ -57,9 +58,9 @@ void FNVVolumetricLightingRHI::Init()
 
 	FMemory::Memzero(ContextDesc);
 	ContextDesc.bReversedZ = true;
-
+	
 	check(GDynamicRHI);
-	GDynamicRHI->GetPlatformDesc(PlatformDesc);
+	bSupportedRHI = GDynamicRHI->GetPlatformDesc(PlatformDesc);
 	GDynamicRHI->GetPlatformRenderCtx(RenderCtx);
 }
 
@@ -169,6 +170,6 @@ NvVl::PostprocessDesc* FNVVolumetricLightingRHI::GetSeparateTranslucencyPostproc
 void FNVVolumetricLightingRHI::UpdateRendering(bool Enabled)
 {
 	bEnableSeparateTranslucency = false;
-	bEnableRendering = Enabled;
+	bEnableRendering = bSupportedRHI && Enabled;
 }
 #endif

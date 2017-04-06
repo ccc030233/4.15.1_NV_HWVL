@@ -46,6 +46,7 @@ public:
 private:
 
 	HMODULE ModuleHandle;
+	bool bSupportedRHI;
 	bool bEnableRendering;
 	bool bEnableSeparateTranslucency;
 
