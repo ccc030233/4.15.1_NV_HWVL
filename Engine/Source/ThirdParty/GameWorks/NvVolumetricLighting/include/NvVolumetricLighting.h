@@ -322,7 +322,7 @@ struct PlatformDesc
 	PlatformName platform;	//!< Platform identifier
 	union
 	{
-	#if defined(NV_PLATFORM_D3D11) || defined(GFSDK_PLATFORM_DURANGO)
+	#if defined(NV_PLATFORM_D3D11)
 		struct
 		{
 			ID3D11Device *pDevice;	//!< D3D11 Device to use for context
