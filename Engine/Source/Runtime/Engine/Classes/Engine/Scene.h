@@ -510,9 +510,6 @@ struct FPostProcessSettings
 
 	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint32 bOverride_TransmittanceRange:1;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint32 bOverride_RayleighTransmittance:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
@@ -1110,10 +1107,6 @@ struct FPostProcessSettings
 	float ScreenPercentage;
 
 	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
-	/** Range of the transmittance, the transmittance will be remapped to [1.0 - Range, 1). */
-	UPROPERTY(interp, BlueprintReadWrite, Category="Rendering Features|Nvidia Volumetric Lighting", meta=(ClampMin = "0.0", ClampMax = "1.0", editcondition = "bOverride_TransmittanceRange"))
-	float TransmittanceRange;
-
 	/** Absorpsive component of the medium. */
 	UPROPERTY(interp, BlueprintReadWrite, Category="Rendering Features|Nvidia Volumetric Lighting", meta=(HideAlphaChannel, editcondition = "bOverride_AbsorptionColor"))
 	FLinearColor AbsorptionColor;
@@ -1425,7 +1418,6 @@ struct FPostProcessSettings
 		bMobileHQGaussian = false;
 
 		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
-		TransmittanceRange = 0.0001f;
 		RayleighTransmittance = 1.0f;
 		MieBlendFactor = 0.0f;
 		MieColor = FLinearColor::Black;
