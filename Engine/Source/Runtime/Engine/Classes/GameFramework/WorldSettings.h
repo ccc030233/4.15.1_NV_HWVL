@@ -312,6 +312,10 @@ struct FNVVolumetricLightingProperties
 {
 	GENERATED_USTRUCT_BODY()
 
+	/** Range of the transmittance, the transmittance will be remapped to [1.0 - Range, 1). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MediumProperties, meta=(ClampMin = "0.0", ClampMax = "1.0"))
+	float TransmittanceRange;
+
 	/** Target resolution of internal buffer. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ContextProperties)
 	TEnumAsByte<EDownsampleMode::Type> DownsampleMode;
@@ -348,6 +352,7 @@ struct FNVVolumetricLightingProperties
 		, Blendfactor(1.0f)
 		, TemporalFactor(0.95f)
 		, FilterThreshold(0.2f)
+		, TransmittanceRange(0.0001f)
 	{
 
 	}

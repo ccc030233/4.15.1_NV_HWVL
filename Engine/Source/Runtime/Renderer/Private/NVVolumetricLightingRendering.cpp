@@ -68,7 +68,7 @@ static FORCEINLINE float GetOpticalDepth(const float InValue)
 	return -FMath::Loge(InValue) * CVarNvVlScatterScale.GetValueOnRenderThread();
 }
 
-#define OPTICAL_DEPTH(x)	(GetOpticalDepth(RemapTransmittance(FinalPostProcessSettings.TransmittanceRange, FinalPostProcessSettings.##x##Transmittance)))
+#define OPTICAL_DEPTH(x)	(GetOpticalDepth(RemapTransmittance(Properties.TransmittanceRange, FinalPostProcessSettings.##x##Transmittance)))
 #define DENSITY(x)			(OPTICAL_DEPTH(x) * FinalPostProcessSettings.##x##Color)
 
 void FDeferredShadingSceneRenderer::NVVolumetricLightingBeginAccumulation(FRHICommandListImmediate& RHICmdList)
