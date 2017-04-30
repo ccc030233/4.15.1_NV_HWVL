@@ -300,7 +300,11 @@ public:
 	}
 
 	virtual void UpdateSceneSettings(AWorldSettings* WorldSettings) {}
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings) {}
+#endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 	/**
 	 * Sets the FX system associated with the scene.
 	 */

@@ -16,7 +16,11 @@
 #ifndef PLATFORM_ALLOW_NULL_RHI
 	#define PLATFORM_ALLOW_NULL_RHI		0
 #endif
-
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+#include "NVVolumetricLightingRHI.h"
+#endif
+// NVCHANGE_END: Nvidia Volumetric Lighting
 // Globals.
 FDynamicRHI* GDynamicRHI = NULL;
 
@@ -202,10 +206,36 @@ void RHIPostInit()
 {
 	check(GDynamicRHI);
 	GDynamicRHI->PostInit();
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	if(!GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI = CreateNVVolumetricLightingRHI();
+		if (GNVVolumetricLightingRHI)
+		{
+			if (!GNVVolumetricLightingRHI->Init())
+			{
+				delete GNVVolumetricLightingRHI;
+				GNVVolumetricLightingRHI = NULL;
+			}
+		}
+	}
+#endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 }
 
 void RHIExit()
 {
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	if (GNVVolumetricLightingRHI)
+	{
+		GNVVolumetricLightingRHI->Shutdown();
+		delete GNVVolumetricLightingRHI;
+		GNVVolumetricLightingRHI = NULL;
+	}
+#endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 	if ( !GUsingNullRHI && GDynamicRHI != NULL )
 	{
 		// Destruct the dynamic RHI.

@@ -400,7 +400,20 @@ void FScene::UpdateSceneSettings(AWorldSettings* WorldSettings)
 		Scene->DynamicIndirectShadowsSelfShadowingIntensity = DynamicIndirectShadowsSelfShadowingIntensity;
 	});
 }
-
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+void FScene::UpdateVolumetricLightingSettings(AWorldSettings* WorldSettings)
+{
+	ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
+		UpdateVolumetricLightingSettings,
+		FScene*, Scene, this,
+		FNVVolumetricLightingProperties, VolumetricLightingProperties, WorldSettings->VolumetricLightingProperties,
+	{
+		*Scene->VolumetricLightingProperties = VolumetricLightingProperties;
+	});
+}
+#endif
+// NVCHANGE_END: Nvidia Volumetric Lighting
 /**
  * Sets the FX system associated with the scene.
  */
@@ -622,6 +635,12 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 	}
 
 	World->UpdateParameterCollectionInstances(false);
+
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	VolumetricLightingProperties = new FNVVolumetricLightingProperties(InWorld->GetWorldSettings()->VolumetricLightingProperties);
+#endif
+// NVCHANGE_END: Nvidia Volumetric Lighting
 }
 
 FScene::~FScene()
@@ -636,6 +655,13 @@ FScene::~FScene()
 		}
 	}
 #endif
+
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	delete VolumetricLightingProperties;
+	VolumetricLightingProperties = nullptr;
+#endif
+// NVCHANGE_END: Nvidia Volumetric Lighting
 
 	ReflectionSceneData.CubemapArray.ReleaseResource();
 	IndirectLightingCache.ReleaseResource();

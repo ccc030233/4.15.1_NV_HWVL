@@ -517,7 +517,15 @@ public:
 	virtual void RHIPopEvent() final override;
 
 	virtual bool RHICopySubTextureRegion(FTexture2DRHIParamRef SourceTexture, FTexture2DRHIParamRef DestinationTexture, FBox2D SourceBox, FBox2D DestinationBox) final override;
-
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	virtual void ClearStateCache() final override;
+	virtual bool GetPlatformDesc(NvVl::PlatformDesc& PlatformDesc) final override;
+	virtual void GetPlatformRenderCtx(NvVl::PlatformRenderCtx& PlatformRenderCtx) final override;
+	virtual void GetPlatformShaderResource(FTextureRHIParamRef TextureRHI, NvVl::PlatformShaderResource& PlatformShaderResource) final override;
+	virtual void GetPlatformRenderTarget(FTextureRHIParamRef TextureRHI, NvVl::PlatformRenderTarget& PlatformRenderTarget) final override;
+#endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 	// Accessors.
 	ID3D11Device* GetDevice() const
 	{

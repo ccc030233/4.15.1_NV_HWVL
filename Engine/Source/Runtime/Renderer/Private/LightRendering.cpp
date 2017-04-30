@@ -499,6 +499,24 @@ void FDeferredShadingSceneRenderer::RenderLights(FRHICommandListImmediate& RHICm
 
 			{
 				SCOPED_DRAW_EVENT(RHICmdList, StandardDeferredLighting);
+				// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+				{
+					for (int32 LightIndex = StandardDeferredStart; LightIndex < AttenuationLightStart; LightIndex++)
+					{
+						const FSortedLightSceneInfo& SortedLightInfo = SortedLights[LightIndex];
+						const FLightSceneInfoCompact& LightSceneInfoCompact = SortedLightInfo.SceneInfo;
+						const FLightSceneInfo* const LightSceneInfo = LightSceneInfoCompact.LightSceneInfo;
+
+						if(!LightSceneInfo->Proxy->HasStaticShadowing()
+						&& LightSceneInfo->Proxy->IsNVVolumetricLighting())
+						{
+							NVVolumetricLightingRenderVolume(RHICmdList, LightSceneInfo);
+						}
+					}
+				}
+#endif
+				// NVCHANGE_END: Nvidia Volumetric Lighting
 
 				// make sure we don't clear the depth
 				SceneContext.BeginRenderingSceneColor(RHICmdList, ESimpleRenderTargetMode::EExistingColorAndDepth, FExclusiveDepthStencil::DepthRead_StencilWrite, true);

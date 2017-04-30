@@ -11,6 +11,12 @@
 #include "RHIDefinitions.h"
 #include "Containers/StaticArray.h"
 
+// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+#include "NvVolumetricLighting.h"
+#endif
+// NVCHANGE_END: Nvidia Volumetric Lighting
+
 #define INVALID_FENCE_ID (0xffffffffffffffffull)
 
 class FRenderTarget;

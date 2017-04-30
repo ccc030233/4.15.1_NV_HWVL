@@ -213,6 +213,14 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	, StatId(InLightComponent->GetStatID(true))
 	, FarShadowDistance(0)
 	, FarShadowCascadeCount(0)
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	, bEnableNVVL(InLightComponent->bEnableVolumetricLighting)
+	, TessQuality(InLightComponent->TessQuality)
+	, TargetRayResolution(InLightComponent->TargetRayResolution)
+	, DepthBias(InLightComponent->DepthBias)
+#endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 {
 	const FLightComponentMapBuildData* MapBuildData = InLightComponent->GetLightComponentMapBuildData();
 	
@@ -262,6 +270,13 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 	LightFunctionScale = LightComponent->LightFunctionScale;
 	LightFunctionFadeDistance = LightComponent->LightFunctionFadeDistance;
 	LightFunctionDisabledBrightness = LightComponent->DisabledBrightness;
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+#if WITH_NVVOLUMETRICLIGHTING
+	Intensity = LightComponent->bUseVolumetricLightingColor ? FLinearColor(InLightComponent->VolumetricLightingColor) * InLightComponent->VolumetricLightingIntensity : Color;
+	InLightComponent->GetNvVlAttenuation(AttenuationMode, AttenuationFactors);
+	InLightComponent->GetNvVlFalloff(FalloffMode, FalloffAngleAndPower);
+#endif
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 }
 
 bool FLightSceneProxy::ShouldCreatePerObjectShadowsForDynamicObjects() const
@@ -342,6 +357,17 @@ ULightComponent::ULightComponent(const FObjectInitializer& ObjectInitializer)
 
 	RayStartOffsetDepthScale = .003f;
 	bAddedToSceneVisible = false;
+
+	// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+	bEnableVolumetricLighting = false;
+	TessQuality = ETessellationQuality::HIGH;
+	DepthBias = 0.0f;
+	TargetRayResolution = 12.0f;
+
+	bUseVolumetricLightingColor = false;
+	VolumetricLightingIntensity = 10.0f;
+	VolumetricLightingColor = FColor::White;
+	// NVCHANGE_END: Nvidia Volumetric Lighting
 }
 
 
@@ -519,6 +545,22 @@ bool ULightComponent::CanEditChange(const UProperty* InProperty) const
 		{
 			return bUseTemperature;
 		}
+
+		// NVCHANGE_BEGIN: Nvidia Volumetric Lighting
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, VolumetricLightingIntensity)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, VolumetricLightingColor))
+		{
+			return bEnableVolumetricLighting && bUseVolumetricLightingColor;
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, bUseVolumetricLightingColor)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, TargetRayResolution)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, DepthBias)
+			|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, TessQuality))
+		{
+			return bEnableVolumetricLighting;
+		}
+		// NVCHANGE_END: Nvidia Volumetric Lighting
 	}
 
 	return Super::CanEditChange(InProperty);
